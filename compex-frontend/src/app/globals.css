@@ -1,0 +1,135 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Compex Solution Brand — Stitch design tokens */
+  --color-primary: #0B1F3A;
+  --color-secondary: #1769E0;
+  --color-on-primary: #ffffff;
+  --color-on-secondary: #ffffff;
+  --color-primary-container: #0b1f3a;
+  --color-secondary-container: #246fe7;
+  --color-on-primary-container: #7587a7;
+  --color-on-secondary-container: #fefcff;
+  --color-surface: #f9f9ff;
+  --color-surface-bright: #f9f9ff;
+  --color-surface-dim: #d0daf2;
+  --color-surface-variant: #d9e3fb;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f0f3ff;
+  --color-surface-container: #e8eeff;
+  --color-surface-container-high: #dfe8ff;
+  --color-surface-container-highest: #d9e3fb;
+  --color-on-surface: #111c2d;
+  --color-on-surface-variant: #44474d;
+  --color-background-subtle: #F7F9FC;
+  --color-on-background: #111c2d;
+  --color-border-base: #E4E7EC;
+  --color-outline: #75777e;
+  --color-outline-variant: #c4c6ce;
+  --color-inverse-surface: #273143;
+  --color-inverse-on-surface: #ecf0ff;
+  --color-inverse-primary: #b5c7ea;
+  --color-primary-fixed: #d6e3ff;
+  --color-primary-fixed-dim: #b5c7ea;
+  --color-on-primary-fixed: #071c36;
+  --color-on-primary-fixed-variant: #364764;
+  --color-secondary-fixed: #d9e2ff;
+  --color-secondary-fixed-dim: #afc6ff;
+  --color-on-secondary-fixed: #001a43;
+  --color-on-secondary-fixed-variant: #004398;
+  --color-text-dark: #172033;
+  --color-status-success: #12B76A;
+  --color-status-warning: #F79009;
+  --color-status-error: #F04438;
+  --color-status-info: #23597F;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
+
+  /* shadcn compatibility layer */
+  --color-background: #F7F9FC;
+  --color-foreground: #111c2d;
+  --color-card: #ffffff;
+  --color-card-foreground: #111c2d;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #111c2d;
+  --color-muted: #f0f3ff;
+  --color-muted-foreground: #44474d;
+  --color-accent: #e8eeff;
+  --color-accent-foreground: #111c2d;
+  --color-destructive: #F04438;
+  --color-border: #E4E7EC;
+  --color-input: #E4E7EC;
+  --color-ring: #1769E0;
+  --color-primary-foreground: #ffffff;
+  --color-secondary-foreground: #ffffff;
+
+  /* Spacing tokens */
+  --spacing-gutter: 24px;
+  --spacing-margin-mobile: 16px;
+  --spacing-margin-desktop: 32px;
+  --spacing-unit: 8px;
+  --spacing-container-max: 1280px;
+
+  /* Radius tokens */
+  --radius: 0.5rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  /* Max widths */
+  --width-container-max: 1280px;
+
+  /* Fonts */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+  --font-heading: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border-base outline-ring/50;
+    box-sizing: border-box;
+  }
+  body {
+    background-color: #F7F9FC;
+    color: #111c2d;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 24px;
+  }
+  html {
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    height: 100%;
+  }
+}
+
+/* Stitch typography scale */
+.font-display-lg {
+  font-size: 48px;
+  line-height: 60px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.font-headline-lg { font-size: 30px; line-height: 38px; font-weight: 600; }
+.font-headline-md { font-size: 24px; line-height: 32px; font-weight: 600; }
+.font-headline-sm { font-size: 20px; line-height: 30px; font-weight: 600; }
+.font-body-lg    { font-size: 18px; line-height: 28px; font-weight: 400; }
+.font-body-md    { font-size: 16px; line-height: 24px; font-weight: 400; }
+.font-body-sm    { font-size: 14px; line-height: 20px; font-weight: 400; }
+.font-label-md   { font-size: 14px; line-height: 20px; font-weight: 500; }
+.font-label-sm   { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.05em; }
+.font-mono-label { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: -0.01em; }
+
+@keyframes float {
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}

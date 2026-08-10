@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+}
+
+enum RFQStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  SOURCING
+  CANCELLED
+}
+
+enum RFQPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RFQItemStatus {
+  PENDING
+  SOURCED
+  REVIEW_REQUIRED
+  NOT_FOUND
+}
+
+enum DocumentType {
+  BOM
+  DATASHEET
+  COMMERCIAL_INVOICE
+  PACKING_LIST
+  AWB
+  OTHER
+}
+
+enum DocumentProcessingStatus {
+  UPLOADED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole   @default(CUSTOMER)
+  status       UserStatus @default(PENDING_VERIFICATION)
+  firstName    String     @map("first_name")
+  lastName     String     @map("last_name")
+  phone        String?
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  customer          Customer?
+  refreshTokens     RefreshToken[]
+  emailVerification EmailVerification?
+  @@map("users")
+}
+
+model Company {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  gstin     String?
+  city      String?
+  address   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  customers Customer[]
+
+  @@map("companies")
+}
+
+model Customer {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  accountNumber String   @unique @map("account_number")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id])
+  company   Company    @relation(fields: [companyId], references: [id])
+  rfqs      Rfq[]
+  documents Document[]
+
+  @@map("customers")
+}
+
+model Rfq {
+  id               String      @id @default(uuid()) @db.Uuid
+  rfqNumber        String      @unique @map("rfq_number")
+  customerId       String      @map("customer_id") @db.Uuid
+  status           RFQStatus   @default(DRAFT)
+  priority         RFQPriority @default(MEDIUM)
+  deliveryLocation String?     @map("delivery_location")
+  requiredDate     DateTime?   @map("required_date") @db.Date
+  additionalNotes  String?     @map("additional_notes")
+  internalNotes    String?     @map("internal_notes")
+  submittedAt      DateTime?   @map("submitted_at")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  customer  Customer    @relation(fields: [customerId], references: [id])
+  items     RfqItem[]
+  documents Document[]
+  @@map("rfqs")
+}
+
+model RfqItem {
+  id             String        @id @default(uuid()) @db.Uuid
+  rfqId          String        @map("rfq_id") @db.Uuid
+  lineNumber     Int           @map("line_number")
+  mpn            String
+  manufacturer   String?
+  description    String?
+  quantity       Int
+  targetPriceUsd Decimal?      @map("target_price_usd") @db.Decimal(18, 4)
+  requiredDate   DateTime?     @map("required_date") @db.Date
+  status         RFQItemStatus @default(PENDING)
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  @@map("rfq_items")
+}
+
+model Document {
+  id               String                   @id @default(uuid()) @db.Uuid
+  customerId       String?                  @map("customer_id") @db.Uuid
+  rfqId            String?                  @map("rfq_id") @db.Uuid
+  documentType     DocumentType             @map("document_type")
+  fileName         String                   @map("file_name")
+  storageKey       String                   @map("storage_key")
+  mimeType         String                   @map("mime_type")
+  fileSizeBytes    Int                      @map("file_size_bytes")
+  processingStatus DocumentProcessingStatus @default(UPLOADED) @map("processing_status")
+  processingError  String?                  @map("processing_error")
+  uploadedById     String?                  @map("uploaded_by_id") @db.Uuid
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+
+  customer Customer? @relation(fields: [customerId], references: [id])
+  rfq      Rfq?      @relation(fields: [rfqId], references: [id])
+
+  @@map("documents")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  family    String
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model EmailVerification {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @unique @map("user_id") @db.Uuid
+  token      String    @unique
+  expiresAt  DateTime  @map("expires_at")
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  customerId String?  @map("customer_id") @db.Uuid
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+
+  @@map("audit_logs")
+}
