@@ -1,9 +1,12 @@
 ﻿import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   test: {
     globals: true,
     environment: "node",
+    env: loadEnv(mode, process.cwd(), ""),
+    fileParallelism: false, // integration tests share a DB — never run files concurrently
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
@@ -22,9 +25,10 @@ export default defineConfig({
         test: {
           name: "integration",
           include: ["test/integration/**/*.test.ts"],
+          fileParallelism: false, // shared DB — must not run files concurrently
           // Requires: DATABASE_URL pointing to a test DB + REDIS_URL
         },
       },
     ],
   },
-});
+}));

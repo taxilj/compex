@@ -1,16 +1,64 @@
-﻿"use client";
-import { useState } from "react";
-import { mockCompany } from "@/data/mock/company";
-import { Save, Plus, Edit2 } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Save, Plus, Loader2 } from "lucide-react";
+import { getMyCompany, updateMyCompany, type BackendCompany } from "@/lib/api/customers";
+import { ApiError } from "@/lib/api/client";
+
+type LocalState = {
+  name: string;
+  gstin: string;
+  city: string;
+  address: string;
+};
 
 export default function CompanyProfilePage() {
-  const [company, setCompany] = useState(mockCompany);
-  const [saved, setSaved] = useState(false);
+  const [company, setCompany] = useState<BackendCompany | null>(null);
+  const [local, setLocal] = useState<LocalState>({ name: "", gstin: "", city: "", address: "" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  useEffect(() => {
+    getMyCompany()
+      .then((c) => {
+        setCompany(c);
+        setLocal({ name: c.name, gstin: c.gstin ?? "", city: c.city ?? "", address: c.address ?? "" });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveStatus("idle");
+    setSaveError(null);
+    try {
+      const updated = await updateMyCompany({
+        name: local.name || undefined,
+        gstin: local.gstin || undefined,
+        city: local.city || undefined,
+        address: local.address || undefined,
+      });
+      setCompany(updated);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch (err) {
+      setSaveStatus("error");
+      setSaveError(err instanceof ApiError ? err.message : "Save failed. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-[#44474d]">
+        <Loader2 size={24} className="animate-spin mr-2" /> Loading company profile…
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1280px] mx-auto space-y-6">
@@ -21,51 +69,54 @@ export default function CompanyProfilePage() {
         </div>
         <button
           onClick={handleSave}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded font-label-md transition-colors ${saved ? "bg-[#12B76A] text-white" : "bg-[#0B1F3A] text-white hover:bg-[#0B1F3A]/90"}`}
+          disabled={saving}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded font-label-md transition-colors disabled:opacity-60 ${
+            saveStatus === "saved" ? "bg-[#12B76A] text-white"
+            : saveStatus === "error" ? "bg-red-600 text-white"
+            : "bg-[#0B1F3A] text-white hover:bg-[#0B1F3A]/90"
+          }`}
         >
-          <Save size={18} /> {saved ? "Saved!" : "Save Changes"}
+          <Save size={18} /> {saving ? "Saving…" : saveStatus === "saved" ? "Saved!" : "Save Changes"}
         </button>
       </div>
 
+      {saveError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-4 py-2">{saveError}</p>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Company info */}
         <Section title="Company Information">
-          <Field label="Company Name" value={company.name} onChange={(v) => setCompany({ ...company, name: v })} />
-          <Field label="GSTIN" value={company.gstin} onChange={(v) => setCompany({ ...company, gstin: v })} />
-          <Field label="PAN" value={company.pan || ""} onChange={(v) => setCompany({ ...company, pan: v })} />
-          <Field label="Website" value={company.website || ""} onChange={(v) => setCompany({ ...company, website: v })} />
+          <Field label="Company Name" value={local.name} onChange={(v) => setLocal({ ...local, name: v })} />
+          <Field label="GSTIN" value={local.gstin} onChange={(v) => setLocal({ ...local, gstin: v })} />
+          <Field label="City" value={local.city} onChange={(v) => setLocal({ ...local, city: v })} />
+          <Field label="Address" value={local.address} onChange={(v) => setLocal({ ...local, address: v })} />
         </Section>
 
-        {/* Contact */}
         <Section title="Contact Information">
-          <Field label="Contact Person" value={company.contactPerson} onChange={(v) => setCompany({ ...company, contactPerson: v })} />
-          <Field label="Email" value={company.email} type="email" onChange={(v) => setCompany({ ...company, email: v })} />
-          <Field label="Phone" value={company.phone} type="tel" onChange={(v) => setCompany({ ...company, phone: v })} />
+          <Field label="Contact Person" value="" onChange={() => {}} disabled placeholder="Managed via user account" />
+          <Field label="Email" value="" type="email" onChange={() => {}} disabled placeholder="Managed via user account" />
+          <Field label="Phone" value="" type="tel" onChange={() => {}} disabled placeholder="Managed via user account" />
         </Section>
 
-        {/* Billing */}
         <Section title="Billing Address">
-          <Field label="Address Line 1" value={company.billingAddress.line1} onChange={(v) => setCompany({ ...company, billingAddress: { ...company.billingAddress, line1: v } })} />
-          <Field label="Address Line 2" value={company.billingAddress.line2 || ""} onChange={(v) => setCompany({ ...company, billingAddress: { ...company.billingAddress, line2: v } })} />
+          <Field label="Address" value={local.address} onChange={(v) => setLocal({ ...local, address: v })} />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="City" value={company.billingAddress.city} onChange={(v) => setCompany({ ...company, billingAddress: { ...company.billingAddress, city: v } })} />
-            <Field label="State" value={company.billingAddress.state} onChange={(v) => setCompany({ ...company, billingAddress: { ...company.billingAddress, state: v } })} />
-            <Field label="Pincode" value={company.billingAddress.pincode} onChange={(v) => setCompany({ ...company, billingAddress: { ...company.billingAddress, pincode: v } })} />
+            <Field label="City" value={local.city} onChange={(v) => setLocal({ ...local, city: v })} />
+            <Field label="State" value="" onChange={() => {}} disabled placeholder="Not configured" />
+            <Field label="Pincode" value="" onChange={() => {}} disabled placeholder="Not configured" />
           </div>
         </Section>
 
-        {/* Shipping */}
         <Section title="Shipping Address">
-          <Field label="Address Line 1" value={company.shippingAddress.line1} onChange={(v) => setCompany({ ...company, shippingAddress: { ...company.shippingAddress, line1: v } })} />
+          <Field label="Address" value={local.address} onChange={(v) => setLocal({ ...local, address: v })} />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="City" value={company.shippingAddress.city} onChange={(v) => setCompany({ ...company, shippingAddress: { ...company.shippingAddress, city: v } })} />
-            <Field label="State" value={company.shippingAddress.state} onChange={(v) => setCompany({ ...company, shippingAddress: { ...company.shippingAddress, state: v } })} />
-            <Field label="Pincode" value={company.shippingAddress.pincode} onChange={(v) => setCompany({ ...company, shippingAddress: { ...company.shippingAddress, pincode: v } })} />
+            <Field label="City" value={local.city} onChange={(v) => setLocal({ ...local, city: v })} />
+            <Field label="State" value="" onChange={() => {}} disabled placeholder="Not configured" />
+            <Field label="Pincode" value="" onChange={() => {}} disabled placeholder="Not configured" />
           </div>
         </Section>
       </div>
 
-      {/* Users */}
       <div className="bg-white rounded-lg border border-[#E4E7EC] p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-headline-sm text-[#111c2d]">Team Members</h2>
@@ -73,28 +124,14 @@ export default function CompanyProfilePage() {
             <Plus size={16} /> Add User
           </button>
         </div>
-        <div className="space-y-3">
-          {company.users.map((user) => (
-            <div key={user.id} className="flex items-center gap-4 p-3 rounded border border-[#E4E7EC] hover:bg-[#f0f3ff]/50">
-              <div className="w-10 h-10 rounded-full bg-[#d9e3fb] flex items-center justify-center font-bold text-[#0B1F3A]">
-                {user.initials}
-              </div>
-              <div className="flex-1">
-                <p className="font-label-md text-[#111c2d]">{user.name}</p>
-                <p className="font-body-sm text-[#44474d]">{user.email}</p>
-              </div>
-              <span className={`px-3 py-1 rounded-full font-label-sm text-xs ${
-                user.role === "admin" ? "bg-[#0B1F3A] text-white"
-                : user.role === "buyer" ? "bg-[#1769E0]/10 text-[#1769E0]"
-                : "bg-[#E4E7EC] text-[#44474d]"
-              }`}>
-                {user.role}
-              </span>
-              <button className="p-1 text-[#44474d] hover:text-[#1769E0]"><Edit2 size={16} /></button>
-            </div>
-          ))}
+        <div className="p-4 text-center text-[#44474d] font-body-sm border border-dashed border-[#E4E7EC] rounded">
+          Team management coming soon
         </div>
       </div>
+
+      {company && (
+        <p className="text-xs text-[#44474d] text-center">Company ID: {company.id}</p>
+      )}
     </div>
   );
 }
@@ -108,7 +145,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, value, type = "text", onChange }: { label: string; value: string; type?: string; onChange: (v: string) => void }) {
+function Field({
+  label, value, type = "text", onChange, disabled, placeholder,
+}: {
+  label: string;
+  value: string;
+  type?: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
   return (
     <div>
       <label className="block font-label-md text-[#44474d] mb-1.5">{label}</label>
@@ -116,7 +162,9 @@ function Field({ label, value, type = "text", onChange }: { label: string; value
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-[#f9f9ff] border border-[#E4E7EC] rounded px-4 py-3 font-body-md text-[#111c2d] focus:outline-none focus:ring-2 focus:ring-[#1769E0] focus:border-[#1769E0]"
+        disabled={disabled}
+        placeholder={placeholder}
+        className="w-full bg-[#f9f9ff] border border-[#E4E7EC] rounded px-4 py-3 font-body-md text-[#111c2d] focus:outline-none focus:ring-2 focus:ring-[#1769E0] focus:border-[#1769E0] disabled:opacity-50 disabled:cursor-not-allowed"
       />
     </div>
   );

@@ -5,6 +5,7 @@ import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import sensible from "@fastify/sensible";
 import multipart from "@fastify/multipart";
+import { ZodError } from "zod";
 import { env } from "../config/env.js";
 import { AppError } from "../lib/errors.js";
 
@@ -42,6 +43,17 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
       return reply.status(error.statusCode).send({
         success: false,
         error: { code: error.code, message: error.message },
+      });
+    }
+    // Zod validation errors thrown by manual .parse() calls in routes
+    if (error instanceof ZodError) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid request data",
+          details: error.issues.map((i) => ({ path: i.path, message: i.message })),
+        },
       });
     }
     // Fastify validation errors (e.g. from schema)

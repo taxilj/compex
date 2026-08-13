@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
   FileText,
@@ -34,6 +35,7 @@ interface PortalSidebarProps {
 
 export function PortalSidebar({ className }: PortalSidebarProps) {
   const pathname = usePathname();
+  const { companyName } = useAuth();
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
@@ -93,10 +95,10 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
       <div className="p-4 border-t border-[#E4E7EC]">
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-[#d9e3fb] flex items-center justify-center text-[#0B1F3A] font-bold text-sm">
-            TC
+            {companyName ? companyName.slice(0, 2).toUpperCase() : "—"}
           </div>
           <div className="min-w-0">
-            <p className="font-label-md text-[#111c2d] truncate">TechCorp Industries</p>
+            <p className="font-label-md text-[#111c2d] truncate">{companyName ?? "Your Company"}</p>
             <p className="font-body-sm text-[#44474d] text-xs truncate">Enterprise Tier</p>
           </div>
         </div>

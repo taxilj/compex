@@ -3,8 +3,6 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import {
   signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
   generateRefreshTokenRaw,
   hashToken,
 } from "../../lib/jwt.js";
@@ -155,13 +153,6 @@ export async function login(input: LoginInput, ipAddress?: string) {
 }
 
 export async function refresh(rawToken: string, ipAddress?: string) {
-  let payload;
-  try {
-    payload = verifyRefreshToken(rawToken);
-  } catch {
-    throw Errors.unauthorized();
-  }
-
   const tokenHash = hashToken(rawToken);
   const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
 
