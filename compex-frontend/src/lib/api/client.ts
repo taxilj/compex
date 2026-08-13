@@ -36,8 +36,9 @@ async function doRefresh(): Promise<void> {
 
 function buildHeaders(init?: RequestInit): HeadersInit {
   const isFormData = init?.body instanceof FormData;
+  const hasJsonBody = !isFormData && !!init?.body;
   return {
-    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
     ...(init?.headers ?? {}),
   };
 }
