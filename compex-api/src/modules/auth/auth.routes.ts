@@ -11,7 +11,7 @@ const ACCESS_COOKIE = "access_token";
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: isProd,
-  sameSite: isProd ? ("strict" as const) : ("lax" as const),
+  sameSite: isProd ? ("none" as const) : ("lax" as const),
   path: "/",
 };
 
