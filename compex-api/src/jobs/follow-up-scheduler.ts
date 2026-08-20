@@ -26,12 +26,17 @@ export async function scheduleFollowUps(rfqId: string): Promise<void> {
   const now = Date.now();
 
   for (const [type, delayMs] of Object.entries(FOLLOW_UP_DELAYS_MS)) {
+    const followUpType = type as "DAY_1" | "DAY_3" | "DAY_7" | "DAY_14";
+    const existing = await prisma.followUp.findUnique({
+      where: { rfqId_type: { rfqId, type: followUpType } },
+    });
+    if (existing) continue;
     const scheduledAt = new Date(now + delayMs);
     const followUp = await prisma.followUp.create({
       data: {
         leadId: lead?.id ?? null,
         rfqId,
-        type: type as "DAY_1" | "DAY_3" | "DAY_7" | "DAY_14",
+        type: followUpType,
         scheduledAt,
         status: "SCHEDULED",
       },

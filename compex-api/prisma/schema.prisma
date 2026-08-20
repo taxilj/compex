@@ -497,5 +497,6 @@ model FollowUp {
   rfq       Rfq?       @relation(fields: [rfqId], references: [id])
   quotation Quotation? @relation(fields: [quotationId], references: [id])
 
+  @@unique([rfqId, type])
   @@map("follow_ups")
 }

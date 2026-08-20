@@ -127,7 +127,6 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
       data: {
         status: "REJECTED",
         respondedAt: new Date(),
-        ...(body.reason && { notes: body.reason }),
       },
       select: CUSTOMER_QUOTE_SELECT,
     });

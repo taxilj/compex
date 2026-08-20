@@ -77,7 +77,7 @@ const CreateBody = z.object({
   customerId: z.string().uuid(),
   landedCostId: z.string().uuid().optional(),
   currency: z.string().length(3).default("INR"),
-  validUntil: z.string().datetime(),
+  validUntil: z.string().date(),
   notes: z.string().max(5000).optional(),
   deliveryTerms: z.string().max(500).optional(),
   paymentTerms: z.string().max(500).optional(),
@@ -86,7 +86,7 @@ const CreateBody = z.object({
 
 const PatchBody = z.object({
   currency: z.string().length(3).optional(),
-  validUntil: z.string().datetime().optional(),
+  validUntil: z.string().date().optional(),
   notes: z.string().max(5000).optional().nullable(),
   deliveryTerms: z.string().max(500).optional().nullable(),
   paymentTerms: z.string().max(500).optional().nullable(),
@@ -190,6 +190,8 @@ export async function adminQuotationsRoutes(app: FastifyInstance): Promise<void>
     const body = CreateBody.parse(req.body);
     const { items, subtotal, tax, total } = calcItems(body.items);
     const quotationNumber = await generateQuotationNumber();
+    const rfq = await prisma.rfq.findUnique({ where: { id: body.rfqId }, select: { customerId: true } });
+    if (!rfq || rfq.customerId !== body.customerId) throw Errors.unprocessable("RFQ does not belong to this customer");
 
     const quotation = await prisma.quotation.create({
       data: {
