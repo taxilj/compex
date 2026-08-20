@@ -3,6 +3,7 @@ import { FileText, ClipboardList, Package, DollarSign, AlertCircle, CheckSquare,
 import { tasks } from "@/data/mock/tasks";
 import { orders } from "@/data/mock/orders";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { RecentRfqsTable } from "./RecentRfqsTable";
 
 const adminStats = [
   { label: "New RFQs (Today)", value: 3, icon: FileText, trend: "+2", up: true, iconBg: "bg-[#e8eeff]", iconColor: "text-[#0B1F3A]" },
@@ -93,52 +94,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Recent RFQs */}
-        <div className="xl:col-span-2 bg-white rounded-lg border border-[#E4E7EC] shadow-sm">
-          <div className="p-5 border-b border-[#E4E7EC] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h3 className="font-headline-sm text-[#111c2d]">Recent RFQs</h3>
-              <span className="bg-[#e8eeff] px-2 py-0.5 rounded font-label-sm text-xs text-[#44474d]">Live Feed</span>
-            </div>
-            <button className="font-label-md text-[#1769E0] hover:underline text-sm flex items-center gap-1">
-              View All <ArrowUpRight size={14} />
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[500px]">
-              <thead>
-                <tr className="bg-[#f0f3ff]">
-                  {["RFQ #", "Customer", "Value (Est)", "Assigned", "Status", "Age"].map((h) => (
-                    <th key={h} className="py-3 px-5 font-label-sm text-[#44474d] uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E4E7EC]">
-                {[
-                  { number: "RQ-8924", customer: "Tata Motors", value: "₹4.2L", assigned: "AR", assignedName: "Arjun R.", status: "sourcing", age: "2h" },
-                  { number: "RQ-8923", customer: "L&T Heavy Eng", value: "₹18.5L", assigned: "SK", assignedName: "Sarah K.", status: "under_review", age: "48h", urgent: true },
-                  { number: "RQ-8922", customer: "Mahindra", value: "₹1.1L", assigned: "MJ", assignedName: "Mike J.", status: "quote_ready", age: "1d" },
-                  { number: "RQ-8921", customer: "Bharat Forge", value: "₹8.9L", assigned: "AR", assignedName: "Arjun R.", status: "closed_won", age: "2d" },
-                  { number: "RQ-8920", customer: "Godrej & Boyce", value: "₹2.4L", assigned: "SK", assignedName: "Sarah K.", status: "sourcing", age: "3d" },
-                ].map((row) => (
-                  <tr key={row.number} className={`hover:bg-[#f0f3ff]/30 transition-colors cursor-pointer ${row.urgent ? "bg-[#F04438]/5" : ""}`}>
-                    <td className="py-3 px-5 font-mono-label text-[#1769E0] font-medium hover:underline cursor-pointer">{row.number}</td>
-                    <td className="py-3 px-5 font-body-sm text-[#111c2d]">{row.customer}</td>
-                    <td className="py-3 px-5 font-mono-label text-[#111c2d]">{row.value}</td>
-                    <td className="py-3 px-5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-[#e8eeff] flex items-center justify-center text-[10px] font-bold text-[#0B1F3A]">{row.assigned}</div>
-                        <span className="font-body-sm text-[#111c2d]">{row.assignedName}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-5"><StatusBadge status={row.status} /></td>
-                    <td className={`py-3 px-5 font-mono-label text-sm ${row.urgent ? "text-[#F04438] font-medium" : "text-[#44474d]"}`}>{row.age}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <RecentRfqsTable />
       </div>
 
       {/* Tasks + Orders */}

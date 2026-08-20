@@ -58,6 +58,62 @@ enum DocumentProcessingStatus {
   FAILED
 }
 
+enum VendorRfqStatus {
+  DRAFT
+  SENT
+  REPLIED
+  CLOSED
+}
+
+enum VendorQuoteStatus {
+  RECEIVED
+  SELECTED
+  REJECTED
+}
+
+enum LeadSource {
+  GOOGLE_ORGANIC
+  GOOGLE_ADS
+  LINKEDIN
+  WHATSAPP
+  EMAIL
+  DIRECT
+  REFERRAL
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  QUOTATION
+  WON
+  LOST
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum FollowUpType {
+  DAY_1
+  DAY_3
+  DAY_7
+  DAY_14
+}
+
+enum FollowUpStatus {
+  SCHEDULED
+  SENT
+  CANCELLED
+  FAILED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -72,9 +128,11 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  customer          Customer?
-  refreshTokens     RefreshToken[]
-  emailVerification EmailVerification?
+  customer           Customer?
+  refreshTokens      RefreshToken[]
+  emailVerification  EmailVerification?
+  assignedLeads      Lead[]             @relation("LeadAssignee")
+  createdQuotations  Quotation[]        @relation("QuotationCreator")
   @@map("users")
 }
 
@@ -100,10 +158,12 @@ model Customer {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  user      User       @relation(fields: [userId], references: [id])
-  company   Company    @relation(fields: [companyId], references: [id])
-  rfqs      Rfq[]
-  documents Document[]
+  user        User        @relation(fields: [userId], references: [id])
+  company     Company     @relation(fields: [companyId], references: [id])
+  rfqs        Rfq[]
+  documents   Document[]
+  leads       Lead[]
+  quotations  Quotation[]
 
   @@map("customers")
 }
@@ -122,9 +182,14 @@ model Rfq {
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
 
-  customer  Customer    @relation(fields: [customerId], references: [id])
-  items     RfqItem[]
-  documents Document[]
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  items       RfqItem[]
+  documents   Document[]
+  vendorRfqs  VendorRfq[]
+  lead        Lead?
+  quotations  Quotation[]
+  followUps   FollowUp[]
+
   @@map("rfqs")
 }
 
@@ -143,7 +208,10 @@ model RfqItem {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  rfq              Rfq             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendorRfqItems   VendorRfqItem[]
+  vendorQuotes     VendorQuote[]
+  quotationItems   QuotationItem[]
 
   @@map("rfq_items")
 }
@@ -209,6 +277,226 @@ model AuditLog {
   userAgent  String?  @map("user_agent")
   createdAt  DateTime @default(now()) @map("created_at")
 
-
   @@map("audit_logs")
+}
+
+// ─── P0-A: Vendor & Manufacturer ─────────────────────────────────────────────
+
+model Manufacturer {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  logoUrl   String?  @map("logo_url")
+  website   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("manufacturers")
+}
+
+model Vendor {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  contactEmail String   @map("contact_email")
+  contactPhone String?  @map("contact_phone")
+  address      String?
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  vendorRfqs VendorRfq[]
+
+  @@map("vendors")
+}
+
+model VendorRfq {
+  id             String          @id @default(uuid()) @db.Uuid
+  vendorRfqNumber String         @unique @map("vendor_rfq_number")
+  rfqId          String          @map("rfq_id") @db.Uuid
+  vendorId       String          @map("vendor_id") @db.Uuid
+  status         VendorRfqStatus @default(DRAFT)
+  emailSentAt    DateTime?       @map("email_sent_at")
+  notes          String?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  rfq        Rfq             @relation(fields: [rfqId], references: [id])
+  vendor     Vendor          @relation(fields: [vendorId], references: [id])
+  items      VendorRfqItem[]
+  quotes     VendorQuote[]
+  landedCost LandedCost?
+
+  @@map("vendor_rfqs")
+}
+
+model VendorRfqItem {
+  id          String @id @default(uuid()) @db.Uuid
+  vendorRfqId String @map("vendor_rfq_id") @db.Uuid
+  rfqItemId   String @map("rfq_item_id") @db.Uuid
+  quantity    Int
+  notes       String?
+
+  vendorRfq VendorRfq @relation(fields: [vendorRfqId], references: [id], onDelete: Cascade)
+  rfqItem   RfqItem   @relation(fields: [rfqItemId], references: [id])
+
+  @@map("vendor_rfq_items")
+}
+
+model VendorQuote {
+  id           String            @id @default(uuid()) @db.Uuid
+  vendorRfqId  String            @map("vendor_rfq_id") @db.Uuid
+  rfqItemId    String            @map("rfq_item_id") @db.Uuid
+  status       VendorQuoteStatus @default(RECEIVED)
+  unitCost     Decimal           @map("unit_cost") @db.Decimal(18, 4)
+  currency     String            @default("USD")
+  leadTimeDays Int?              @map("lead_time_days")
+  moq          Int?
+  notes        String?
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  vendorRfq   VendorRfq    @relation(fields: [vendorRfqId], references: [id], onDelete: Cascade)
+  rfqItem     RfqItem      @relation(fields: [rfqItemId], references: [id])
+  landedCosts LandedCost[]
+
+  @@map("vendor_quotes")
+}
+
+// ─── P0-B: Lead / CRM ────────────────────────────────────────────────────────
+
+model Lead {
+  id             String      @id @default(uuid()) @db.Uuid
+  customerId     String?     @map("customer_id") @db.Uuid
+  rfqId          String?     @unique @map("rfq_id") @db.Uuid
+  contactName    String      @map("contact_name")
+  contactEmail   String      @map("contact_email")
+  contactPhone   String?     @map("contact_phone")
+  companyName    String      @map("company_name")
+  source         LeadSource  @default(DIRECT)
+  status         LeadStatus  @default(NEW)
+  priority       RFQPriority @default(MEDIUM)
+  assignedToId   String?     @map("assigned_to_id") @db.Uuid
+  lastContactAt  DateTime?   @map("last_contact_at")
+  nextFollowUpAt DateTime?   @map("next_follow_up_at")
+  notes          String?
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  customer   Customer?  @relation(fields: [customerId], references: [id])
+  rfq        Rfq?       @relation(fields: [rfqId], references: [id])
+  assignedTo User?      @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  followUps  FollowUp[]
+
+  @@map("leads")
+}
+
+// ─── P0-B: Landed Cost ───────────────────────────────────────────────────────
+
+model LandedCost {
+  id            String   @id @default(uuid()) @db.Uuid
+  vendorRfqId   String   @unique @map("vendor_rfq_id") @db.Uuid
+  vendorQuoteId String?  @map("vendor_quote_id") @db.Uuid
+  currency      String   @default("INR")
+  exchangeRate  Decimal  @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  quantity      Int
+  shipping      Decimal  @default(0) @db.Decimal(18, 4)
+  insurance     Decimal  @default(0) @db.Decimal(18, 4)
+  customsDuty   Decimal  @default(0) @map("customs_duty") @db.Decimal(18, 4)
+  igst          Decimal  @default(0) @db.Decimal(18, 4)
+  handling      Decimal  @default(0) @db.Decimal(18, 4)
+  otherCosts    Decimal  @default(0) @map("other_costs") @db.Decimal(18, 4)
+  marginPercent Decimal  @default(0) @map("margin_percent") @db.Decimal(8, 4)
+  productCost   Decimal  @map("product_cost") @db.Decimal(18, 4)
+  landedCost    Decimal  @map("landed_cost") @db.Decimal(18, 4)
+  customerPrice Decimal  @map("customer_price") @db.Decimal(18, 4)
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  vendorRfq   VendorRfq    @relation(fields: [vendorRfqId], references: [id])
+  vendorQuote VendorQuote? @relation(fields: [vendorQuoteId], references: [id])
+
+  @@map("landed_costs")
+}
+
+// ─── P0-C: Quotation ─────────────────────────────────────────────────────────
+
+model Quotation {
+  id              String          @id @default(uuid()) @db.Uuid
+  quotationNumber String          @unique @map("quotation_number")
+  rfqId           String          @map("rfq_id") @db.Uuid
+  customerId      String          @map("customer_id") @db.Uuid
+  landedCostId    String?         @map("landed_cost_id") @db.Uuid
+  status          QuotationStatus @default(DRAFT)
+  currency        String          @default("INR")
+  subtotal        Decimal         @db.Decimal(18, 4)
+  tax             Decimal         @default(0) @db.Decimal(18, 4)
+  total           Decimal         @db.Decimal(18, 4)
+  validUntil      DateTime        @map("valid_until") @db.Date
+  notes           String?
+  deliveryTerms   String?         @map("delivery_terms")
+  paymentTerms    String?         @map("payment_terms")
+  pdfStorageKey   String?         @map("pdf_storage_key")
+  sentAt          DateTime?       @map("sent_at")
+  viewedAt        DateTime?       @map("viewed_at")
+  respondedAt     DateTime?       @map("responded_at")
+  createdById     String?         @map("created_by_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  rfq       Rfq             @relation(fields: [rfqId], references: [id])
+  customer  Customer        @relation(fields: [customerId], references: [id])
+  items     QuotationItem[]
+  createdBy User?           @relation("QuotationCreator", fields: [createdById], references: [id])
+  followUps FollowUp[]
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  quotationId String   @map("quotation_id") @db.Uuid
+  rfqItemId   String?  @map("rfq_item_id") @db.Uuid
+  lineNumber  Int      @map("line_number")
+  mpn         String
+  manufacturer String?
+  description String?
+  quantity    Int
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 4)
+  taxRate     Decimal  @default(0) @map("tax_rate") @db.Decimal(8, 4)
+  taxAmount   Decimal  @default(0) @map("tax_amount") @db.Decimal(18, 4)
+  lineTotal   Decimal  @map("line_total") @db.Decimal(18, 4)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  rfqItem   RfqItem?  @relation(fields: [rfqItemId], references: [id])
+
+  @@map("quotation_items")
+}
+
+// ─── P0-D: Follow-up Automation ──────────────────────────────────────────────
+
+model FollowUp {
+  id            String         @id @default(uuid()) @db.Uuid
+  leadId        String?        @map("lead_id") @db.Uuid
+  rfqId         String?        @map("rfq_id") @db.Uuid
+  quotationId   String?        @map("quotation_id") @db.Uuid
+  type          FollowUpType
+  status        FollowUpStatus @default(SCHEDULED)
+  attempt       Int            @default(1)
+  scheduledAt   DateTime       @map("scheduled_at")
+  sentAt        DateTime?      @map("sent_at")
+  cancelledAt   DateTime?      @map("cancelled_at")
+  failureReason String?        @map("failure_reason")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  lead      Lead?      @relation(fields: [leadId], references: [id])
+  rfq       Rfq?       @relation(fields: [rfqId], references: [id])
+  quotation Quotation? @relation(fields: [quotationId], references: [id])
+
+  @@unique([rfqId, type])
+  @@map("follow_ups")
 }

@@ -3,6 +3,8 @@ import { prisma } from "../../lib/prisma.js";
 import { Errors } from "../../lib/errors.js";
 import { audit } from "../../lib/audit.js";
 import { nextRfqNumber } from "./rfq-number.js";
+import { sendEmail, rfqConfirmationEmail } from "../../lib/email.js";
+import { scheduleFollowUps } from "../../jobs/follow-up-scheduler.js";
 import type {
   CreateRfqInput,
   UpdateRfqInput,
@@ -118,11 +120,22 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
     throw Errors.unprocessable("Add at least one item before submitting");
   }
 
+  // Fetch customer details for lead + email (before transaction)
+  const customerRecord = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: {
+      id: true,
+      user: { select: { email: true, firstName: true, lastName: true, phone: true } },
+      company: { select: { name: true } },
+    },
+  });
+  if (!customerRecord) throw Errors.notFound("Customer");
+
   const updated = await prisma.$transaction(async (tx) => {
     const rfq = await tx.rfq.update({
       where: { id: rfqId },
       data: { status: "SUBMITTED", submittedAt: new Date() },
-      select: RFQ_SELECT,
+      select: { ...RFQ_SELECT, deliveryLocation: true },
     });
     await tx.auditLog.create({
       data: {
@@ -135,8 +148,37 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
         newValue: { status: "SUBMITTED" },
       },
     });
+    // Create lead if not already linked to this RFQ
+    await tx.lead.upsert({
+      where: { rfqId },
+      update: {},
+      create: {
+        customerId,
+        rfqId,
+        contactName: `${customerRecord.user.firstName} ${customerRecord.user.lastName}`,
+        contactEmail: customerRecord.user.email,
+        contactPhone: customerRecord.user.phone ?? null,
+        companyName: customerRecord.company.name,
+        source: "DIRECT",
+        status: "NEW",
+      },
+    });
     return rfq;
   });
+
+  // Email + follow-ups: fire-and-forget, never roll back the RFQ
+  sendEmail({
+    to: customerRecord.user.email,
+    subject: `RFQ Received — ${updated.rfqNumber}`,
+    html: rfqConfirmationEmail(
+      `${customerRecord.user.firstName} ${customerRecord.user.lastName}`,
+      updated.rfqNumber,
+      itemCount,
+      updated.deliveryLocation,
+    ),
+  }).catch((err) => console.error("[EMAIL] RFQ confirmation failed:", err));
+
+  scheduleFollowUps(rfqId).catch((err) => console.error("[FOLLOWUP] Schedule failed:", err));
 
   return updated;
 }

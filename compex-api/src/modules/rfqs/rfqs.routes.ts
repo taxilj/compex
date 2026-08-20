@@ -85,7 +85,7 @@ export async function rfqsRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(204).send();
   });
 
-  app.post("/:id/bom", { preHandler: [] }, async (req, reply) => {
+  app.post("/:id/bom", async (req, reply) => {
     const { customerId, id: userId } = req.user!;
     if (!customerId) throw Errors.forbidden();
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);

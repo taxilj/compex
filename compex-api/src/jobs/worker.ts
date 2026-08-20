@@ -1,9 +1,11 @@
 ﻿import { startBomWorker } from "./bom-processor.js";
+import { startFollowUpWorker } from "./follow-up-worker.js";
 
-console.log("[worker] Starting BOM processing worker...");
-const worker = startBomWorker();
+console.log("[worker] Starting workers...");
+const bomWorker = startBomWorker();
+const followUpWorker = startFollowUpWorker();
 
 process.on("SIGTERM", async () => {
-  await worker.close();
+  await Promise.all([bomWorker.close(), followUpWorker.close()]);
   process.exit(0);
 });
