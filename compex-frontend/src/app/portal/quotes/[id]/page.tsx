@@ -1,18 +1,71 @@
-﻿"use client";
-import { quotes } from "@/data/mock/quotes";
-import { notFound } from "next/navigation";
+"use client";
+import { useEffect, useState } from "react";
+import { useParams, notFound } from "next/navigation";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ArrowLeft, Download, CheckCircle, RefreshCw } from "lucide-react";
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { getCustomerQuote, acceptQuote, rejectQuote, type CustomerQuote } from "@/lib/api/quotes";
+
+function quoteStatus(status: string): string {
+  const map: Record<string, string> = {
+    SENT: "quote_sent", VIEWED: "quote_sent",
+    ACCEPTED: "accepted", REJECTED: "rejected",
+    EXPIRED: "rejected", DRAFT: "draft",
+  };
+  return map[status] ?? status.toLowerCase();
+}
 
 export default function QuoteDetailPage() {
   const params = useParams<{ id: string }>();
-  const quote = quotes.find((q) => q.id === params.id);
-  if (!quote) notFound();
+  const [quote, setQuote] = useState<CustomerQuote | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFoundErr, setNotFoundErr] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const [accepted, setAccepted] = useState(false);
+  useEffect(() => {
+    getCustomerQuote(params.id)
+      .then(setQuote)
+      .catch(() => setNotFoundErr(true))
+      .finally(() => setLoading(false));
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="max-w-[1280px] mx-auto py-12 text-center font-body-sm text-[#44474d]">
+        Loading quotation…
+      </div>
+    );
+  }
+
+  if (notFoundErr || !quote) return notFound();
+
+  const isAccepted = quote.status === "ACCEPTED";
+  const isRejected = quote.status === "REJECTED";
+  const canRespond = quote.status === "SENT" || quote.status === "VIEWED";
+
+  async function handleAccept() {
+    setActionLoading(true);
+    try {
+      const updated = await acceptQuote(params.id);
+      setQuote(updated);
+    } catch {
+      // keep current state on error
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleReject() {
+    setActionLoading(true);
+    try {
+      const updated = await rejectQuote(params.id);
+      setQuote(updated);
+    } catch {
+      // keep current state on error
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   return (
     <div className="max-w-[1280px] mx-auto space-y-6">
@@ -21,12 +74,12 @@ export default function QuoteDetailPage() {
           <ArrowLeft size={20} />
         </Link>
         <div className="flex items-center gap-3">
-          <h1 className="font-headline-lg text-[#111c2d]">{quote.number}</h1>
-          <StatusBadge status={accepted ? "accepted" : quote.status} />
+          <h1 className="font-headline-lg text-[#111c2d]">{quote.quotationNumber}</h1>
+          <StatusBadge status={quoteStatus(quote.status)} />
         </div>
       </div>
 
-      {accepted && (
+      {isAccepted && (
         <div className="bg-[#12B76A]/10 border border-[#12B76A]/30 rounded-lg p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-[#12B76A]" />
           <p className="font-label-md text-[#12B76A]">Quote accepted! Our team will create your Sales Order shortly.</p>
@@ -38,13 +91,13 @@ export default function QuoteDetailPage() {
           <div className="bg-white rounded-lg border border-[#E4E7EC] p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-headline-sm text-[#111c2d]">Line Items</h2>
-              <span className="font-body-sm text-[#44474d]">Valid until: {quote.validUntil}</span>
+              <span className="font-body-sm text-[#44474d]">Valid until: {quote.validUntil.split("T")[0]}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[600px]">
                 <thead>
                   <tr className="bg-[#f0f3ff]">
-                    {["MPN", "Manufacturer", "Description", "Qty", "Unit Price", "Lead Time", "Total"].map((h) => (
+                    {["MPN", "Description", "Qty", "Unit Price", "Total"].map((h) => (
                       <th key={h} className="py-2.5 px-4 text-left font-label-sm text-[#44474d] uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -53,55 +106,67 @@ export default function QuoteDetailPage() {
                   {quote.items.map((item) => (
                     <tr key={item.id} className="hover:bg-[#f0f3ff]/30">
                       <td className="py-3 px-4 font-mono-label text-[#0B1F3A] font-medium">{item.mpn}</td>
-                      <td className="py-3 px-4 font-body-sm text-[#111c2d]">{item.manufacturer}</td>
-                      <td className="py-3 px-4 font-body-sm text-[#44474d] max-w-[200px] truncate">{item.description}</td>
+                      <td className="py-3 px-4 font-body-sm text-[#44474d] max-w-[200px] truncate">{item.description ?? item.mpn}</td>
                       <td className="py-3 px-4 font-mono-label text-[#111c2d]">{item.quantity.toLocaleString()}</td>
-                      <td className="py-3 px-4 font-mono-label text-[#111c2d]">₹{item.unitPrice.toFixed(2)}</td>
-                      <td className="py-3 px-4 font-body-sm text-[#44474d]">{item.leadTime}</td>
-                      <td className="py-3 px-4 font-mono-label text-[#111c2d] font-medium">₹{item.totalPrice.toLocaleString()}</td>
+                      <td className="py-3 px-4 font-mono-label text-[#111c2d]">{quote.currency} {Number(item.unitPrice).toFixed(2)}</td>
+                      <td className="py-3 px-4 font-mono-label text-[#111c2d] font-medium">{quote.currency} {Number(item.lineTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {(quote.deliveryTerms || quote.paymentTerms) && (
+            <div className="bg-white rounded-lg border border-[#E4E7EC] p-6 space-y-2">
+              <h2 className="font-headline-sm text-[#111c2d] mb-3">Terms</h2>
+              {quote.deliveryTerms && <p className="font-body-sm text-[#44474d]"><span className="font-label-sm text-[#111c2d]">Delivery: </span>{quote.deliveryTerms}</p>}
+              {quote.paymentTerms && <p className="font-body-sm text-[#44474d]"><span className="font-label-sm text-[#111c2d]">Payment: </span>{quote.paymentTerms}</p>}
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
-          {/* Totals */}
           <div className="bg-white rounded-lg border border-[#E4E7EC] p-6">
             <h2 className="font-headline-sm text-[#111c2d] mb-4">Summary</h2>
             <div className="space-y-2.5">
               <div className="flex justify-between font-body-sm text-[#44474d]">
-                <span>Subtotal</span><span>₹{quote.subtotal.toLocaleString()}</span>
+                <span>Subtotal</span><span>{quote.currency} {Number(quote.subtotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between font-body-sm text-[#44474d]">
-                <span>Shipping</span><span>₹{quote.shippingCost.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between font-body-sm text-[#44474d]">
-                <span>GST (18%)</span><span>₹{quote.gstAmount.toLocaleString()}</span>
+                <span>Tax</span><span>{quote.currency} {Number(quote.tax).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between font-label-md text-[#111c2d] border-t border-[#E4E7EC] pt-2.5">
-                <span>Grand Total</span><span className="font-headline-sm">₹{quote.grandTotal.toLocaleString()}</span>
+                <span>Grand Total</span><span className="font-headline-sm">{quote.currency} {Number(quote.total).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
-          {!accepted && (
+          {canRespond && (
             <div className="space-y-3">
               <button
-                onClick={() => setAccepted(true)}
-                className="w-full bg-[#12B76A] text-white py-3 rounded font-label-md font-bold hover:bg-[#0fa35e] transition-colors flex items-center justify-center gap-2"
+                onClick={handleAccept}
+                disabled={actionLoading}
+                className="w-full bg-[#12B76A] text-white py-3 rounded font-label-md font-bold hover:bg-[#0fa35e] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <CheckCircle size={18} /> Accept Quote
+                <CheckCircle size={18} /> {actionLoading ? "Processing…" : "Accept Quote"}
               </button>
-              <button className="w-full border-2 border-[#0B1F3A] text-[#0B1F3A] py-3 rounded font-label-md hover:bg-[#e8eeff] transition-colors flex items-center justify-center gap-2">
-                <RefreshCw size={18} /> Request Revision
+              <button
+                onClick={handleReject}
+                disabled={actionLoading}
+                className="w-full border-2 border-[#F04438] text-[#F04438] py-3 rounded font-label-md hover:bg-[#fff1f0] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <RefreshCw size={18} /> {actionLoading ? "Processing…" : "Reject Quote"}
               </button>
               <button className="w-full bg-[#f0f3ff] text-[#0B1F3A] py-3 rounded font-label-md hover:bg-[#e8eeff] transition-colors flex items-center justify-center gap-2">
                 <Download size={18} /> Download PDF
               </button>
+            </div>
+          )}
+
+          {isRejected && (
+            <div className="bg-[#F04438]/10 border border-[#F04438]/30 rounded-lg p-4">
+              <p className="font-label-md text-[#F04438]">Quote rejected. Contact us to discuss your requirements.</p>
             </div>
           )}
         </div>

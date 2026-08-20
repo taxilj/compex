@@ -1,0 +1,119 @@
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { authenticate } from "../../middleware/authenticate.js";
+import { requireRole } from "../../middleware/requireRole.js";
+import { ok, paginated } from "../../lib/response.js";
+import { Errors } from "../../lib/errors.js";
+import { prisma } from "../../lib/prisma.js";
+import { audit } from "../../lib/audit.js";
+import { cancelFollowUps } from "../../jobs/follow-up-scheduler.js";
+
+const LEAD_SELECT = {
+  id: true,
+  contactName: true,
+  contactEmail: true,
+  contactPhone: true,
+  companyName: true,
+  source: true,
+  status: true,
+  priority: true,
+  lastContactAt: true,
+  nextFollowUpAt: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+  customer: { select: { id: true, accountNumber: true, company: { select: { name: true } } } },
+  rfq: { select: { id: true, rfqNumber: true, status: true } },
+  assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+} as const;
+
+const LeadPatch = z.object({
+  status: z.enum(["NEW", "CONTACTED", "QUALIFIED", "QUOTATION", "WON", "LOST"]).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  assignedToId: z.string().uuid().optional().nullable(),
+  lastContactAt: z.string().datetime().optional().nullable(),
+  nextFollowUpAt: z.string().datetime().optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+  source: z.enum(["GOOGLE_ORGANIC", "GOOGLE_ADS", "LINKEDIN", "WHATSAPP", "EMAIL", "DIRECT", "REFERRAL", "OTHER"]).optional(),
+});
+
+const LeadCreate = z.object({
+  customerId: z.string().uuid().optional(),
+  rfqId: z.string().uuid().optional(),
+  contactName: z.string().min(1).max(200),
+  contactEmail: z.string().email(),
+  contactPhone: z.string().max(30).optional(),
+  companyName: z.string().min(1).max(200),
+  source: z.enum(["GOOGLE_ORGANIC", "GOOGLE_ADS", "LINKEDIN", "WHATSAPP", "EMAIL", "DIRECT", "REFERRAL", "OTHER"]).default("DIRECT"),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
+  notes: z.string().max(5000).optional(),
+});
+
+export async function adminLeadsRoutes(app: FastifyInstance): Promise<void> {
+  app.addHook("preHandler", authenticate);
+  app.addHook("preHandler", requireRole("STAFF", "ADMIN"));
+
+  app.get("/", async (req, reply) => {
+    const q = z.object({
+      status: z.enum(["NEW", "CONTACTED", "QUALIFIED", "QUOTATION", "WON", "LOST"]).optional(),
+      priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+      source: z.enum(["GOOGLE_ORGANIC", "GOOGLE_ADS", "LINKEDIN", "WHATSAPP", "EMAIL", "DIRECT", "REFERRAL", "OTHER"]).optional(),
+      assignedToId: z.string().uuid().optional(),
+      customerId: z.string().uuid().optional(),
+      page: z.coerce.number().int().positive().default(1),
+      limit: z.coerce.number().int().positive().max(100).default(20),
+    }).parse(req.query);
+
+    const where = {
+      ...(q.status && { status: q.status }),
+      ...(q.priority && { priority: q.priority }),
+      ...(q.source && { source: q.source }),
+      ...(q.assignedToId && { assignedToId: q.assignedToId }),
+      ...(q.customerId && { customerId: q.customerId }),
+    };
+    const skip = (q.page - 1) * q.limit;
+    const [data, total] = await prisma.$transaction([
+      prisma.lead.findMany({ where, select: LEAD_SELECT, skip, take: q.limit, orderBy: { createdAt: "desc" } }),
+      prisma.lead.count({ where }),
+    ]);
+    return reply.send(paginated(data, total, q.page, q.limit));
+  });
+
+  app.get("/:id", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const lead = await prisma.lead.findUnique({ where: { id }, select: LEAD_SELECT });
+    if (!lead) throw Errors.notFound("Lead");
+    return reply.send(ok(lead));
+  });
+
+  app.post("/", async (req, reply) => {
+    const body = LeadCreate.parse(req.body);
+    const lead = await prisma.lead.create({ data: body, select: LEAD_SELECT });
+    audit({ userId: req.user!.id, action: "lead.created", entityType: "lead", entityId: lead.id });
+    return reply.status(201).send(ok(lead));
+  });
+
+  app.patch("/:id", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const existing = await prisma.lead.findUnique({ where: { id }, select: { id: true, status: true, rfqId: true } });
+    if (!existing) throw Errors.notFound("Lead");
+
+    const body = LeadPatch.parse(req.body);
+    const lead = await prisma.lead.update({
+      where: { id },
+      data: {
+        ...body,
+        lastContactAt: body.lastContactAt ? new Date(body.lastContactAt) : body.lastContactAt,
+        nextFollowUpAt: body.nextFollowUpAt ? new Date(body.nextFollowUpAt) : body.nextFollowUpAt,
+      },
+      select: LEAD_SELECT,
+    });
+
+    if ((body.status === "WON" || body.status === "LOST") && existing.rfqId) {
+      cancelFollowUps(existing.rfqId).catch((err) => console.error("[FOLLOWUP] Cancel failed:", err));
+    }
+
+    audit({ userId: req.user!.id, action: "lead.updated", entityType: "lead", entityId: id, newValue: body });
+    return reply.send(ok(lead));
+  });
+}

@@ -20,4 +20,5 @@ export const Errors = {
   rateLimited: () =>
     new AppError("RATE_LIMITED", "Too many requests, please try again later", 429),
   unprocessable: (msg: string) => new AppError("UNPROCESSABLE", msg, 422),
+  internal: (msg = "Internal server error") => new AppError("INTERNAL_ERROR", msg, 500),
 };
