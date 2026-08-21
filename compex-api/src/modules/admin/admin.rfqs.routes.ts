@@ -85,6 +85,17 @@ export async function adminRfqsRoutes(app: FastifyInstance): Promise<void> {
     const existing = await prisma.rfq.findUnique({ where: { id } });
     if (!existing) throw Errors.notFound("RFQ");
 
+    const ALLOWED: Record<string, string[]> = {
+      DRAFT: ["SUBMITTED", "CANCELLED"],
+      SUBMITTED: ["UNDER_REVIEW", "CANCELLED"],
+      UNDER_REVIEW: ["SOURCING", "CANCELLED"],
+      SOURCING: ["CANCELLED"],
+      CANCELLED: [],
+    };
+    if (!ALLOWED[existing.status]?.includes(status)) {
+      throw Errors.unprocessable(`Cannot transition RFQ from ${existing.status} to ${status}`);
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const rfq = await tx.rfq.update({
         where: { id },

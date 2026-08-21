@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, apiFetchPaginated } from "./client";
 import type { RfqStatus, RfqPriority, BackendRfqItem } from "./rfqs";
 
 export interface AdminRfq {
@@ -57,7 +57,7 @@ export function listAdminRfqs(params?: { status?: RfqStatus; priority?: RfqPrior
   if (params?.page) q.set("page", String(params.page));
   if (params?.limit) q.set("limit", String(params.limit));
   const qs = q.toString();
-  return apiFetch<PaginatedResponse<AdminRfq>>(`/admin/rfqs${qs ? `?${qs}` : ""}`);
+  return apiFetchPaginated<AdminRfq>(`/admin/rfqs${qs ? `?${qs}` : ""}`);
 }
 
 export function getAdminRfq(id: string) {
@@ -72,7 +72,7 @@ export function updateAdminRfqStatus(id: string, status: RfqStatus, internalNote
 }
 
 export function listVendors() {
-  return apiFetch<PaginatedResponse<Vendor>>("/admin/vendors");
+  return apiFetchPaginated<Vendor>("/admin/vendors");
 }
 
 export function createVendor(data: { name: string; contactEmail: string; contactPhone?: string; address?: string; notes?: string }) {
@@ -80,7 +80,7 @@ export function createVendor(data: { name: string; contactEmail: string; contact
 }
 
 export function listManufacturers() {
-  return apiFetch<PaginatedResponse<Manufacturer>>("/admin/manufacturers");
+  return apiFetchPaginated<Manufacturer>("/admin/manufacturers");
 }
 
 export function createManufacturer(data: { name: string; slug: string; logoUrl?: string; website?: string }) {
@@ -117,7 +117,7 @@ export function listAdminQuotations(params?: { status?: string; page?: number; l
   if (params?.page) q.set("page", String(params.page));
   if (params?.limit) q.set("limit", String(params.limit));
   const qs = q.toString();
-  return apiFetch<PaginatedResponse<AdminQuotation>>(`/admin/quotations${qs ? `?${qs}` : ""}`);
+  return apiFetchPaginated<AdminQuotation>(`/admin/quotations${qs ? `?${qs}` : ""}`);
 }
 
 export interface AdminLead {
@@ -143,5 +143,5 @@ export function listAdminLeads(params?: { status?: string; page?: number; limit?
   if (params?.page) q.set("page", String(params.page));
   if (params?.limit) q.set("limit", String(params.limit));
   const qs = q.toString();
-  return apiFetch<PaginatedResponse<AdminLead>>(`/admin/leads${qs ? `?${qs}` : ""}`);
+  return apiFetchPaginated<AdminLead>(`/admin/leads${qs ? `?${qs}` : ""}`);
 }

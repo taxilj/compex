@@ -24,6 +24,7 @@ const CUSTOMER_QUOTE_SELECT = {
   sentAt: true,
   viewedAt: true,
   respondedAt: true,
+  rejectionReason: true,
   createdAt: true,
   rfq: { select: { id: true, rfqNumber: true } },
   items: {
@@ -127,6 +128,7 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
       data: {
         status: "REJECTED",
         respondedAt: new Date(),
+        rejectionReason: body.reason ?? null,
       },
       select: CUSTOMER_QUOTE_SELECT,
     });

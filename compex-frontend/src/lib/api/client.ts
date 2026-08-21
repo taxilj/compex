@@ -43,7 +43,7 @@ function buildHeaders(init?: RequestInit): HeadersInit {
   };
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchWithRefresh(path: string, init?: RequestInit): Promise<Response> {
   const makeReq = () =>
     fetch(`${API_URL}${path}`, { ...init, credentials: "include", headers: buildHeaders(init) });
 
@@ -60,5 +60,25 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     }
   }
 
-  return parseJson<T>(res);
+  return res;
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  return parseJson<T>(await fetchWithRefresh(path, init));
+}
+
+export async function apiFetchPaginated<T>(path: string, init?: RequestInit): Promise<{ data: T[]; total: number; page: number; limit: number }> {
+  const res = await fetchWithRefresh(path, init);
+  if (res.status === 204) return { data: [], total: 0, page: 1, limit: 20 };
+  let json: { success: boolean; data: T[]; meta?: { total: number; page: number; limit: number }; error?: { code?: string; message?: string; details?: unknown[] } };
+  try {
+    json = await res.json();
+  } catch {
+    throw new ApiError(res.status, "PARSE_ERROR", "Invalid server response");
+  }
+  if (json.success === false) {
+    const err = json.error;
+    throw new ApiError(res.status, err?.code ?? "ERROR", err?.message ?? "Request failed", err?.details);
+  }
+  return { data: json.data ?? [], total: json.meta?.total ?? json.data?.length ?? 0, page: json.meta?.page ?? 1, limit: json.meta?.limit ?? 20 };
 }

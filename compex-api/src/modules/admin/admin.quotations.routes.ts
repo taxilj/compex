@@ -30,6 +30,7 @@ const QUOTATION_SELECT = {
   sentAt: true,
   viewedAt: true,
   respondedAt: true,
+  rejectionReason: true,
   createdAt: true,
   updatedAt: true,
   createdBy: { select: { id: true, firstName: true, lastName: true } },

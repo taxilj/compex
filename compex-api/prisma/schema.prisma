@@ -440,6 +440,7 @@ model Quotation {
   sentAt          DateTime?       @map("sent_at")
   viewedAt        DateTime?       @map("viewed_at")
   respondedAt     DateTime?       @map("responded_at")
+  rejectionReason String?         @map("rejection_reason")
   createdById     String?         @map("created_by_id") @db.Uuid
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
