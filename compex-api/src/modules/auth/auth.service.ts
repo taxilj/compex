@@ -9,6 +9,7 @@ import {
 import { sendEmail, verificationEmail } from "../../lib/email.js";
 import { Errors } from "../../lib/errors.js";
 import { audit } from "../../lib/audit.js";
+import { env } from "../../config/env.js";
 import type { RegisterInput, LoginInput } from "./auth.schema.js";
 
 const BCRYPT_ROUNDS = 12;
@@ -71,7 +72,7 @@ export async function register(input: RegisterInput, ipAddress?: string) {
   sendEmail({
     to: input.email,
     subject: "Verify your Compex Solution account",
-    html: verificationEmail(verifyToken, process.env.FRONTEND_URL ?? "http://localhost:3000"),
+    html: verificationEmail(verifyToken, env.CORS_ORIGIN),
   }).catch(console.error);
 
   return { message: "Registration successful. Please verify your email." };
