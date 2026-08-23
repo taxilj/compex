@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+// Always same-origin: the browser only ever talks to this app's own domain,
+// which proxies to the real API via next.config.ts rewrites. That keeps the
+// API's auth cookies first-party instead of cross-site.
+const API_URL = "/api/v1";
 
 export class ApiError extends Error {
   constructor(

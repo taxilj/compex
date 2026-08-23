@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  // The real auth cookies are set on the API's own (cross-site) domain and
-  // are not visible here — this checks a first-party marker set on login
-  // instead (see lib/api/auth.ts). Actual authorization is enforced by the
-  // API on every request regardless of this check.
-  const token = request.cookies.get("cx_session");
+  // API requests are proxied through this same origin (see next.config.ts),
+  // so the API's httpOnly access_token cookie is first-party and visible
+  // here. This only gates the SSR shell — the API re-validates on every call.
+  const token = request.cookies.get("access_token");
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
