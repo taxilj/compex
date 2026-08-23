@@ -25,8 +25,8 @@ export default function LoginPage() {
     setLoginError(null);
     setLoginLoading(true);
     try {
-      await login(loginForm.email, loginForm.password);
-      router.push("/portal");
+      const result = await login(loginForm.email, loginForm.password);
+      router.push(result.user.role === "CUSTOMER" ? "/portal" : "/admin");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.statusCode === 429) setLoginError("Too many attempts. Please wait and try again.");
