@@ -9,6 +9,16 @@ export async function createTestApp(): Promise<FastifyInstance> {
 }
 
 export async function cleanDb() {
+  if (
+    process.env.NODE_ENV !== "test" ||
+    process.env.ALLOW_INTEGRATION_DB_RESET !== "true" ||
+    !process.env.DATABASE_URL?.includes("_test")
+  ) {
+    throw new Error(
+      "Refusing destructive integration cleanup. Set NODE_ENV=test, use a dedicated *_test database, and explicitly set ALLOW_INTEGRATION_DB_RESET=true.",
+    );
+  }
+
   // Delete in FK-safe order
   await prisma.auditLog.deleteMany();
   await prisma.document.deleteMany();

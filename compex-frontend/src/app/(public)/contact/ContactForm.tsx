@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Mail, Phone, MapPin, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { submitPublicLead } from "@/lib/api/leads";
 
 const INPUT_CLS = "w-full border border-[#E4E7EC] rounded-lg px-4 py-3 font-body-md text-[#111c2d] placeholder:text-[#75777e] focus:outline-none focus:border-[#1769E0] focus:ring-1 focus:ring-[#1769E0] transition-colors";
 
@@ -22,6 +23,8 @@ export default function ContactForm() {
   const [form, setForm] = useState<FormData>(EMPTY);
   const [errors, setErrors] = useState<Partial<FormData>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   function validate(): boolean {
     const e: Partial<FormData> = {};
@@ -34,9 +37,27 @@ export default function ContactForm() {
     return Object.keys(e).length === 0;
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (validate()) setSubmitted(true);
+    if (!validate()) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await submitPublicLead({
+        contactName: form.name,
+        contactEmail: form.email,
+        contactPhone: form.phone || undefined,
+        companyName: form.company,
+        subject: form.subject || undefined,
+        message: form.message,
+      });
+      setSubmitted(true);
+    } catch {
+      setSubmitError("We could not submit your enquiry. Please try again shortly.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function set(field: keyof FormData) {
@@ -84,30 +105,30 @@ export default function ContactForm() {
             <form onSubmit={handleSubmit} noValidate className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block font-label-sm text-[#44474d] mb-1.5">Name *</label>
-                  <input className={INPUT_CLS} placeholder="Your name" value={form.name} onChange={set("name")} />
-                  {errors.name && <p className="font-body-sm text-red-500 mt-1">{errors.name}</p>}
+                  <label htmlFor="contact-name" className="block font-label-sm text-[#44474d] mb-1.5">Name *</label>
+                  <input id="contact-name" className={INPUT_CLS} placeholder="Your name" value={form.name} onChange={set("name")} aria-invalid={!!errors.name} />
+                  {errors.name && <p className="font-body-sm text-red-500 mt-1" role="alert">{errors.name}</p>}
                 </div>
                 <div>
-                  <label className="block font-label-sm text-[#44474d] mb-1.5">Company *</label>
-                  <input className={INPUT_CLS} placeholder="Company name" value={form.company} onChange={set("company")} />
-                  {errors.company && <p className="font-body-sm text-red-500 mt-1">{errors.company}</p>}
+                  <label htmlFor="contact-company" className="block font-label-sm text-[#44474d] mb-1.5">Company *</label>
+                  <input id="contact-company" className={INPUT_CLS} placeholder="Company name" value={form.company} onChange={set("company")} aria-invalid={!!errors.company} />
+                  {errors.company && <p className="font-body-sm text-red-500 mt-1" role="alert">{errors.company}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block font-label-sm text-[#44474d] mb-1.5">Email *</label>
-                  <input type="email" className={INPUT_CLS} placeholder="you@company.com" value={form.email} onChange={set("email")} />
-                  {errors.email && <p className="font-body-sm text-red-500 mt-1">{errors.email}</p>}
+                  <label htmlFor="contact-email" className="block font-label-sm text-[#44474d] mb-1.5">Email *</label>
+                  <input id="contact-email" type="email" className={INPUT_CLS} placeholder="you@company.com" value={form.email} onChange={set("email")} aria-invalid={!!errors.email} />
+                  {errors.email && <p className="font-body-sm text-red-500 mt-1" role="alert">{errors.email}</p>}
                 </div>
                 <div>
-                  <label className="block font-label-sm text-[#44474d] mb-1.5">Phone</label>
-                  <input type="tel" className={INPUT_CLS} placeholder="+91 ..." value={form.phone} onChange={set("phone")} />
+                  <label htmlFor="contact-phone" className="block font-label-sm text-[#44474d] mb-1.5">Phone</label>
+                  <input id="contact-phone" type="tel" className={INPUT_CLS} placeholder="+91 ..." value={form.phone} onChange={set("phone")} />
                 </div>
               </div>
               <div>
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Subject</label>
-                <select className={INPUT_CLS} value={form.subject} onChange={set("subject")}>
+                  <label htmlFor="contact-subject" className="block font-label-sm text-[#44474d] mb-1.5">Subject</label>
+                  <select id="contact-subject" className={INPUT_CLS} value={form.subject} onChange={set("subject")}>
                   <option value="">Select a subject</option>
                   <option>Component Sourcing Enquiry</option>
                   <option>BOM Procurement</option>
@@ -116,21 +137,24 @@ export default function ContactForm() {
                 </select>
               </div>
               <div>
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Message *</label>
-                <textarea
+                  <label htmlFor="contact-message" className="block font-label-sm text-[#44474d] mb-1.5">Message *</label>
+                  <textarea
+                    id="contact-message"
                   className={`${INPUT_CLS} resize-none`}
                   rows={5}
                   placeholder="Describe your requirement..."
                   value={form.message}
                   onChange={set("message")}
                 />
-                {errors.message && <p className="font-body-sm text-red-500 mt-1">{errors.message}</p>}
-              </div>
+                  {errors.message && <p className="font-body-sm text-red-500 mt-1" role="alert">{errors.message}</p>}
+                </div>
+              {submitError && <p className="font-body-sm text-red-500" role="alert">{submitError}</p>}
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="bg-[#1769E0] text-white px-8 py-4 rounded-lg font-label-md font-bold hover:bg-[#1257b8] transition-colors flex items-center gap-2"
               >
-                Send Enquiry <ArrowRight size={18} />
+                {isSubmitting ? "Sending…" : "Send Enquiry"} <ArrowRight size={18} />
               </button>
             </form>
           </div>

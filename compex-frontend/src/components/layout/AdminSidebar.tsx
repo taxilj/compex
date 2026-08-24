@@ -25,6 +25,7 @@ const navGroups = [
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
       { href: "/admin/rfqs", label: "RFQ Management", icon: FileText, disabled: false, badge: "8" },
+      { href: "/admin/leads", label: "Enquiries", icon: ClipboardList, disabled: false },
       { href: "/admin/quotes", label: "Quotes", icon: ClipboardList, disabled: false },
       { href: "/admin/orders", label: "Sales Orders", icon: ShoppingCart, disabled: false },
       { href: "/admin/purchase-orders", label: "Purchase Orders", icon: Package, disabled: false },

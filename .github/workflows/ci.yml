@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: compex-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: compex-frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: compex-api
+    env:
+      # Placeholder values only — sufficient for prisma generate, typecheck, and
+      # unit tests (which mock/inject their own env vars). No DB/Redis connection
+      # is ever made by this job. Integration tests are intentionally NOT run in
+      # CI: they require a real Postgres, and this repo's only known DATABASE_URL
+      # is shared with the production deployment — running them here would risk
+      # wiping production data. Add a dedicated CI Postgres service (and a
+      # confirmed-isolated DATABASE_URL) before enabling `test/integration`.
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci_placeholder"
+      JWT_SECRET: "ci-only-placeholder-secret-not-used-in-any-real-env-0000"
+      JWT_REFRESH_SECRET: "ci-only-placeholder-refresh-secret-0000000000000000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: compex-api/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npx vitest run test/unit
+      - run: npm run build

@@ -19,24 +19,31 @@ async function seedSettings() {
 }
 
 async function main() {
-  const adminPassword = await bcrypt.hash("Admin@Compex2026!", 12);
+  const adminEmail = process.env.SEED_ADMIN_EMAIL;
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
 
-  await prisma.user.upsert({
-    where: { email: "admin@compexsolution.com" },
-    update: {},
-    create: {
-      email: "admin@compexsolution.com",
-      passwordHash: adminPassword,
-      role: UserRole.ADMIN,
-      status: UserStatus.ACTIVE,
-      firstName: "System",
-      lastName: "Admin",
-    },
-  });
+  // An admin is optional seed data and must be supplied by the deployment
+  // environment. Never make a reusable production credential part of the repo.
+  if (adminEmail && adminPassword) {
+    await prisma.user.upsert({
+      where: { email: adminEmail },
+      update: {},
+      create: {
+        email: adminEmail,
+        passwordHash: await bcrypt.hash(adminPassword, 12),
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+        firstName: "System",
+        lastName: "Admin",
+      },
+    });
+  } else if (adminEmail || adminPassword) {
+    throw new Error("Set both SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD, or neither.");
+  }
 
   await seedSettings();
 
-  console.log("Seed complete. Admin: admin@compexsolution.com / Admin@Compex2026!");
+  console.log("Seed complete.");
 }
 
 main()

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Upload, Plus, Trash2, CheckCircle } from "lucide-react";
+import Link from "next/link";
 
 interface BOMItem {
   mpn: string;
@@ -17,7 +18,7 @@ const defaultItems: BOMItem[] = [
 export default function RequestQuotePage() {
   const [items, setItems] = useState<BOMItem[]>(defaultItems);
   const [activeTab, setActiveTab] = useState<"manual" | "bom">("manual");
-  const [submitted, setSubmitted] = useState(false);
+  const [signInRequired, setSignInRequired] = useState(false);
   const [form, setForm] = useState({
     companyName: "",
     contactPerson: "",
@@ -36,23 +37,23 @@ export default function RequestQuotePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSignInRequired(true);
   };
 
-  if (submitted) {
+  if (signInRequired) {
     return (
       <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-16 text-center">
-        <div className="w-20 h-20 rounded-full bg-[#12B76A]/10 flex items-center justify-center mx-auto mb-6">
-          <CheckCircle size={40} className="text-[#12B76A]" />
+        <div className="w-20 h-20 rounded-full bg-[#1769E0]/10 flex items-center justify-center mx-auto mb-6">
+          <CheckCircle size={40} className="text-[#1769E0]" />
         </div>
-        <h1 className="font-headline-lg text-[#0B1F3A] mb-4">RFQ Submitted Successfully</h1>
-        <p className="font-body-lg text-[#44474d] mb-2">Your RFQ number is <strong className="font-mono-label text-[#0B1F3A]">RQ-8925</strong></p>
+        <h1 className="font-headline-lg text-[#0B1F3A] mb-4">Sign in to submit an RFQ</h1>
         <p className="font-body-md text-[#44474d] max-w-md mx-auto mb-8">
-          Our sourcing team will review your requirements and send a detailed quotation within 2–3 business days.
+          No RFQ has been submitted from this public page. Sign in to the customer portal to save your requirements, receive a real RFQ number, and track the quotation.
         </p>
-        <a href="/portal" className="inline-flex items-center gap-2 bg-[#1769E0] text-white px-8 py-3 rounded font-label-md hover:bg-[#1257b8] transition-colors">
-          Track in Portal
-        </a>
+        <div className="flex justify-center gap-3">
+          <Link href="/login" className="inline-flex items-center gap-2 bg-[#1769E0] text-white px-6 py-3 rounded font-label-md hover:bg-[#1257b8] transition-colors">Sign in</Link>
+          <Link href="/register" className="inline-flex items-center gap-2 border border-[#1769E0] text-[#1769E0] px-6 py-3 rounded font-label-md hover:bg-[#e8eeff] transition-colors">Create account</Link>
+        </div>
       </div>
     );
   }
@@ -62,6 +63,10 @@ export default function RequestQuotePage() {
       <div className="mb-8">
         <h1 className="font-headline-lg text-[#0B1F3A] mb-2">Request a Quote</h1>
         <p className="font-body-md text-[#44474d]">Submit your component requirements and our team will provide a detailed quotation.</p>
+      </div>
+
+      <div className="mb-6 rounded-lg border border-[#B9D4FF] bg-[#F0F6FF] px-4 py-3 font-body-sm text-[#173B67]">
+        This public form is a preview only. Sign in before submission to create a real, trackable RFQ; entered data is not stored on this page.
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -249,7 +254,7 @@ export default function RequestQuotePage() {
                 type="submit"
                 className="w-full bg-[#1769E0] text-white py-4 rounded font-label-md font-bold hover:bg-[#1257b8] transition-colors"
               >
-                Submit RFQ
+                Continue to sign in
               </button>
               <p className="font-body-sm text-[#44474d]/70 text-center mt-3">
                 No commitment. Free quotation service.
