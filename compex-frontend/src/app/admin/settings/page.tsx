@@ -1,208 +1,216 @@
-﻿"use client";
-import { useState } from "react";
-import { Save, Building2, Mail, Globe, Shield, Bell, Palette } from "lucide-react";
+"use client";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2, Plus, Trash2, Lock, Check, X } from "lucide-react";
+import { listSettingCategories, listSettings, createSetting, updateSetting, deleteSetting, type Setting } from "@/lib/api/admin";
 
-type TabKey = "company" | "email" | "integrations" | "security" | "notifications" | "appearance";
-
-const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
-  { key: "company", label: "Company", icon: Building2 },
-  { key: "email", label: "Email", icon: Mail },
-  { key: "integrations", label: "Integrations", icon: Globe },
-  { key: "security", label: "Security", icon: Shield },
-  { key: "notifications", label: "Notifications", icon: Bell },
-  { key: "appearance", label: "Appearance", icon: Palette },
-];
-
-function Field({ label, type = "text", defaultValue, placeholder }: { label: string; type?: string; defaultValue?: string; placeholder?: string }) {
-  return (
-    <div>
-      <label className="block font-label-sm text-[#44474d] text-sm mb-1.5">{label}</label>
-      <input type={type} defaultValue={defaultValue} placeholder={placeholder} className="w-full px-3 py-2.5 bg-white border border-[#E4E7EC] rounded-lg text-sm text-[#111c2d] focus:outline-none focus:ring-2 focus:ring-[#1769E0] placeholder-[#44474d]/50" />
-    </div>
-  );
+function formatCategoryLabel(category: string): string {
+  return category.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
 }
-
-function Toggle({ label, description, defaultOn = false }: { label: string; description: string; defaultOn?: boolean }) {
-  const [on, setOn] = useState(defaultOn);
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-[#E4E7EC] last:border-0">
-      <div>
-        <p className="font-label-sm text-[#111c2d] text-sm">{label}</p>
-        <p className="font-body-sm text-[#44474d] text-xs mt-0.5">{description}</p>
-      </div>
-      <button onClick={() => setOn(!on)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${on ? "bg-[#1769E0]" : "bg-[#E4E7EC]"}`} aria-checked={on} role="switch">
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? "translate-x-6" : "translate-x-1"}`} />
-      </button>
-    </div>
-  );
-}
-
-function SaveBar() {
-  return (
-    <div className="flex justify-end pt-4 border-t border-[#E4E7EC]">
-      <button className="flex items-center gap-2 bg-[#0B1F3A] text-white px-5 py-2.5 rounded-lg font-label-md text-sm hover:bg-[#0B1F3A]/90 transition-colors">
-        <Save size={14} /> Save Changes
-      </button>
-    </div>
-  );
-}
-
-function CompanyTab() {
-  return (
-    <div className="space-y-5">
-      <h2 className="font-label-lg text-[#111c2d] font-semibold">Company Information</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <Field label="Company Name" defaultValue="Compex Solutions Pvt. Ltd." />
-        <Field label="GSTIN" defaultValue="29AABCC1234F1Z5" />
-        <Field label="Website" defaultValue="https://compex.in" type="url" />
-        <Field label="Support Email" defaultValue="support@compex.in" type="email" />
-        <div className="md:col-span-2">
-          <Field label="Registered Address" defaultValue="123, Electronics Industrial Area, Bengaluru – 560058" />
-        </div>
-        <Field label="PAN" defaultValue="AABCC1234F" />
-        <Field label="Contact Phone" defaultValue="+91 80 4567 8901" type="tel" />
-      </div>
-      <SaveBar />
-    </div>
-  );
-}
-
-function EmailTab() {
-  return (
-    <div className="space-y-5">
-      <h2 className="font-label-lg text-[#111c2d] font-semibold">Email Configuration</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <Field label="SMTP Host" defaultValue="smtp.compex.in" />
-        <Field label="SMTP Port" defaultValue="587" />
-        <Field label="SMTP User" defaultValue="noreply@compex.in" />
-        <Field label="SMTP Password" type="password" defaultValue="••••••••••••" />
-        <Field label="From Name" defaultValue="Compex Solutions" />
-        <Field label="Reply-To" defaultValue="support@compex.in" type="email" />
-      </div>
-      <SaveBar />
-    </div>
-  );
-}
-
-function IntegrationsTab() {
-  const integrations = [
-    { name: "Tally ERP", description: "Sync invoices and ledger entries", connected: true },
-    { name: "IndiaMART", description: "Import leads from IndiaMART portal", connected: false },
-    { name: "TradeIndia", description: "Import leads from TradeIndia portal", connected: false },
-    { name: "GSTIN API", description: "Auto-fill GSTIN details for customers", connected: true },
-  ];
-  return (
-    <div className="space-y-5">
-      <h2 className="font-label-lg text-[#111c2d] font-semibold">Third-Party Integrations</h2>
-      <div className="space-y-3">
-        {integrations.map((intg) => (
-          <div key={intg.name} className="flex items-center justify-between p-4 bg-[#f0f3ff] rounded-lg">
-            <div>
-              <p className="font-label-sm text-[#0B1F3A] font-medium">{intg.name}</p>
-              <p className="font-body-sm text-[#44474d] text-xs mt-0.5">{intg.description}</p>
-            </div>
-            <button className={`px-3 py-1.5 rounded font-label-sm text-xs ${intg.connected ? "bg-white border border-[#E4E7EC] text-[#F04438] hover:bg-[#FEF3F2]" : "bg-[#0B1F3A] text-white hover:bg-[#0B1F3A]/90"}`}>
-              {intg.connected ? "Disconnect" : "Connect"}
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SecurityTab() {
-  return (
-    <div className="space-y-5">
-      <h2 className="font-label-lg text-[#111c2d] font-semibold">Security Settings</h2>
-      <Toggle label="Two-Factor Authentication" description="Require 2FA for all admin users" defaultOn />
-      <Toggle label="Session Timeout" description="Auto-logout after 30 minutes of inactivity" defaultOn />
-      <Toggle label="IP Allowlist" description="Restrict admin access to specific IP ranges" />
-      <Toggle label="Audit Logging" description="Log all admin actions for compliance" defaultOn />
-      <SaveBar />
-    </div>
-  );
-}
-
-function NotificationsTab() {
-  return (
-    <div className="space-y-5">
-      <h2 className="font-label-lg text-[#111c2d] font-semibold">Notification Preferences</h2>
-      <Toggle label="New RFQ Alert" description="Email when a new RFQ is submitted" defaultOn />
-      <Toggle label="RFQ Assigned" description="Email when an RFQ is assigned to you" defaultOn />
-      <Toggle label="Order Status Change" description="Email when an order status changes" defaultOn />
-      <Toggle label="Payment Received" description="Email when a payment is marked received" defaultOn />
-      <Toggle label="Low Stock Alert" description="Alert when a product availability drops to On Request" />
-      <Toggle label="Weekly Summary" description="Weekly digest of activity and KPIs" defaultOn />
-      <SaveBar />
-    </div>
-  );
-}
-
-function AppearanceTab() {
-  return (
-    <div className="space-y-5">
-      <h2 className="font-label-lg text-[#111c2d] font-semibold">Appearance</h2>
-      <div>
-        <label className="block font-label-sm text-[#44474d] text-sm mb-3">Theme</label>
-        <div className="flex gap-3">
-          {["Light", "Dark", "System"].map((t) => (
-            <label key={t} className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="theme" defaultChecked={t === "Light"} className="accent-[#1769E0]" />
-              <span className="font-label-sm text-[#111c2d] text-sm">{t}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-      <div>
-        <label className="block font-label-sm text-[#44474d] text-sm mb-3">Sidebar Density</label>
-        <div className="flex gap-3">
-          {["Compact", "Comfortable"].map((d) => (
-            <label key={d} className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="density" defaultChecked={d === "Comfortable"} className="accent-[#1769E0]" />
-              <span className="font-label-sm text-[#111c2d] text-sm">{d}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-      <SaveBar />
-    </div>
-  );
-}
-
-const TAB_CONTENT: Record<TabKey, React.ReactNode> = {
-  company: <CompanyTab />,
-  email: <EmailTab />,
-  integrations: <IntegrationsTab />,
-  security: <SecurityTab />,
-  notifications: <NotificationsTab />,
-  appearance: <AppearanceTab />,
-};
 
 export default function AdminSettingsPage() {
-  const [active, setActive] = useState<TabKey>("company");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [values, setValues] = useState<Setting[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loadingValues, setLoadingValues] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    listSettingCategories()
+      .then((cats) => {
+        setCategories(cats);
+        if (cats.length > 0) setActiveCategory(cats[0]);
+      })
+      .catch(() => setError("Failed to load setting categories."))
+      .finally(() => setLoadingCategories(false));
+  }, []);
+
+  const loadValues = useCallback((category: string) => {
+    setLoadingValues(true);
+    setError(null);
+    listSettings(category)
+      .then(setValues)
+      .catch(() => setError("Failed to load values for this category."))
+      .finally(() => setLoadingValues(false));
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- parameterized refetch on category change, not derivable state
+    if (activeCategory) loadValues(activeCategory);
+  }, [activeCategory, loadValues]);
+
+  function flashSaved() {
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 1500);
+  }
+
+  async function handleAdd() {
+    if (!activeCategory || !newValue.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createSetting({ category: activeCategory, value: newValue.trim(), sortOrder: values.length });
+      setNewValue("");
+      loadValues(activeCategory);
+      flashSaved();
+    } catch {
+      setError("Failed to add value. It may already exist for this category.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveEdit(id: string) {
+    if (!editingValue.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateSetting(id, { value: editingValue.trim() });
+      setEditingId(null);
+      if (activeCategory) loadValues(activeCategory);
+      flashSaved();
+    } catch {
+      setError("Failed to save. This value may be read-only.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setSaving(true);
+    setError(null);
+    try {
+      await deleteSetting(id);
+      if (activeCategory) loadValues(activeCategory);
+      flashSaved();
+    } catch {
+      setError("Failed to delete. This value may be read-only.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-headline-lg text-[#111c2d]">System Settings</h1>
-        <p className="font-body-md text-[#44474d]">Configure platform-wide preferences and integrations.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-headline-lg text-[#111c2d]">Settings</h1>
+          <p className="font-body-md text-[#44474d]">Manage list-of-values used across the platform.</p>
+        </div>
+        {savedFlash && (
+          <span className="flex items-center gap-1.5 text-[#12B76A] font-label-sm text-sm">
+            <Check size={16} /> Saved
+          </span>
+        )}
       </div>
+
+      {error && (
+        <div className="bg-[#FEF3F2] border border-[#F04438]/30 text-[#F04438] px-4 py-2.5 rounded-lg font-body-sm text-sm">
+          {error}
+        </div>
+      )}
+
       <div className="flex gap-6">
-        <nav className="w-48 shrink-0">
-          <ul className="space-y-1">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <li key={key}>
-                <button onClick={() => setActive(key)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left font-label-sm text-sm transition-colors ${active === key ? "bg-[#f0f3ff] text-[#0B1F3A] font-medium" : "text-[#44474d] hover:bg-[#f0f3ff]/60"}`}>
-                  <Icon size={15} />
-                  {label}
-                </button>
-              </li>
-            ))}
-          </ul>
+        <nav className="w-64 shrink-0 bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-2 max-h-[600px] overflow-y-auto">
+          {loadingCategories ? (
+            <div className="flex items-center justify-center py-8 text-[#44474d]">
+              <Loader2 size={18} className="animate-spin" />
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {categories.map((cat) => (
+                <li key={cat}>
+                  <button
+                    onClick={() => setActiveCategory(cat)}
+                    className={`w-full text-left px-3 py-2 rounded-lg font-label-sm text-sm transition-colors ${activeCategory === cat ? "bg-[#f0f3ff] text-[#0B1F3A] font-medium" : "text-[#44474d] hover:bg-[#f0f3ff]/60"}`}
+                  >
+                    {formatCategoryLabel(cat)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </nav>
-        <div className="flex-1 bg-white rounded-xl border border-[#E4E7EC] p-6 shadow-sm min-h-[400px]">
-          {TAB_CONTENT[active]}
+
+        <div className="flex-1 bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6 min-h-[400px]">
+          {!activeCategory ? (
+            <p className="font-body-md text-[#44474d]">Select a category.</p>
+          ) : loadingValues ? (
+            <div className="flex items-center justify-center py-16 text-[#44474d]">
+              <Loader2 size={20} className="animate-spin mr-2" /> Loading values…
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <h2 className="font-label-lg text-[#111c2d] font-semibold">{formatCategoryLabel(activeCategory)}</h2>
+              <ul className="divide-y divide-[#E4E7EC]">
+                {values.length === 0 ? (
+                  <li className="py-6 text-center font-body-sm text-[#44474d]">No values yet.</li>
+                ) : values.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between py-3">
+                    {editingId === s.id ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <input
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          className="flex-1 px-3 py-1.5 bg-white border border-[#E4E7EC] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]"
+                          autoFocus
+                        />
+                        <button onClick={() => handleSaveEdit(s.id)} disabled={saving} className="p-1.5 text-[#12B76A] hover:bg-[#12B76A]/10 rounded" aria-label="Save">
+                          <Check size={16} />
+                        </button>
+                        <button onClick={() => setEditingId(null)} className="p-1.5 text-[#44474d] hover:bg-[#f0f3ff] rounded" aria-label="Cancel">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-body-sm text-[#111c2d] text-sm">{s.value}</span>
+                        {s.isEditable ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => { setEditingId(s.id); setEditingValue(s.value); }}
+                              className="px-2.5 py-1 font-label-sm text-xs text-[#1769E0] hover:bg-[#f0f3ff] rounded"
+                            >
+                              Edit
+                            </button>
+                            <button onClick={() => handleDelete(s.id)} disabled={saving} className="p-1.5 text-[#F04438] hover:bg-[#FEF3F2] rounded" aria-label="Delete">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="flex items-center gap-1 font-label-sm text-xs text-[#44474d]">
+                            <Lock size={12} /> Read-only
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  value={newValue}
+                  onChange={(e) => setNewValue(e.target.value)}
+                  placeholder="Add a new value…"
+                  className="flex-1 px-3 py-2 bg-white border border-[#E4E7EC] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]"
+                />
+                <button
+                  onClick={handleAdd}
+                  disabled={saving || !newValue.trim()}
+                  className="flex items-center gap-1.5 bg-[#0B1F3A] text-white px-3.5 py-2 rounded-lg font-label-sm text-sm hover:bg-[#0B1F3A]/90 transition-colors disabled:opacity-50"
+                >
+                  <Plus size={14} /> Add
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

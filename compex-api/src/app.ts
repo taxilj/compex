@@ -11,6 +11,8 @@ import { adminVendorRfqsRoutes } from "./modules/admin/admin.vendor-rfqs.routes.
 import { adminLeadsRoutes } from "./modules/admin/admin.leads.routes.js";
 import { adminLandedCostRoutes } from "./modules/admin/admin.landed-cost.routes.js";
 import { adminQuotationsRoutes } from "./modules/admin/admin.quotations.routes.js";
+import { adminOrganizationsRoutes } from "./modules/admin/admin.organizations.routes.js";
+import { adminSettingsRoutes } from "./modules/admin/admin.settings.routes.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 
 export async function buildApp() {
@@ -30,6 +32,8 @@ export async function buildApp() {
   await app.register(adminLeadsRoutes, { prefix: "/api/v1/admin/leads" });
   await app.register(adminLandedCostRoutes, { prefix: "/api/v1/admin/vendor-rfqs" });
   await app.register(adminQuotationsRoutes, { prefix: "/api/v1/admin/quotations" });
+  await app.register(adminOrganizationsRoutes, { prefix: "/api/v1/admin/organizations" });
+  await app.register(adminSettingsRoutes, { prefix: "/api/v1/admin/settings" });
   await app.register(quotesRoutes, { prefix: "/api/v1/quotes" });
 
   app.get("/health", async () => ({ status: "ok" }));

@@ -1,0 +1,264 @@
+{
+  "ENQUIRY_HEADER_STATUS": [
+    "Eentry",
+    "WORKING",
+    "READY",
+    "QUOTED"
+  ],
+  "ENQUIRY_LINE_STATUS": [
+    "WORKING",
+    "QUOTED",
+    "NOBID",
+    "RECON",
+    "ORDER"
+  ],
+  "ORDER_STATUS": [
+    "ADVICE",
+    "DEPOSIT",
+    "HOLD",
+    "N.P",
+    "NO STOCK IN W/H",
+    "P.O.C",
+    "P.O.L",
+    "P.O.S",
+    "PAYMENT",
+    "PAID",
+    "PI REC.",
+    "SHIPPED",
+    "STOCK",
+    "TRANSIT",
+    "CANCELLED",
+    "INVENTORY",
+    "PICK UP",
+    "CLOSED",
+    "REJECTION"
+  ],
+  "CUSTOMER_TYPE": [
+    "OEM",
+    "CMS",
+    "TRADER",
+    "BROKER",
+    "EDITABLE",
+    "EMS",
+    "FD",
+    "STOCKIEST",
+    "MFR"
+  ],
+  "PAYMENT_TERMS": [
+    "Net1",
+    "Net7",
+    "Net15",
+    "Net30",
+    "Net45",
+    "Net60",
+    "Net90",
+    "Net120",
+    "Net150",
+    "Advance",
+    "Sight Draft",
+    "TT",
+    "CC",
+    "Editable"
+  ],
+  "DELIVERY_TERMS": [
+    "EXW",
+    "FOB",
+    "CFR",
+    "CIF",
+    "DAT",
+    "DAP",
+    "DDP",
+    "FCA",
+    "CPT",
+    "CIP",
+    "EDITABLE"
+  ],
+  "CURRENCY": [
+    "USD",
+    "GBP",
+    "SGD",
+    "EUR",
+    "RMB",
+    "YEN",
+    "INR",
+    "EDITABLE"
+  ],
+  "REGION": [
+    "North",
+    "South",
+    "West",
+    "East",
+    "Intl",
+    "EDITABLE"
+  ],
+  "PACKAGING": [
+    "BULK",
+    "TUBE",
+    "REEL",
+    "BOX",
+    "TAPE/REEL",
+    "EDITABLE"
+  ],
+  "PARTS_STATUS": [
+    "ACTIVE",
+    "DEACTIVE"
+  ],
+  "UOM": [
+    "EA",
+    "MT",
+    "CM",
+    "IN",
+    "GR",
+    "KG",
+    "LT",
+    "EDITABLE"
+  ],
+  "PRODUCT_GROUP": [
+    "Active Components",
+    "Passive Components",
+    "Power Electronics",
+    "Electro Mechanical",
+    "InterConnect",
+    "Display (LCDs,LEDs, etc.)",
+    "RF & Microwave",
+    "EDITABLE"
+  ],
+  "PRODUCT_CATEGORY": [
+    "Semiconductor",
+    "Cables",
+    "Connector",
+    "Display",
+    "Electromechanical",
+    "Passive Components",
+    "Power Components",
+    "Miscellaneous chemical products",
+    "RF Microwave",
+    "Kits",
+    "EDITABLE"
+  ],
+  "SUB_CATEGORY_HS_DESC": [
+    "Diodes",
+    "LED",
+    "Integrated Circuits (ICs)",
+    "Thyristors, diacs and triacs",
+    "Transistors",
+    "Semiconductor Modules",
+    "Wire & Cable",
+    "Cable Assembly (<= 80 V)",
+    "Connectors",
+    "Connector Accessories",
+    "LCD",
+    "Digital Cameras",
+    "Battery",
+    "Buzzer / Speaker",
+    "Circuit breakers",
+    "Electrical Apparatus (< 1000 V)",
+    "Fan",
+    "Gaskets & Washers",
+    "Gelenk",
+    "Lamps & Holders",
+    "Modem",
+    "Motors",
+    "Mounting Slides",
+    "Terminals, Plugs & Sockets",
+    "Relays",
+    "Switches",
+    "Tape",
+    "Sensors and Transducers Misc",
+    "Threaded screws and bolts",
+    "Evaluation / Development Kit",
+    "Capacitors (Aluminium)",
+    "Capacitors (Fixed)",
+    "Capacitors (MLCC)",
+    "Capacitors (Single Layer Ceramic)",
+    "Capacitors (Tantalum)",
+    "Capacitors (Variable)",
+    "Ferrite Cores & EMI Filter",
+    "Crystals, Filters & Resonators",
+    "Fuses",
+    "Inductor",
+    "Resistors (MLCC - Chip)",
+    "Resistors (Fixed Carbon)",
+    "Resistors (Variable)",
+    "Resistors (Wire Wound/ Potentiometers)",
+    "Thermistors",
+    "Transformers",
+    "AC-DC Converters",
+    "DC-DC Converters",
+    "Adapters, Converters, Chargers",
+    "Solder Paste & Flux",
+    "RF Amplifier Module & chips",
+    "RF Connector",
+    "RF Misc.",
+    "Radio navigational aid apparatus",
+    "EDITABLE"
+  ],
+  "HSN_CODE": [
+    "8543",
+    "EDITABLE"
+  ],
+  "COUNTRY": [
+    "USA",
+    "INDIA",
+    "CHINA",
+    "EDITABLE"
+  ],
+  "POSITION": [
+    "DIRECTOR",
+    "SALES MANAGER",
+    "PURCHASE MANAGER",
+    "TEAM LEADER",
+    "SENIOR EXECUTIVE",
+    "JUNIOR EXECUTIVE",
+    "EDITABLE"
+  ],
+  "DEPARTMENT": [
+    "Sales",
+    "Purchase",
+    "Account",
+    "Logistic",
+    "Management",
+    "EDITABLE"
+  ],
+  "COURIER_COMPANY": [
+    "UPS",
+    "DHL",
+    "Fedex",
+    "TNT",
+    "EDITABLE"
+  ],
+  "WAREHOUSE": [
+    "Main",
+    "OOS",
+    "DROP",
+    "EDITABLE"
+  ],
+  "FF_ACCOUNT": [
+    "UPS: ACCOUNT NUMBER",
+    "DHL: ACCOUNT NUMBER",
+    "EDITABLE"
+  ],
+  "TAX": [
+    "CGST",
+    "SGST",
+    "IGST",
+    "EDITABLE"
+  ],
+  "TAX_PERCENTAGE": [
+    "0.05",
+    "0.12",
+    "0.18",
+    "EDITABLE"
+  ],
+  "GROUP_OF_COMPANY": [
+    "LOCAL",
+    "IMPORT",
+    "EXPORT",
+    "EDITABLE"
+  ],
+  "TRANSPORTATION": [
+    "Air",
+    "Road",
+    "Sea"
+  ]
+}

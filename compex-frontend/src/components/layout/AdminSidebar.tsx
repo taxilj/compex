@@ -15,6 +15,7 @@ import {
   BarChart3,
   Settings,
   Building2,
+  Building,
   Layers,
 } from "lucide-react";
 
@@ -38,6 +39,7 @@ const navGroups = [
       { href: "/admin/vendors", label: "Vendors", icon: Users, disabled: false },
       { href: "/admin/products", label: "Product Catalog", icon: Layers, disabled: false },
       { href: "/admin/reports", label: "Reports & Analytics", icon: BarChart3, disabled: false },
+      { href: "/admin/organization", label: "Organization", icon: Building, disabled: false },
       { href: "/admin/settings", label: "Settings", icon: Settings, disabled: false },
     ],
   },

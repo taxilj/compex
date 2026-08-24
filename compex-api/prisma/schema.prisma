@@ -501,3 +501,67 @@ model FollowUp {
   @@unique([rfqId, type])
   @@map("follow_ups")
 }
+
+// ─── Owner Master Data: Organization + Settings/LOV ──────────────────────────
+// Scope: this pass implements Organization + a generic Settings/LOV store only
+// (owner-selected scope). See docs/OWNER-MASTER-DATA-COMPLIANCE.md for the
+// full Excel gap analysis — Customer/Vendor/Manufacturer/Product/Category/User
+// field extensions are tracked there but intentionally not built this pass.
+
+model Organization {
+  id                    String   @id @default(uuid()) @db.Uuid
+  companyName           String   @map("company_name")
+  shortName             String   @map("short_name")
+  address               String?
+  country               String?
+  phone                 String?
+  email                 String?
+  website               String?
+  contactPerson         String?  @map("contact_person")
+  ffAccount             String?  @map("ff_account")
+  currency              String   @default("INR")
+  companyRegistrationNo String?  @map("company_registration_no")
+  invoicePrefix         String?  @map("invoice_prefix")
+  proformaInvoicePrefix String?  @map("proforma_invoice_prefix")
+  packingSlipPrefix     String?  @map("packing_slip_prefix")
+  cocPrefix             String?  @map("coc_prefix")
+  orderAckPrefix        String?  @map("order_ack_prefix")
+  quotationPrefix       String?  @map("quotation_prefix")
+  salesOrderPrefix      String?  @map("sales_order_prefix")
+  purchaseOrderPrefix   String?  @map("purchase_order_prefix")
+  itemNoPrefix          String?  @map("item_no_prefix")
+  vendorCodePrefix      String?  @map("vendor_code_prefix")
+  customerCodePrefix    String?  @map("customer_code_prefix")
+  contactCodePrefix     String?  @map("contact_code_prefix")
+  location              String?
+  rmaPrefix             String?  @map("rma_prefix")
+  bankName              String?  @map("bank_name")
+  bankAccount           String?  @map("bank_account")
+  bankAddress           String?  @map("bank_address")
+  swiftIfscMicr         String?  @map("swift_ifsc_micr")
+  routingCode           String?  @map("routing_code")
+  signatureUrl          String?  @map("signature_url")
+  logoUrl               String?  @map("logo_url")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("organizations")
+}
+
+// Generic LOV store backing all Settings categories (Customer Type, Payment
+// Terms, Delivery Terms, Currency, Region, Packaging, UOM, ...). One table
+// instead of one enum/table per category — matches the owner's Excel, which
+// lists ~25 categories side by side in a single "Settings" sheet.
+model Setting {
+  id         String   @id @default(uuid()) @db.Uuid
+  category   String
+  value      String
+  sortOrder  Int      @default(0) @map("sort_order")
+  isEditable Boolean  @default(true) @map("is_editable")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([category, value])
+  @@index([category])
+  @@map("settings")
+}

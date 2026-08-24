@@ -145,3 +145,86 @@ export function listAdminLeads(params?: { status?: string; page?: number; limit?
   const qs = q.toString();
   return apiFetchPaginated<AdminLead>(`/admin/leads${qs ? `?${qs}` : ""}`);
 }
+
+export interface Organization {
+  id: string;
+  companyName: string;
+  shortName: string;
+  address: string | null;
+  country: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  contactPerson: string | null;
+  ffAccount: string | null;
+  currency: string;
+  companyRegistrationNo: string | null;
+  invoicePrefix: string | null;
+  proformaInvoicePrefix: string | null;
+  packingSlipPrefix: string | null;
+  cocPrefix: string | null;
+  orderAckPrefix: string | null;
+  quotationPrefix: string | null;
+  salesOrderPrefix: string | null;
+  purchaseOrderPrefix: string | null;
+  itemNoPrefix: string | null;
+  vendorCodePrefix: string | null;
+  customerCodePrefix: string | null;
+  contactCodePrefix: string | null;
+  location: string | null;
+  rmaPrefix: string | null;
+  bankName: string | null;
+  bankAccount: string | null;
+  bankAddress: string | null;
+  swiftIfscMicr: string | null;
+  routingCode: string | null;
+  signatureUrl: string | null;
+  logoUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OrganizationInput = Omit<Organization, "id" | "createdAt" | "updatedAt">;
+
+export function listOrganizations() {
+  return apiFetchPaginated<Organization>("/admin/organizations");
+}
+
+export function createOrganization(data: Partial<OrganizationInput>) {
+  return apiFetch<Organization>("/admin/organizations", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateOrganization(id: string, data: Partial<OrganizationInput>) {
+  return apiFetch<Organization>(`/admin/organizations/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export interface Setting {
+  id: string;
+  category: string;
+  value: string;
+  sortOrder: number;
+  isEditable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function listSettings(category?: string) {
+  const qs = category ? `?category=${encodeURIComponent(category)}` : "";
+  return apiFetch<Setting[]>(`/admin/settings${qs}`);
+}
+
+export function listSettingCategories() {
+  return apiFetch<string[]>("/admin/settings/categories");
+}
+
+export function createSetting(data: { category: string; value: string; sortOrder?: number }) {
+  return apiFetch<Setting>("/admin/settings", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateSetting(id: string, data: { value?: string; sortOrder?: number }) {
+  return apiFetch<Setting>(`/admin/settings/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export async function deleteSetting(id: string) {
+  await apiFetch<void>(`/admin/settings/${id}`, { method: "DELETE" });
+}
