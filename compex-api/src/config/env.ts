@@ -20,6 +20,7 @@ const schema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   EMAIL_PROVIDER: z.enum(["log", "smtp"]).default("log"),
   EMAIL_FROM: z.string().default("noreply@compexsolution.com"),
+  ENQUIRY_NOTIFICATION_TO: z.string().email().default("sales@compexsolution.com"),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),

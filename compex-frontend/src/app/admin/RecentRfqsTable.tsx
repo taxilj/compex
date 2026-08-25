@@ -12,12 +12,15 @@ const PRIORITY_COLOR: Record<string, string> = {
 };
 
 export function RecentRfqsTable() {
-  const [rfqs, setRfqs] = useState<AdminRfq[]>([]);
+  const [rfqs, setRfqs] = useState<Array<AdminRfq & { ageHours: number }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     listAdminRfqs({ limit: 5 })
-      .then((res) => setRfqs(res.data))
+      .then((res) => setRfqs(res.data.map((rfq) => ({
+        ...rfq,
+        ageHours: Math.floor((Date.now() - new Date(rfq.createdAt).getTime()) / 3600000),
+      }))))
       .catch(() => {/* keep empty on error */})
       .finally(() => setLoading(false));
   }, []);
@@ -61,7 +64,7 @@ export function RecentRfqsTable() {
                     <span className={`capitalize text-xs font-semibold ${PRIORITY_COLOR[r.priority] ?? ""}`}>{r.priority}</span>
                   </td>
                   <td className="py-3 px-5 font-mono-label text-sm text-[#44474d]">
-                    {Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 3600000)}h
+                    {r.ageHours}h
                   </td>
                 </tr>
               ))}

@@ -29,24 +29,27 @@ export default function AdminLeadsPage() {
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 font-body-md text-[#44474d]"><Loader2 size={20} className="animate-spin" /> Loading enquiries…</div>
         ) : (
-          <table className="w-full min-w-[760px]">
+          <table className="w-full min-w-[960px]">
             <thead className="bg-[#F8FAFC] text-left">
               <tr className="border-b border-[#E4E7EC]">
-                {['Contact', 'Company', 'Source', 'Status', 'Related RFQ', 'Received'].map((heading) => (
+                {['Reference', 'Contact', 'Company', 'Source', 'Items', 'Delivery', 'Notification', 'Status', 'Received'].map((heading) => (
                   <th key={heading} className="px-4 py-3 font-label-sm text-xs uppercase tracking-wide text-[#667085]">{heading}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E7EC]">
               {leads.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-12 text-center font-body-md text-[#667085]">No enquiries yet.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-12 text-center font-body-md text-[#667085]">No enquiries yet.</td></tr>
               ) : leads.map((lead) => (
                 <tr key={lead.id} className="hover:bg-[#F8FAFC]">
+                  <td className="px-4 py-3 font-mono text-xs text-[#344054]">{lead.referenceNumber ?? lead.rfq?.rfqNumber ?? '—'}</td>
                   <td className="px-4 py-3"><p className="font-label-sm text-[#111c2d]">{lead.contactName}</p><p className="font-body-sm text-xs text-[#667085]">{lead.contactEmail}</p></td>
                   <td className="px-4 py-3 font-body-sm text-[#344054]">{lead.companyName}</td>
                   <td className="px-4 py-3 font-body-sm text-[#344054]">{lead.source.replaceAll('_', ' ')}</td>
+                  <td className="px-4 py-3 font-body-sm text-xs text-[#344054]">{lead.items.length ? lead.items.map((item) => `${item.mpn} × ${item.quantity}`).join(', ') : '—'}</td>
+                  <td className="px-4 py-3 font-body-sm text-xs text-[#344054]">{lead.deliveryLocation ?? '—'}</td>
+                  <td className="px-4 py-3 font-body-sm text-xs text-[#344054]">{lead.notificationStatus ?? '—'}</td>
                   <td className="px-4 py-3"><span className="rounded-full bg-[#E8EEFF] px-2.5 py-1 font-label-sm text-xs text-[#175CD3]">{lead.status}</span></td>
-                  <td className="px-4 py-3 font-mono text-xs text-[#344054]">{lead.rfq?.rfqNumber ?? '—'}</td>
                   <td className="px-4 py-3 font-body-sm text-xs text-[#667085]">{new Date(lead.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}

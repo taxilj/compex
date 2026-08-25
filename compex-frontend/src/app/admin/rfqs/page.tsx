@@ -23,8 +23,6 @@ export default function AdminRFQsPage() {
   const [priorityFilter, setPriorityFilter] = useState<typeof PRIORITIES[number]>("All");
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
     listAdminRfqs({
       status: statusFilter !== "All" ? statusFilter : undefined,
       priority: priorityFilter !== "All" ? priorityFilter : undefined,
@@ -72,7 +70,7 @@ export default function AdminRFQsPage() {
           </div>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof STATUSES[number])}
+            onChange={(e) => { setLoading(true); setError(null); setStatusFilter(e.target.value as typeof STATUSES[number]); }}
             className="px-3 py-1.5 rounded-lg border border-[#E4E7EC] bg-white text-sm focus:outline-none focus:border-[#1769E0]"
           >
             {STATUSES.map((s) => (
@@ -81,7 +79,7 @@ export default function AdminRFQsPage() {
           </select>
           <select
             value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value as typeof PRIORITIES[number])}
+            onChange={(e) => { setLoading(true); setError(null); setPriorityFilter(e.target.value as typeof PRIORITIES[number]); }}
             className="px-3 py-1.5 rounded-lg border border-[#E4E7EC] bg-white text-sm focus:outline-none focus:border-[#1769E0]"
           >
             {PRIORITIES.map((p) => (

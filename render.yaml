@@ -16,6 +16,8 @@ services:
         value: 0.0.0.0
       - key: EMAIL_PROVIDER
         value: log
+      - key: ENQUIRY_NOTIFICATION_TO
+        value: sales@compexsolution.com
       - key: STORAGE_PROVIDER
         value: local
       - key: CORS_ORIGIN

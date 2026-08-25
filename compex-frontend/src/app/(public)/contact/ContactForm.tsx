@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Mail, Phone, MapPin, ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -22,9 +22,11 @@ const EMPTY: FormData = { name: "", company: "", email: "", phone: "", subject: 
 export default function ContactForm() {
   const [form, setForm] = useState<FormData>(EMPTY);
   const [errors, setErrors] = useState<Partial<FormData>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [submittedReference, setSubmittedReference] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [website, setWebsite] = useState("");
+  const submissionKey = useRef<string | undefined>(undefined);
 
   function validate(): boolean {
     const e: Partial<FormData> = {};
@@ -44,15 +46,18 @@ export default function ContactForm() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      await submitPublicLead({
+      submissionKey.current ??= crypto.randomUUID();
+      const result = await submitPublicLead({
+        source: "CONTACT",
         contactName: form.name,
         contactEmail: form.email,
         contactPhone: form.phone || undefined,
         companyName: form.company,
         subject: form.subject || undefined,
         message: form.message,
-      });
-      setSubmitted(true);
+        website,
+      }, submissionKey.current);
+      setSubmittedReference(result.referenceNumber);
     } catch {
       setSubmitError("We could not submit your enquiry. Please try again shortly.");
     } finally {
@@ -67,7 +72,7 @@ export default function ContactForm() {
     };
   }
 
-  if (submitted) {
+  if (submittedReference) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
         <div className="text-center max-w-md">
@@ -76,7 +81,7 @@ export default function ContactForm() {
           </div>
           <h1 className="font-headline-lg text-[#0B1F3A] mb-4">Enquiry Received</h1>
           <p className="font-body-lg text-[#44474d] mb-8">
-            Thank you for reaching out. Our team will get back to you shortly.
+            Thank you for reaching out. Your reference is <strong>{submittedReference}</strong>; our team will get back to you shortly.
           </p>
           <Link href="/" className="inline-flex items-center gap-2 text-[#1769E0] font-label-md hover:underline">
             Back to Home <ArrowRight size={16} />
@@ -103,6 +108,15 @@ export default function ContactForm() {
           <div className="lg:col-span-2">
             <h2 className="font-headline-lg text-[#0B1F3A] mb-8">Send an Enquiry</h2>
             <form onSubmit={handleSubmit} noValidate className="space-y-5">
+              <input
+                aria-hidden="true"
+                autoComplete="off"
+                className="hidden"
+                name="website"
+                tabIndex={-1}
+                value={website}
+                onChange={(event) => setWebsite(event.target.value)}
+              />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label htmlFor="contact-name" className="block font-label-sm text-[#44474d] mb-1.5">Name *</label>

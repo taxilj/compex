@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 
 interface EmailOptions {
   to: string;
+  replyTo?: string;
   subject: string;
   html: string;
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
@@ -17,25 +18,74 @@ function getTransport() {
   });
 }
 
-export async function sendEmail(opts: EmailOptions): Promise<void> {
+export async function sendEmail(opts: EmailOptions): Promise<{ messageId?: string }> {
   if (env.EMAIL_PROVIDER === "log") {
-    console.log(`[EMAIL] To: ${opts.to} | Subject: ${opts.subject}`);
-    console.log(`[EMAIL] Body: ${opts.html.substring(0, 200)}…`);
-    return;
+    throw new Error("Email provider is not configured");
   }
 
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) {
-    console.error("[EMAIL] SMTP credentials missing — email not sent to:", opts.to);
-    return;
+    throw new Error("Email provider is not configured");
   }
 
-  await getTransport().sendMail({
+  const result = await getTransport().sendMail({
     from: `"Compex Solution" <${env.EMAIL_FROM}>`,
     to: opts.to,
+    replyTo: opts.replyTo,
     subject: opts.subject,
     html: opts.html,
     attachments: opts.attachments,
   });
+  return { messageId: result.messageId };
+}
+
+function escapeHtml(value?: string | null): string {
+  const replacements: Record<string, string> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  };
+  return (value ?? "").replace(/[&<>"']/g, (char) => replacements[char]!);
+}
+
+export function websiteEnquiryEmail(input: {
+  referenceNumber: string;
+  source: "CONTACT" | "REQUEST_QUOTE" | "BOM";
+  submittedAt: string;
+  contactName: string;
+  companyName: string;
+  contactEmail: string;
+  contactPhone?: string;
+  subject?: string;
+  message: string;
+  deliveryLocation?: string;
+  requiredDate?: string;
+  items: Array<{ mpn: string; manufacturer?: string | null; description?: string | null; quantity: number }>;
+  adminUrl: string;
+}): string {
+  const items = input.items.length
+    ? `<ul>${input.items.map((item) => `<li>${escapeHtml(item.mpn)}${item.manufacturer ? ` — ${escapeHtml(item.manufacturer)}` : ""} × ${item.quantity}</li>`).join("")}</ul>`
+    : "<p>No line items supplied.</p>";
+  return `
+<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#333">
+  <h2>New ${input.source === "CONTACT" ? "Website Enquiry" : input.source === "BOM" ? "BOM Enquiry" : "RFQ"} — ${escapeHtml(input.referenceNumber)}</h2>
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td><strong>Reference</strong></td><td>${escapeHtml(input.referenceNumber)}</td></tr>
+    <tr><td><strong>Source</strong></td><td>${escapeHtml(input.source.replaceAll("_", " "))}</td></tr>
+    <tr><td><strong>Submitted</strong></td><td>${escapeHtml(input.submittedAt)}</td></tr>
+    <tr><td><strong>Customer</strong></td><td>${escapeHtml(input.contactName)}</td></tr>
+    <tr><td><strong>Company</strong></td><td>${escapeHtml(input.companyName)}</td></tr>
+    <tr><td><strong>Email</strong></td><td>${escapeHtml(input.contactEmail)}</td></tr>
+    ${input.contactPhone ? `<tr><td><strong>Phone</strong></td><td>${escapeHtml(input.contactPhone)}</td></tr>` : ""}
+    ${input.subject ? `<tr><td><strong>Subject</strong></td><td>${escapeHtml(input.subject)}</td></tr>` : ""}
+    ${input.deliveryLocation ? `<tr><td><strong>Delivery location</strong></td><td>${escapeHtml(input.deliveryLocation)}</td></tr>` : ""}
+    ${input.requiredDate ? `<tr><td><strong>Required date</strong></td><td>${escapeHtml(input.requiredDate)}</td></tr>` : ""}
+  </table>
+  <h3>Items</h3>${items}
+  <h3>Message</h3><p>${escapeHtml(input.message).replaceAll("\n", "<br>")}</p>
+  <p><a href="${escapeHtml(input.adminUrl)}">Review in Compex Admin</a></p>
+</div>`;
 }
 
 export function rfqConfirmationEmail(

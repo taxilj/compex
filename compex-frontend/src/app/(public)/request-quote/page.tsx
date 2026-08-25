@@ -1,8 +1,9 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Upload, Plus, Trash2, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { submitPublicLead } from "@/lib/api/leads";
 
 interface BOMItem {
   mpn: string;
@@ -11,14 +12,16 @@ interface BOMItem {
   quantity: string;
 }
 
-const defaultItems: BOMItem[] = [
-  { mpn: "STM32F103C8T6", manufacturer: "STMicroelectronics", description: "ARM Cortex-M3 MCU", quantity: "5000" },
-];
+const defaultItems: BOMItem[] = [{ mpn: "", manufacturer: "", description: "", quantity: "" }];
 
 export default function RequestQuotePage() {
   const [items, setItems] = useState<BOMItem[]>(defaultItems);
   const [activeTab, setActiveTab] = useState<"manual" | "bom">("manual");
-  const [signInRequired, setSignInRequired] = useState(false);
+  const [submittedReference, setSubmittedReference] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [website, setWebsite] = useState("");
+  const submissionKey = useRef<string | undefined>(undefined);
   const [form, setForm] = useState({
     companyName: "",
     contactPerson: "",
@@ -35,24 +38,59 @@ export default function RequestQuotePage() {
   const updateItem = (i: number, field: keyof BOMItem, val: string) =>
     setItems(items.map((item, idx) => (idx === i ? { ...item, [field]: val } : item)));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSignInRequired(true);
+    const validItems = items
+      .filter((item) => item.mpn.trim() && item.quantity)
+      .map((item) => ({
+        mpn: item.mpn.trim(),
+        manufacturer: item.manufacturer.trim() || undefined,
+        description: item.description.trim() || undefined,
+        quantity: Number(item.quantity),
+      }));
+    if (activeTab === "manual" && (!validItems.length || validItems.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1))) {
+      setSubmitError("Add at least one component with a valid quantity.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      submissionKey.current ??= crypto.randomUUID();
+      const result = await submitPublicLead({
+        source: activeTab === "bom" ? "BOM" : "REQUEST_QUOTE",
+        contactName: form.contactPerson,
+        contactEmail: form.email,
+        contactPhone: form.phone || undefined,
+        companyName: form.companyName,
+        subject: activeTab === "bom" ? "BOM procurement enquiry" : "Component quote enquiry",
+        message: [form.notes.trim(), form.gstin.trim() && `GSTIN: ${form.gstin.trim()}`].filter(Boolean).join("\n") || "Website quote enquiry",
+        deliveryLocation: form.city,
+        requiredDate: form.requiredDate || undefined,
+        items: activeTab === "manual" ? validItems : [],
+        website,
+      }, submissionKey.current);
+      setSubmittedReference(result.referenceNumber);
+    } catch {
+      setSubmitError("We could not submit your enquiry. Please try again shortly.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  if (signInRequired) {
+  if (submittedReference) {
     return (
       <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-16 text-center">
         <div className="w-20 h-20 rounded-full bg-[#1769E0]/10 flex items-center justify-center mx-auto mb-6">
           <CheckCircle size={40} className="text-[#1769E0]" />
         </div>
-        <h1 className="font-headline-lg text-[#0B1F3A] mb-4">Sign in to submit an RFQ</h1>
+        <h1 className="font-headline-lg text-[#0B1F3A] mb-4">Enquiry Received</h1>
         <p className="font-body-md text-[#44474d] max-w-md mx-auto mb-8">
-          No RFQ has been submitted from this public page. Sign in to the customer portal to save your requirements, receive a real RFQ number, and track the quotation.
+          Your enquiry has been saved with reference <strong>{submittedReference}</strong>. Sales will review it and contact you; sign in only if you need portal tracking.
         </p>
         <div className="flex justify-center gap-3">
-          <Link href="/login" className="inline-flex items-center gap-2 bg-[#1769E0] text-white px-6 py-3 rounded font-label-md hover:bg-[#1257b8] transition-colors">Sign in</Link>
-          <Link href="/register" className="inline-flex items-center gap-2 border border-[#1769E0] text-[#1769E0] px-6 py-3 rounded font-label-md hover:bg-[#e8eeff] transition-colors">Create account</Link>
+          <Link href="/" className="inline-flex items-center gap-2 bg-[#1769E0] text-white px-6 py-3 rounded font-label-md hover:bg-[#1257b8] transition-colors">Back to Home</Link>
+          <Link href="/login" className="inline-flex items-center gap-2 border border-[#1769E0] text-[#1769E0] px-6 py-3 rounded font-label-md hover:bg-[#e8eeff] transition-colors">Sign in</Link>
         </div>
       </div>
     );
@@ -66,10 +104,19 @@ export default function RequestQuotePage() {
       </div>
 
       <div className="mb-6 rounded-lg border border-[#B9D4FF] bg-[#F0F6FF] px-4 py-3 font-body-sm text-[#173B67]">
-        This public form is a preview only. Sign in before submission to create a real, trackable RFQ; entered data is not stored on this page.
+        This public form records a sales enquiry, not a customer-portal RFQ. Sales will review the request and contact you with the next steps.
       </div>
 
       <form onSubmit={handleSubmit}>
+        <input
+          aria-hidden="true"
+          autoComplete="off"
+          className="hidden"
+          name="website"
+          tabIndex={-1}
+          value={website}
+          onChange={(event) => setWebsite(event.target.value)}
+        />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left — components */}
           <div className="lg:col-span-2 space-y-6">
@@ -88,7 +135,7 @@ export default function RequestQuotePage() {
                   onClick={() => setActiveTab("bom")}
                   className={`px-5 py-2 rounded font-label-md text-sm transition-colors ${activeTab === "bom" ? "bg-[#0B1F3A] text-white" : "text-[#44474d] hover:text-[#111c2d]"}`}
                 >
-                  Upload BOM
+                  BOM Enquiry
                 </button>
               </div>
 
@@ -171,14 +218,8 @@ export default function RequestQuotePage() {
               {activeTab === "bom" && (
                 <div className="border-2 border-dashed border-[#E4E7EC] rounded-lg p-12 text-center hover:border-[#1769E0] transition-colors">
                   <Upload size={40} className="text-[#44474d] mx-auto mb-4" />
-                  <h3 className="font-headline-sm text-[#0B1F3A] mb-2">Upload BOM File</h3>
-                  <p className="font-body-sm text-[#44474d] mb-4">Supports XLSX, CSV, and PDF formats</p>
-                  <label className="cursor-pointer">
-                    <input type="file" accept=".xlsx,.csv,.pdf" className="sr-only" />
-                    <span className="bg-[#1769E0] text-white px-6 py-2.5 rounded font-label-md hover:bg-[#1257b8] transition-colors">
-                      Choose File
-                    </span>
-                  </label>
+                  <h3 className="font-headline-sm text-[#0B1F3A] mb-2">Secure BOM Upload</h3>
+                  <p className="font-body-sm text-[#44474d] max-w-lg mx-auto">Public file upload is not available because durable document storage has not been verified. Send your BOM enquiry now; sales will provide a secure upload or sign-in path.</p>
                 </div>
               )}
             </div>
@@ -188,12 +229,12 @@ export default function RequestQuotePage() {
               <h2 className="font-headline-sm text-[#0B1F3A] mb-6">Company Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { label: "Company Name *", name: "companyName", type: "text", placeholder: "Your Company Pvt. Ltd." },
-                  { label: "Contact Person *", name: "contactPerson", type: "text", placeholder: "Full Name" },
-                  { label: "Business Email *", name: "email", type: "email", placeholder: "procurement@company.in" },
-                  { label: "Phone *", name: "phone", type: "tel", placeholder: "+91 98765 43210" },
+                  { label: "Company Name *", name: "companyName", type: "text", placeholder: "Your Company Pvt. Ltd.", required: true },
+                  { label: "Contact Person *", name: "contactPerson", type: "text", placeholder: "Full Name", required: true },
+                  { label: "Business Email *", name: "email", type: "email", placeholder: "procurement@company.in", required: true },
+                  { label: "Phone *", name: "phone", type: "tel", placeholder: "+91 98765 43210", required: true },
                   { label: "GSTIN", name: "gstin", type: "text", placeholder: "27AABCT1234H1Z5" },
-                  { label: "Delivery City *", name: "city", type: "text", placeholder: "Mumbai, Pune, Bangalore..." },
+                  { label: "Delivery City *", name: "city", type: "text", placeholder: "Mumbai, Pune, Bangalore...", required: true },
                 ].map((field) => (
                   <div key={field.name}>
                     <label className="block font-label-md text-[#44474d] mb-1.5">{field.label}</label>
@@ -202,6 +243,7 @@ export default function RequestQuotePage() {
                       placeholder={field.placeholder}
                       value={form[field.name as keyof typeof form]}
                       onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
+                      required={field.required}
                       className="w-full bg-[#f9f9ff] border border-[#E4E7EC] rounded px-4 py-3 font-body-md text-[#111c2d] focus:outline-none focus:ring-2 focus:ring-[#1769E0] focus:border-[#1769E0]"
                     />
                   </div>
@@ -252,10 +294,12 @@ export default function RequestQuotePage() {
               </div>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="w-full bg-[#1769E0] text-white py-4 rounded font-label-md font-bold hover:bg-[#1257b8] transition-colors"
               >
-                Continue to sign in
+                {isSubmitting ? "Sending…" : activeTab === "bom" ? "Send BOM Enquiry" : "Submit Quote Enquiry"}
               </button>
+              {submitError && <p className="mt-3 font-body-sm text-[#B42318]" role="alert">{submitError}</p>}
               <p className="font-body-sm text-[#44474d]/70 text-center mt-3">
                 No commitment. Free quotation service.
               </p>

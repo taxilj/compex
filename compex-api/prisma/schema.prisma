@@ -80,6 +80,16 @@ enum LeadSource {
   DIRECT
   REFERRAL
   OTHER
+  CONTACT
+  REQUEST_QUOTE
+  BOM
+  CUSTOMER_PORTAL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
 }
 
 enum LeadStatus {
@@ -366,15 +376,24 @@ model VendorQuote {
 
 model Lead {
   id             String      @id @default(uuid()) @db.Uuid
+  referenceNumber String?    @unique @map("reference_number")
+  idempotencyKey String?     @unique @map("idempotency_key")
   customerId     String?     @map("customer_id") @db.Uuid
   rfqId          String?     @unique @map("rfq_id") @db.Uuid
   contactName    String      @map("contact_name")
   contactEmail   String      @map("contact_email")
   contactPhone   String?     @map("contact_phone")
   companyName    String      @map("company_name")
+  subject        String?
+  deliveryLocation String?   @map("delivery_location")
+  requiredDate   DateTime?   @map("required_date") @db.Date
   source         LeadSource  @default(DIRECT)
   status         LeadStatus  @default(NEW)
   priority       RFQPriority @default(MEDIUM)
+  notificationStatus NotificationStatus? @map("notification_status")
+  notificationSentAt DateTime? @map("notification_sent_at")
+  notificationError String?  @map("notification_error")
+  notificationMessageId String? @map("notification_message_id")
   assignedToId   String?     @map("assigned_to_id") @db.Uuid
   lastContactAt  DateTime?   @map("last_contact_at")
   nextFollowUpAt DateTime?   @map("next_follow_up_at")
@@ -385,6 +404,7 @@ model Lead {
   customer   Customer?  @relation(fields: [customerId], references: [id])
   rfq        Rfq?       @relation(fields: [rfqId], references: [id])
   assignedTo User?      @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  items      LeadItem[]
   followUps  FollowUp[]
 
   @@map("leads")
@@ -564,4 +584,20 @@ model Setting {
   @@unique([category, value])
   @@index([category])
   @@map("settings")
+}
+
+model LeadItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  leadId       String   @map("lead_id") @db.Uuid
+  lineNumber   Int      @map("line_number")
+  mpn          String
+  manufacturer String?
+  description  String?
+  quantity     Int
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, lineNumber])
+  @@map("lead_items")
 }

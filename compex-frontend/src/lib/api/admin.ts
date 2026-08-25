@@ -120,8 +120,9 @@ export function listAdminQuotations(params?: { status?: string; page?: number; l
   return apiFetchPaginated<AdminQuotation>(`/admin/quotations${qs ? `?${qs}` : ""}`);
 }
 
-export interface AdminLead {
-  id: string;
+  export interface AdminLead {
+    id: string;
+    referenceNumber: string | null;
   contactName: string;
   contactEmail: string;
   contactPhone: string | null;
@@ -130,10 +131,17 @@ export interface AdminLead {
   status: "NEW" | "CONTACTED" | "QUALIFIED" | "QUOTATION" | "WON" | "LOST";
   priority: "LOW" | "MEDIUM" | "HIGH";
   lastContactAt: string | null;
-  nextFollowUpAt: string | null;
-  notes: string | null;
-  createdAt: string;
-  rfq: { id: string; rfqNumber: string; status: string } | null;
+    nextFollowUpAt: string | null;
+    notes: string | null;
+    subject: string | null;
+    deliveryLocation: string | null;
+    requiredDate: string | null;
+    notificationStatus: "PENDING" | "SENT" | "FAILED" | null;
+    notificationSentAt: string | null;
+    notificationError: string | null;
+    createdAt: string;
+    rfq: { id: string; rfqNumber: string; status: string } | null;
+    items: { id: string; lineNumber: number; mpn: string; manufacturer: string | null; description: string | null; quantity: number }[];
   assignedTo: { id: string; firstName: string; lastName: string; email: string } | null;
 }
 

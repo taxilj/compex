@@ -10,6 +10,7 @@ import { cancelFollowUps } from "../../jobs/follow-up-scheduler.js";
 
 const LEAD_SELECT = {
   id: true,
+  referenceNumber: true,
   contactName: true,
   contactEmail: true,
   contactPhone: true,
@@ -20,12 +21,24 @@ const LEAD_SELECT = {
   lastContactAt: true,
   nextFollowUpAt: true,
   notes: true,
+  subject: true,
+  deliveryLocation: true,
+  requiredDate: true,
+  notificationStatus: true,
+  notificationSentAt: true,
+  notificationError: true,
   createdAt: true,
   updatedAt: true,
   customer: { select: { id: true, accountNumber: true, company: { select: { name: true } } } },
   rfq: { select: { id: true, rfqNumber: true, status: true } },
+  items: { select: { id: true, lineNumber: true, mpn: true, manufacturer: true, description: true, quantity: true }, orderBy: { lineNumber: "asc" } },
   assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
 } as const;
+
+const LeadSourceSchema = z.enum([
+  "GOOGLE_ORGANIC", "GOOGLE_ADS", "LINKEDIN", "WHATSAPP", "EMAIL", "DIRECT", "REFERRAL", "OTHER",
+  "CONTACT", "REQUEST_QUOTE", "BOM", "CUSTOMER_PORTAL",
+]);
 
 const LeadPatch = z.object({
   status: z.enum(["NEW", "CONTACTED", "QUALIFIED", "QUOTATION", "WON", "LOST"]).optional(),
@@ -34,7 +47,7 @@ const LeadPatch = z.object({
   lastContactAt: z.string().datetime().optional().nullable(),
   nextFollowUpAt: z.string().datetime().optional().nullable(),
   notes: z.string().max(5000).optional().nullable(),
-  source: z.enum(["GOOGLE_ORGANIC", "GOOGLE_ADS", "LINKEDIN", "WHATSAPP", "EMAIL", "DIRECT", "REFERRAL", "OTHER"]).optional(),
+  source: LeadSourceSchema.optional(),
 });
 
 const LeadCreate = z.object({
@@ -44,7 +57,7 @@ const LeadCreate = z.object({
   contactEmail: z.string().email(),
   contactPhone: z.string().max(30).optional(),
   companyName: z.string().min(1).max(200),
-  source: z.enum(["GOOGLE_ORGANIC", "GOOGLE_ADS", "LINKEDIN", "WHATSAPP", "EMAIL", "DIRECT", "REFERRAL", "OTHER"]).default("DIRECT"),
+  source: LeadSourceSchema.default("DIRECT"),
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
   notes: z.string().max(5000).optional(),
 });
@@ -57,7 +70,7 @@ export async function adminLeadsRoutes(app: FastifyInstance): Promise<void> {
     const q = z.object({
       status: z.enum(["NEW", "CONTACTED", "QUALIFIED", "QUOTATION", "WON", "LOST"]).optional(),
       priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
-      source: z.enum(["GOOGLE_ORGANIC", "GOOGLE_ADS", "LINKEDIN", "WHATSAPP", "EMAIL", "DIRECT", "REFERRAL", "OTHER"]).optional(),
+      source: LeadSourceSchema.optional(),
       assignedToId: z.string().uuid().optional(),
       customerId: z.string().uuid().optional(),
       page: z.coerce.number().int().positive().default(1),

@@ -24,8 +24,6 @@ export default function AdminQuotesPage() {
   const [tab, setTab] = useState<typeof STATUS_TABS[number]>("All");
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
     listAdminQuotations({ status: tab !== "All" ? tab : undefined, limit: 50 })
       .then((res) => { setQuotes(res.data); setTotal(res.total); })
       .catch(() => setError("Failed to load quotations."))
@@ -70,7 +68,7 @@ export default function AdminQuotesPage() {
           {STATUS_TABS.map((s) => (
             <button
               key={s}
-              onClick={() => setTab(s)}
+              onClick={() => { setLoading(true); setError(null); setTab(s); }}
               className={`px-3 py-1.5 rounded font-label-sm text-xs whitespace-nowrap transition-colors ${tab === s ? "bg-white text-[#0B1F3A] shadow-sm" : "text-[#44474d] hover:text-[#0B1F3A]"}`}
             >
               {s === "All" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
