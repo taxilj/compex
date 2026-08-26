@@ -44,12 +44,13 @@ export default function PublicHeader() {
 
         {/* Actions */}
         <div className="flex items-center gap-4">
-          <button
+          <Link
+            href="/products"
             aria-label="Search"
             className="text-[#44474d] hover:text-[#0B1F3A] flex items-center p-1"
           >
             <Search size={20} />
-          </button>
+          </Link>
           <Link
             href="/login"
             className="font-label-md text-[#44474d] hover:text-[#0B1F3A] hidden sm:block"

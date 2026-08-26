@@ -31,7 +31,7 @@ export default function LoginPage() {
       if (err instanceof ApiError) {
         if (err.statusCode === 429) setLoginError("Too many attempts. Please wait and try again.");
         else if (err.statusCode === 401) setLoginError("Invalid email or password.");
-        else if (err.statusCode === 422) setLoginError("Please check your input and try again.");
+        else if (err.statusCode === 422) setLoginError(err.message || "Please check your input and try again.");
         else setLoginError(err.message || "Sign in failed. Please try again.");
       } else {
         setLoginError("Network error. Please check your connection.");
@@ -77,7 +77,7 @@ export default function LoginPage() {
   return (
     <div className="w-full max-w-[1100px] flex flex-col md:flex-row shadow-2xl rounded-xl overflow-hidden bg-white border border-[#E4E7EC]">
       {/* Login panel */}
-      <div className="w-full md:w-[42%] bg-[#f0f3ff] p-10 flex flex-col justify-center border-b md:border-b-0 md:border-r border-[#E4E7EC]">
+      <div id="sign-in" className="w-full md:w-[42%] bg-[#f0f3ff] p-10 flex flex-col justify-center border-b md:border-b-0 md:border-r border-[#E4E7EC]">
         <div className="max-w-sm mx-auto w-full">
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-6">
@@ -130,7 +130,7 @@ export default function LoginPage() {
                 />
                 <span className="font-body-sm text-[#44474d]">Remember Me</span>
               </label>
-              <Link href="#" className="font-label-sm text-[#1769E0] hover:underline">Forgot Password?</Link>
+              <Link href="/contact" className="font-label-sm text-[#1769E0] hover:underline">Need sign-in help?</Link>
             </div>
             {loginError && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{loginError}</p>
@@ -167,7 +167,7 @@ export default function LoginPage() {
           {regSuccess ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
               <p className="font-label-md text-green-700 mb-2">Account created successfully!</p>
-              <p className="font-body-sm text-green-600">You can now sign in with your credentials.</p>
+              <p className="font-body-sm text-green-600">Email verification is required before sign-in. If the verification message does not arrive, contact support.</p>
             </div>
           ) : (
             <form onSubmit={handleRegister} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -210,7 +210,7 @@ export default function LoginPage() {
 
           <p className="font-body-sm text-[#44474d] text-center mt-4">
             Already registered?{" "}
-            <Link href="#" className="text-[#1769E0] hover:underline">Sign in here</Link>
+            <Link href="#sign-in" className="text-[#1769E0] hover:underline">Sign in here</Link>
           </p>
         </div>
       </div>

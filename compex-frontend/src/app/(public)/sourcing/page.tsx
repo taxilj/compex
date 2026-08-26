@@ -47,9 +47,9 @@ export default function SourcingPage() {
             >
               Request a Quote
             </Link>
-            <button className="bg-white/10 text-white border border-white/20 px-8 py-4 rounded-lg font-label-md hover:bg-white/20 transition-colors flex items-center gap-2">
-              <Upload size={20} /> Upload BOM
-            </button>
+            <Link href="/request-quote?mode=bom" className="bg-white/10 text-white border border-white/20 px-8 py-4 rounded-lg font-label-md hover:bg-white/20 transition-colors flex items-center gap-2">
+              <Upload size={20} /> BOM Enquiry
+            </Link>
           </div>
         </div>
       </section>

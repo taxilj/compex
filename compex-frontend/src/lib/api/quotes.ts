@@ -56,7 +56,7 @@ export function acceptQuote(id: string) {
   return apiFetch<CustomerQuote>(`/quotes/${id}/accept`, { method: "POST" });
 }
 
-export function rejectQuote(id: string, reason?: string) {
+export function rejectQuote(id: string, reason: string) {
   return apiFetch<CustomerQuote>(`/quotes/${id}/reject`, {
     method: "POST",
     body: JSON.stringify({ reason }),

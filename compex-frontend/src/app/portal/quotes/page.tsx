@@ -33,12 +33,6 @@ export default function QuotesPage() {
           <h1 className="font-headline-lg text-[#111c2d]">Quotes</h1>
           <p className="font-body-md text-[#44474d] mt-1">{loading ? "Loading…" : `${total} quotations`}</p>
         </div>
-        <Link
-          href="/portal/quotes/compare"
-          className="border border-[#E4E7EC] text-[#44474d] px-4 py-2 rounded font-label-md hover:bg-[#f0f3ff] transition-colors"
-        >
-          Compare Quotes
-        </Link>
       </div>
 
       {error && <p className="text-[#F04438] font-body-sm">{error}</p>}

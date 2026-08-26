@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, Plus, Loader2 } from "lucide-react";
+import { Save, Loader2 } from "lucide-react";
 import { getMyCompany, updateMyCompany, type BackendCompany } from "@/lib/api/customers";
 import { ApiError } from "@/lib/api/client";
 
@@ -115,18 +115,6 @@ export default function CompanyProfilePage() {
             <Field label="Pincode" value="" onChange={() => {}} disabled placeholder="Not configured" />
           </div>
         </Section>
-      </div>
-
-      <div className="bg-white rounded-lg border border-[#E4E7EC] p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-headline-sm text-[#111c2d]">Team Members</h2>
-          <button className="flex items-center gap-2 bg-[#1769E0] text-white px-4 py-2 rounded font-label-md text-sm hover:bg-[#1257b8] transition-colors">
-            <Plus size={16} /> Add User
-          </button>
-        </div>
-        <div className="p-4 text-center text-[#44474d] font-body-sm border border-dashed border-[#E4E7EC] rounded">
-          Team management coming soon
-        </div>
       </div>
 
       {company && (

@@ -1,14 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PortalSidebar } from "@/components/layout/PortalSidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { Menu, X, Bell, Plus, LogOut } from "lucide-react";
+import { Loader2, Menu, X, Plus, LogOut } from "lucide-react";
 import Link from "next/link";
 
 function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && user && user.role !== "CUSTOMER") router.replace("/admin");
+  }, [isLoading, router, user]);
+
+  if (isLoading || !user || user.role !== "CUSTOMER") {
+    return <div className="flex min-h-screen items-center justify-center bg-[#F7F9FC] text-[#44474d]"><Loader2 className="mr-2 animate-spin" size={22} /> Checking access…</div>;
+  }
 
   return (
     <div className="flex h-screen bg-[#F7F9FC] overflow-hidden">
@@ -43,10 +53,6 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
             <Plus size={16} />
             New RFQ
           </Link>
-          <button className="p-2 text-[#44474d] hover:text-[#0B1F3A] relative" aria-label="Notifications">
-            <Bell size={20} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#F04438] rounded-full" />
-          </button>
           <button
             onClick={() => void logout()}
             className="p-2 text-[#44474d] hover:text-[#0B1F3A] transition-colors"

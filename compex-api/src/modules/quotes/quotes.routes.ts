@@ -114,7 +114,7 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
   app.post("/:id/reject", async (req, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
     const customerId = await getCustomerIdForUser(req.user!.id);
-    const body = z.object({ reason: z.string().max(500).optional() }).parse(req.body ?? {});
+    const body = z.object({ reason: z.string().trim().min(1).max(500) }).parse(req.body ?? {});
 
     const q = await prisma.quotation.findUnique({ where: { id }, select: { id: true, status: true, customerId: true, rfqId: true } });
     if (!q) throw Errors.notFound("Quotation");
@@ -128,7 +128,7 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
       data: {
         status: "REJECTED",
         respondedAt: new Date(),
-        rejectionReason: body.reason ?? null,
+        rejectionReason: body.reason,
       },
       select: CUSTOMER_QUOTE_SELECT,
     });

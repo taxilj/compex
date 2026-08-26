@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Upload, Plus, Trash2, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { submitPublicLead } from "@/lib/api/leads";
@@ -32,6 +32,12 @@ export default function RequestQuotePage() {
     requiredDate: "",
     notes: "",
   });
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("mode") === "bom") {
+      queueMicrotask(() => setActiveTab("bom"));
+    }
+  }, []);
 
   const addItem = () => setItems([...items, { mpn: "", manufacturer: "", description: "", quantity: "" }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));

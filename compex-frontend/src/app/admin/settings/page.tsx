@@ -83,6 +83,7 @@ export default function AdminSettingsPage() {
   }
 
   async function handleDelete(id: string) {
+    if (!window.confirm("Delete this setting value? This action cannot be undone.")) return;
     setSaving(true);
     setError(null);
     try {

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Search, Download, Loader2 } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { listAdminQuotations, type AdminQuotation } from "@/lib/api/admin";
 
 const STATUS_TABS = ["All", "DRAFT", "SENT", "VIEWED", "ACCEPTED", "REJECTED", "EXPIRED"] as const;
@@ -49,9 +49,6 @@ export default function AdminQuotesPage() {
             {loading ? "Loading…" : `${total} quotations`}
           </p>
         </div>
-        <button className="flex items-center gap-2 border border-[#E4E7EC] bg-white px-4 py-2 rounded font-label-md text-sm text-[#111c2d] hover:bg-[#f0f3ff]">
-          <Download size={15} /> Export
-        </button>
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">

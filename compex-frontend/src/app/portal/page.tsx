@@ -2,21 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FileText, ClipboardList, Package, DollarSign, ArrowUpRight, Clock, Loader2 } from "lucide-react";
+import { FileText, ClipboardList, ArrowUpRight, Clock, Loader2 } from "lucide-react";
 import { StatsCard } from "@/components/ui/StatsCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { listRfqs, type BackendRfq } from "@/lib/api/rfqs";
+import { listCustomerQuotes } from "@/lib/api/quotes";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function PortalDashboardPage() {
   const { companyName } = useAuth();
   const [rfqs, setRfqs] = useState<BackendRfq[]>([]);
+  const [quoteCount, setQuoteCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    listRfqs({ limit: 4 })
-      .then(setRfqs)
-      .catch(() => {})
+    Promise.all([listRfqs({ limit: 4 }), listCustomerQuotes({ limit: 1 })])
+      .then(([rfqResult, quoteResult]) => { setRfqs(rfqResult); setQuoteCount(quoteResult.total); })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -38,12 +41,12 @@ export default function PortalDashboardPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatsCard label="Open RFQs" value={rfqs.filter(r => r.status === "DRAFT" || r.status === "SUBMITTED" || r.status === "UNDER_REVIEW" || r.status === "SOURCING").length} icon={FileText} />
-        <StatsCard label="Quotes Ready" value={0} icon={ClipboardList} iconClassName="bg-[#12B76A]/10" />
-        <StatsCard label="Active Orders" value={0} icon={Package} iconClassName="bg-[#1769E0]/10" />
-        <StatsCard label="Pending Payments" value="—" icon={DollarSign} iconClassName="bg-[#F79009]/10" />
+        <StatsCard label="Customer Quotations" value={quoteCount} icon={ClipboardList} iconClassName="bg-[#12B76A]/10" />
       </div>
+
+      {error && <p role="alert" className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 font-body-sm text-[#B42318]">Dashboard data could not be loaded. Refresh the page or sign in again.</p>}
 
       <div className="bg-white rounded-lg border border-[#E4E7EC] shadow-sm">
         <div className="p-5 border-b border-[#E4E7EC] flex items-center justify-between">
@@ -102,25 +105,6 @@ export default function PortalDashboardPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-[#E4E7EC] shadow-sm p-6">
-        <h2 className="font-headline-sm text-[#111c2d] mb-4">Recent Activity</h2>
-        <div className="space-y-4">
-          {[
-            { text: "Quote QT-4521 is ready for your review", time: "2 hours ago", color: "bg-[#12B76A]" },
-            { text: "RFQ RQ-8924 moved to Sourcing stage", time: "5 hours ago", color: "bg-[#1769E0]" },
-            { text: "Order ORD-2024 shipped via DHL Express", time: "Yesterday", color: "bg-[#1769E0]" },
-            { text: "Invoice INV-2024-089 marked as paid", time: "2 days ago", color: "bg-[#12B76A]" },
-          ].map((item, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${item.color}`} />
-              <div>
-                <p className="font-body-sm text-[#111c2d]">{item.text}</p>
-                <p className="font-body-sm text-[#44474d] text-xs mt-0.5">{item.time}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

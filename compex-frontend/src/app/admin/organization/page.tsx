@@ -63,6 +63,7 @@ export default function AdminOrganizationPage() {
   }
 
   async function handleSave() {
+    if (!window.confirm("Save these organization details?")) return;
     setSaving(true);
     setError(null);
     try {

@@ -1,5 +1,6 @@
 ﻿import type { Metadata } from "next";
 import { BookOpen, Cpu, FileText, Plane, Zap } from "lucide-react";
+import Link from "next/link";
 import CTABanner from "@/components/ui/CTABanner";
 
 export const metadata: Metadata = {
@@ -72,7 +73,10 @@ export default function ResourcesPage() {
             ))}
           </div>
           <p className="text-center font-body-sm text-[#44474d]/70 mt-12">
-            Full article content coming soon. Contact our team for specific sourcing and procurement guidance.
+            Need guidance for a specific sourcing requirement?{" "}
+            <Link href="/contact" className="font-medium text-[#1769E0] hover:underline">
+              Contact our procurement team.
+            </Link>
           </p>
         </div>
       </section>

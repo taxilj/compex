@@ -7,16 +7,10 @@ import {
   LayoutDashboard,
   FileText,
   ClipboardList,
-  Package,
-  Truck,
-  Receipt,
   Users,
-  ShoppingCart,
-  BarChart3,
   Settings,
-  Building2,
   Building,
-  Layers,
+  Factory,
 } from "lucide-react";
 
 const navGroups = [
@@ -24,22 +18,16 @@ const navGroups = [
     label: "Operations",
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { href: "/admin/rfqs", label: "RFQ Management", icon: FileText, disabled: false, badge: "8" },
+      { href: "/admin/rfqs", label: "RFQ Management", icon: FileText, disabled: false },
       { href: "/admin/leads", label: "Enquiries", icon: ClipboardList, disabled: false },
       { href: "/admin/quotes", label: "Quotes", icon: ClipboardList, disabled: false },
-      { href: "/admin/orders", label: "Sales Orders", icon: ShoppingCart, disabled: false },
-      { href: "/admin/purchase-orders", label: "Purchase Orders", icon: Package, disabled: false },
-      { href: "/admin/shipments", label: "Import & Shipments", icon: Truck, disabled: false },
-      { href: "/admin/invoices", label: "Invoices", icon: Receipt, disabled: false },
     ],
   },
   {
     label: "Management",
     items: [
-      { href: "/admin/customers", label: "Customers", icon: Building2, disabled: false },
       { href: "/admin/vendors", label: "Vendors", icon: Users, disabled: false },
-      { href: "/admin/products", label: "Product Catalog", icon: Layers, disabled: false },
-      { href: "/admin/reports", label: "Reports & Analytics", icon: BarChart3, disabled: false },
+      { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory, disabled: false },
       { href: "/admin/organization", label: "Organization", icon: Building, disabled: false },
       { href: "/admin/settings", label: "Settings", icon: Settings, disabled: false },
     ],
@@ -84,11 +72,6 @@ export function AdminSidebar() {
               >
                 <item.icon size={18} />
                 <span>{item.label}</span>
-                {item.badge && !item.disabled && (
-                  <span className="ml-auto bg-[#1769E0] text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold">
-                    {item.badge}
-                  </span>
-                )}
                 {item.disabled && (
                   <span className="ml-auto font-label-sm text-[#7587a7]/30 text-[10px]">Soon</span>
                 )}

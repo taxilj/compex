@@ -77,10 +77,10 @@ export function HeroSection() {
               Request a Quote
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform duration-300" />
             </Link>
-            <button className="group bg-white border-2 border-[#0B1F3A] text-[#0B1F3A] px-8 py-4 rounded-xl font-label-md font-bold uppercase tracking-wide hover:bg-[#0B1F3A] hover:text-white transition-all duration-300 flex items-center gap-2 hover:-translate-y-0.5">
+            <Link href="/request-quote?mode=bom" className="group bg-white border-2 border-[#0B1F3A] text-[#0B1F3A] px-8 py-4 rounded-xl font-label-md font-bold uppercase tracking-wide hover:bg-[#0B1F3A] hover:text-white transition-all duration-300 flex items-center gap-2 hover:-translate-y-0.5">
               <Upload size={18} />
-              Upload BOM
-            </button>
+              BOM Enquiry
+            </Link>
           </div>
         </div>
 

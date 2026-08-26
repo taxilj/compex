@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Loader2 } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { listVendors, type Vendor } from "@/lib/api/admin";
 
 export default function AdminVendorsPage() {
@@ -35,9 +35,6 @@ export default function AdminVendorsPage() {
             {loading ? "Loading…" : `${total} vendors`}
           </p>
         </div>
-        <button className="flex items-center gap-2 bg-[#0B1F3A] text-white px-4 py-2 rounded font-label-md hover:bg-[#0B1F3A]/90 transition-colors">
-          <Plus size={16} /> Add Vendor
-        </button>
       </div>
 
       <div className="bg-[#e8eeff] rounded-lg p-5">

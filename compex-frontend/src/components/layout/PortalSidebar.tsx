@@ -8,21 +8,13 @@ import {
   LayoutDashboard,
   FileText,
   ClipboardList,
-  Package,
-  Truck,
-  Receipt,
   Building2,
-  Bookmark,
 } from "lucide-react";
 
 const navItems = [
   { href: "/portal", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/portal/rfqs", label: "My RFQs", icon: FileText, badge: "3" },
-  { href: "/portal/quotes", label: "Quotes", icon: ClipboardList, badge: "1", badgeVariant: "success" as const },
-  { href: "/portal/orders", label: "Orders", icon: Package },
-  { href: "/portal/shipments", label: "Shipments", icon: Truck },
-  { href: "/portal/invoices", label: "Invoices", icon: Receipt },
-  { href: "/portal/saved", label: "Saved Products", icon: Bookmark },
+  { href: "/portal/rfqs", label: "My RFQs", icon: FileText },
+  { href: "/portal/quotes", label: "Quotes", icon: ClipboardList },
 ];
 
 const mgmtItems = [
@@ -58,16 +50,6 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
             >
               <item.icon size={20} className={isActive(item.href, item.exact) ? "text-[#0B1F3A]" : ""} />
               <span>{item.label}</span>
-              {item.badge && (
-                <span className={cn(
-                  "ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold",
-                  item.badgeVariant === "success"
-                    ? "bg-[#12B76A]/10 text-[#12B76A]"
-                    : "bg-[#d6e3ff] text-[#0B1F3A]"
-                )}>
-                  {item.badge}
-                </span>
-              )}
             </Link>
           ))}
         </div>

@@ -9,6 +9,35 @@ export function middleware(request: NextRequest) {
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
+
+  // These legacy prototypes render hard-coded commercial data. Keep them out
+  // of authenticated workflows until matching API-backed modules exist.
+  const { pathname } = request.nextUrl;
+  const unsupportedAdminRoutes = [
+    "/admin/customers",
+    "/admin/invoices",
+    "/admin/orders",
+    "/admin/products",
+    "/admin/purchase-orders",
+    "/admin/reports",
+    "/admin/shipments",
+  ];
+  const unsupportedPortalPrefixes = [
+    "/portal/invoices",
+    "/portal/orders",
+    "/portal/saved",
+    "/portal/shipments",
+  ];
+
+  if (unsupportedAdminRoutes.includes(pathname)) {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
+  if (unsupportedPortalPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return NextResponse.redirect(new URL("/portal", request.url));
+  }
+  if (pathname === "/portal/quotes/compare" || /^\/portal\/rfqs\/[^/]+\/bom$/.test(pathname)) {
+    return NextResponse.redirect(new URL(pathname === "/portal/quotes/compare" ? "/portal/quotes" : "/portal/rfqs", request.url));
+  }
   return NextResponse.next();
 }
 

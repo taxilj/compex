@@ -152,9 +152,9 @@ export default function HomePage() {
             <p className="font-body-lg text-[#7587a7]">Upload your Bill of Materials and get a comprehensive quote for all line items.</p>
           </div>
           <div className="flex gap-4 shrink-0" data-reveal data-delay="0.15">
-            <button className="bg-[#1769E0] text-white px-8 py-4 rounded-xl font-label-md font-bold hover:bg-[#1257b8] hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2">
-              <Upload size={20} /> Upload BOM
-            </button>
+            <Link href="/request-quote?mode=bom" className="bg-[#1769E0] text-white px-8 py-4 rounded-xl font-label-md font-bold hover:bg-[#1257b8] hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2">
+              <Upload size={20} /> BOM Enquiry
+            </Link>
             <Link href="/request-quote" className="bg-white/10 text-white border border-white/20 px-8 py-4 rounded-xl font-label-md hover:bg-white/20 transition-all duration-300">
               Manual Entry
             </Link>

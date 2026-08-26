@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { listAdminRfqs, type AdminRfq } from "@/lib/api/admin";
-import { Search, Download, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 
 const STATUSES = ["All", "SUBMITTED", "UNDER_REVIEW", "SOURCING", "CANCELLED"] as const;
 const PRIORITIES = ["All", "HIGH", "MEDIUM", "LOW"] as const;
@@ -52,9 +52,6 @@ export default function AdminRFQsPage() {
             {loading ? "Loading…" : `${total} total RFQs`}
           </p>
         </div>
-        <button className="h-9 px-4 rounded-lg border border-[#E4E7EC] bg-white hover:bg-[#f0f3ff] flex items-center gap-2 font-label-md text-sm text-[#111c2d]">
-          <Download size={15} /> Export
-        </button>
       </div>
 
       <div className="bg-[#f0f3ff] border-b border-[#E4E7EC] px-8 py-3 -mx-8 flex items-center justify-between gap-4 flex-wrap">
@@ -89,8 +86,6 @@ export default function AdminRFQsPage() {
         </div>
         <div className="flex items-center gap-2 text-sm text-[#44474d]">
           <span>Showing {filtered.length} of {total}</span>
-          <button className="w-7 h-7 border border-[#E4E7EC] rounded bg-white flex items-center justify-center hover:bg-[#e8eeff]"><ChevronLeft size={14} /></button>
-          <button className="w-7 h-7 border border-[#E4E7EC] rounded bg-white flex items-center justify-center hover:bg-[#e8eeff]"><ChevronRight size={14} /></button>
         </div>
       </div>
 

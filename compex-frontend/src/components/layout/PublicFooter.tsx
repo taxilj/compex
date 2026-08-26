@@ -20,7 +20,6 @@ export default function PublicFooter() {
             <h5 className="font-label-md text-white uppercase tracking-wider">Quick Links</h5>
             <nav className="flex flex-col gap-2">
               <Link href="/about" className="font-body-sm hover:text-[#afc6ff] transition-colors">About Us</Link>
-              <Link href="#" className="font-body-sm hover:text-[#afc6ff] transition-colors">Careers</Link>
               <Link href="/contact" className="font-body-sm hover:text-[#afc6ff] transition-colors">Contact Support</Link>
             </nav>
           </div>
@@ -36,17 +35,11 @@ export default function PublicFooter() {
             <h5 className="font-label-md text-white uppercase tracking-wider">Compliance</h5>
             <nav className="flex flex-col gap-2">
               <Link href="/services" className="font-body-sm hover:text-[#afc6ff] transition-colors">Quality Assurance</Link>
-              <Link href="#" className="font-body-sm hover:text-[#afc6ff] transition-colors">Legal Notice</Link>
-              <Link href="#" className="font-body-sm hover:text-[#afc6ff] transition-colors">Privacy Policy</Link>
             </nav>
           </div>
         </div>
         <div className="pt-8 border-t border-[#7587a7]/20 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="font-body-sm text-[#7587a7]/70">© 2024 Compex Solution. All Rights Reserved.</p>
-          <div className="flex gap-6">
-            <Link href="#" className="font-body-sm text-[#7587a7]/70 hover:text-[#7587a7] transition-colors">Terms of Service</Link>
-            <Link href="#" className="font-body-sm text-[#7587a7]/70 hover:text-[#7587a7] transition-colors">Privacy Policy</Link>
-          </div>
         </div>
       </div>
     </footer>

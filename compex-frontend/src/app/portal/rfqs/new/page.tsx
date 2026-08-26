@@ -48,6 +48,16 @@ export default function NewRFQPage() {
   const back = () => setStep((s) => (Math.max(s - 1, 1) as StepNum));
 
   const handleSubmit = async () => {
+    const validComps = comps.filter((c) => c.mpn.trim());
+    if (!bomFile && validComps.length === 0) {
+      setSubmitError("Add at least one component or select a BOM file.");
+      return;
+    }
+    if (validComps.some((c) => !Number.isInteger(Number(c.quantity)) || Number(c.quantity) < 1)) {
+      setSubmitError("Every component needs a whole-number quantity of at least 1.");
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -55,14 +65,20 @@ export default function NewRFQPage() {
         deliveryLocation: delivery.location || undefined,
         requiredDate: delivery.requiredDate || undefined,
         priority: PRIORITY_MAP[delivery.priority] ?? "MEDIUM",
-        additionalNotes: delivery.notes || undefined,
+        additionalNotes: [
+          delivery.notes.trim(),
+          req.company.trim() && `Requester company: ${req.company.trim()}`,
+          req.contact.trim() && `Requester contact: ${req.contact.trim()}`,
+          req.email.trim() && `Requester email: ${req.email.trim()}`,
+          req.phone.trim() && `Requester phone: ${req.phone.trim()}`,
+          req.gstin.trim() && `GSTIN: ${req.gstin.trim()}`,
+        ].filter(Boolean).join("\n") || undefined,
       });
 
       if (bomFile) {
         await uploadBom(rfq.id, bomFile);
       }
 
-      const validComps = comps.filter((c) => c.mpn.trim());
       for (const c of validComps) {
         await addRfqItem(rfq.id, {
           mpn: c.mpn.trim(),
@@ -311,9 +327,6 @@ export default function NewRFQPage() {
             <Link href="/portal/rfqs" className="px-4 py-2 text-[#44474d] font-label-md hover:text-[#111c2d] transition-colors">Cancel</Link>
           </div>
           <div className="flex gap-3">
-            {step < 4 && (
-              <button className="px-4 py-2 border border-[#E4E7EC] text-[#44474d] rounded font-label-md hover:bg-[#f0f3ff] transition-colors">Save Draft</button>
-            )}
             {step < 4 ? (
               <button onClick={next} className="flex items-center gap-2 bg-[#0B1F3A] text-white px-6 py-2 rounded font-label-md hover:bg-[#1a3357] transition-colors">
                 Continue <ChevronRight size={16} />

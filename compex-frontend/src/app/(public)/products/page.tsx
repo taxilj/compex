@@ -47,9 +47,6 @@ function ProductSearchContent() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <button className="bg-[#0B1F3A] text-white px-8 py-4 rounded font-label-md hover:bg-[#0B1F3A]/90 transition-colors shadow-sm">
-            Search
-          </button>
         </div>
       </section>
 

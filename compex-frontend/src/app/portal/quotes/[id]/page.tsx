@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, notFound } from "next/navigation";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { ArrowLeft, Download, CheckCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, CheckCircle, RefreshCw } from "lucide-react";
 import { getCustomerQuote, acceptQuote, rejectQuote, type CustomerQuote } from "@/lib/api/quotes";
 
 function quoteStatus(status: string): string {
@@ -21,6 +21,8 @@ export default function QuoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFoundErr, setNotFoundErr] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   useEffect(() => {
     getCustomerQuote(params.id)
@@ -44,24 +46,33 @@ export default function QuoteDetailPage() {
   const canRespond = quote.status === "SENT" || quote.status === "VIEWED";
 
   async function handleAccept() {
+    if (!window.confirm("Accept this quotation? This records your final response.")) return;
     setActionLoading(true);
+    setActionError(null);
     try {
       const updated = await acceptQuote(params.id);
       setQuote(updated);
     } catch {
-      // keep current state on error
+      setActionError("The quotation could not be accepted. Refresh and try again.");
     } finally {
       setActionLoading(false);
     }
   }
 
   async function handleReject() {
+    const reason = rejectionReason.trim();
+    if (!reason) {
+      setActionError("Enter a rejection reason before continuing.");
+      return;
+    }
+    if (!window.confirm("Reject this quotation with the reason shown? This records your final response.")) return;
     setActionLoading(true);
+    setActionError(null);
     try {
-      const updated = await rejectQuote(params.id);
+      const updated = await rejectQuote(params.id, reason);
       setQuote(updated);
     } catch {
-      // keep current state on error
+      setActionError("The quotation could not be rejected. Refresh and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -144,6 +155,7 @@ export default function QuoteDetailPage() {
 
           {canRespond && (
             <div className="space-y-3">
+              {actionError && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-3 py-2 font-body-sm text-[#B42318]">{actionError}</p>}
               <button
                 onClick={handleAccept}
                 disabled={actionLoading}
@@ -151,15 +163,14 @@ export default function QuoteDetailPage() {
               >
                 <CheckCircle size={18} /> {actionLoading ? "Processing…" : "Accept Quote"}
               </button>
+              <label htmlFor="rejection-reason" className="block font-label-sm text-[#44474d]">Rejection reason</label>
+              <textarea id="rejection-reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} maxLength={500} rows={3} placeholder="Explain what needs to change…" className="w-full rounded border border-[#E4E7EC] px-3 py-2 font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]" />
               <button
                 onClick={handleReject}
                 disabled={actionLoading}
                 className="w-full border-2 border-[#F04438] text-[#F04438] py-3 rounded font-label-md hover:bg-[#fff1f0] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 <RefreshCw size={18} /> {actionLoading ? "Processing…" : "Reject Quote"}
-              </button>
-              <button className="w-full bg-[#f0f3ff] text-[#0B1F3A] py-3 rounded font-label-md hover:bg-[#e8eeff] transition-colors flex items-center justify-center gap-2">
-                <Download size={18} /> Download PDF
               </button>
             </div>
           )}

@@ -14,6 +14,7 @@ const PRIORITY_COLOR: Record<string, string> = {
 export function RecentRfqsTable() {
   const [rfqs, setRfqs] = useState<Array<AdminRfq & { ageHours: number }>>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     listAdminRfqs({ limit: 5 })
@@ -21,7 +22,7 @@ export function RecentRfqsTable() {
         ...rfq,
         ageHours: Math.floor((Date.now() - new Date(rfq.createdAt).getTime()) / 3600000),
       }))))
-      .catch(() => {/* keep empty on error */})
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -41,6 +42,8 @@ export function RecentRfqsTable() {
           <div className="flex items-center justify-center py-8 text-[#44474d]">
             <Loader2 size={18} className="animate-spin mr-2" /> Loading…
           </div>
+        ) : error ? (
+          <p className="py-8 text-center font-body-sm text-[#B42318]">Failed to load recent RFQs.</p>
         ) : rfqs.length === 0 ? (
           <p className="py-8 text-center font-body-sm text-[#44474d]">No RFQs yet.</p>
         ) : (
