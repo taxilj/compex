@@ -69,7 +69,7 @@ export default function HomePage() {
       {/* Trust strip */}
       <section className="w-full bg-[#f9f9ff] py-8 border-b border-[#E4E7EC]">
         <div className="max-w-[1280px] mx-auto px-4 md:px-8">
-          <div className="flex flex-wrap md:flex-nowrap justify-between gap-6 items-center">
+          <div className="flex flex-wrap lg:flex-nowrap justify-between gap-6 items-center">
             {[
               { icon: Globe, label: "Global Sourcing", sub: "Direct from OCMs" },
               { icon: Package, label: "Bulk Procurement", sub: "Volume pricing" },
