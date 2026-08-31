@@ -165,6 +165,7 @@ export default function RequestQuotePage() {
                             <td className="py-2 px-3 font-body-sm text-[#44474d]">{i + 1}</td>
                             <td className="py-2 px-3">
                               <input
+                                aria-label={`Part number for line ${i + 1}`}
                                 value={item.mpn}
                                 onChange={(e) => updateItem(i, "mpn", e.target.value)}
                                 className="w-full border border-[#E4E7EC] rounded px-2 py-1.5 font-mono-label text-sm focus:outline-none focus:ring-1 focus:ring-[#1769E0]"
@@ -174,6 +175,7 @@ export default function RequestQuotePage() {
                             </td>
                             <td className="py-2 px-3">
                               <input
+                                aria-label={`Manufacturer for line ${i + 1}`}
                                 value={item.manufacturer}
                                 onChange={(e) => updateItem(i, "manufacturer", e.target.value)}
                                 className="w-full border border-[#E4E7EC] rounded px-2 py-1.5 font-body-sm text-sm focus:outline-none focus:ring-1 focus:ring-[#1769E0]"
@@ -182,6 +184,7 @@ export default function RequestQuotePage() {
                             </td>
                             <td className="py-2 px-3">
                               <input
+                                aria-label={`Description for line ${i + 1}`}
                                 value={item.description}
                                 onChange={(e) => updateItem(i, "description", e.target.value)}
                                 className="w-full border border-[#E4E7EC] rounded px-2 py-1.5 font-body-sm text-sm focus:outline-none focus:ring-1 focus:ring-[#1769E0]"
@@ -190,6 +193,7 @@ export default function RequestQuotePage() {
                             </td>
                             <td className="py-2 px-3">
                               <input
+                                aria-label={`Quantity for line ${i + 1}`}
                                 value={item.quantity}
                                 onChange={(e) => updateItem(i, "quantity", e.target.value)}
                                 type="number"
@@ -201,7 +205,7 @@ export default function RequestQuotePage() {
                             </td>
                             <td className="py-2 px-3">
                               {items.length > 1 && (
-                                <button type="button" onClick={() => removeItem(i)} className="text-[#F04438] hover:text-[#F04438]/70 p-1">
+                                <button type="button" aria-label={`Remove component line ${i + 1}`} onClick={() => removeItem(i)} className="text-[#F04438] hover:text-[#F04438]/70 p-1">
                                   <Trash2 size={16} />
                                 </button>
                               )}
@@ -245,6 +249,7 @@ export default function RequestQuotePage() {
                   <div key={field.name}>
                     <label className="block font-label-md text-[#44474d] mb-1.5">{field.label}</label>
                     <input
+                      aria-label={field.label.replace(" *", "")}
                       type={field.type}
                       placeholder={field.placeholder}
                       value={form[field.name as keyof typeof form]}
@@ -257,6 +262,7 @@ export default function RequestQuotePage() {
                 <div>
                   <label className="block font-label-md text-[#44474d] mb-1.5">Required Date</label>
                   <input
+                    aria-label="Required date"
                     type="date"
                     value={form.requiredDate}
                     onChange={(e) => setForm({ ...form, requiredDate: e.target.value })}
@@ -267,6 +273,7 @@ export default function RequestQuotePage() {
               <div className="mt-4">
                 <label className="block font-label-md text-[#44474d] mb-1.5">Additional Requirements</label>
                 <textarea
+                  aria-label="Additional requirements"
                   rows={4}
                   placeholder="Any special requirements, certifications, or notes..."
                   value={form.notes}

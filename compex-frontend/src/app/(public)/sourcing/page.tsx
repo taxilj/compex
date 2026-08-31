@@ -1,6 +1,7 @@
 ﻿import type { Metadata } from "next";
 import { Upload, Globe, Search, Scale, Clock, Plane, Truck, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import CTABanner from "@/components/ui/CTABanner";
 
 export const metadata: Metadata = {
@@ -32,24 +33,37 @@ export default function SourcingPage() {
   return (
     <div>
       <section className="py-20 px-4 md:px-8 bg-[#0B1F3A]">
-        <div className="max-w-[1280px] mx-auto">
-          <p className="font-label-md text-[#1769E0] uppercase tracking-widest mb-4">Sourcing</p>
-          <h1 className="font-display-lg text-white mb-6 max-w-3xl">
-            Global Component Sourcing, Delivered to India
-          </h1>
-          <p className="font-body-lg text-[#7587a7] max-w-2xl mb-8">
-            From single components to complete BOMs, Compex Solution manages the full procurement chain — sourcing, customs, and last-mile delivery.
-          </p>
-          <div className="flex flex-wrap gap-4">
-            <Link
-              href="/request-quote"
-              className="bg-[#1769E0] text-white px-8 py-4 rounded-lg font-label-md font-bold hover:bg-[#1257b8] transition-colors"
-            >
-              Request a Quote
-            </Link>
-            <Link href="/request-quote?mode=bom" className="bg-white/10 text-white border border-white/20 px-8 py-4 rounded-lg font-label-md hover:bg-white/20 transition-colors flex items-center gap-2">
-              <Upload size={20} /> BOM Enquiry
-            </Link>
+        <div className="max-w-[1280px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-10 items-center">
+          <div>
+            <p className="font-label-md text-[#1769E0] uppercase tracking-widest mb-4">Sourcing</p>
+            <h1 className="font-display-lg text-white mb-6 max-w-3xl">
+              Global Component Sourcing, Delivered to India
+            </h1>
+            <p className="font-body-lg text-[#7587a7] max-w-2xl mb-8">
+              From single components to complete BOMs, Compex Solution manages the full procurement chain — sourcing, customs, and last-mile delivery.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link
+                href="/request-quote"
+                className="bg-[#1769E0] text-white px-8 py-4 rounded-lg font-label-md font-bold hover:bg-[#1257b8] transition-colors"
+              >
+                Request a Quote
+              </Link>
+              <Link href="/request-quote?mode=bom" className="bg-white/10 text-white border border-white/20 px-8 py-4 rounded-lg font-label-md hover:bg-white/20 transition-colors flex items-center gap-2">
+                <Upload size={20} /> BOM Enquiry
+              </Link>
+            </div>
+          </div>
+          <div className="relative h-72 lg:h-80 overflow-hidden rounded-2xl border border-white/10">
+            <Image
+              src="/images/services/warehouse-operations.jpg"
+              alt="Warehouse aisle representing coordinated procurement logistics"
+              fill
+              sizes="(max-width: 1023px) 100vw, 420px"
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F3A]/90 via-[#0B1F3A]/20 to-transparent" />
+            <p className="absolute bottom-5 left-5 right-5 font-label-md text-white">Source, consolidate, clear, and deliver.</p>
           </div>
         </div>
       </section>

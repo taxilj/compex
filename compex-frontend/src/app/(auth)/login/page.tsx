@@ -86,7 +86,7 @@ export default function LoginPage() {
               </div>
               <span className="font-headline-sm text-[#0B1F3A]">Compex Solution</span>
             </div>
-            <h2 className="font-headline-lg text-[#111c2d] mb-2">Welcome Back</h2>
+            <h1 className="font-headline-lg text-[#111c2d] mb-2">Welcome Back</h1>
             <p className="font-body-md text-[#44474d]">Access your industrial procurement dashboard.</p>
           </div>
 
@@ -115,7 +115,7 @@ export default function LoginPage() {
                   onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                   className="w-full bg-white text-[#111c2d] px-4 py-3 pr-12 rounded-lg border border-[#E4E7EC] outline-none focus:border-[#1769E0] focus:ring-1 focus:ring-[#1769E0] transition-colors"
                 />
-                <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#44474d]">
+                <button type="button" aria-label={showPwd ? "Hide password" : "Show password"} onClick={() => setShowPwd(!showPwd)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#44474d]">
                   {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
@@ -170,7 +170,7 @@ export default function LoginPage() {
               <p className="font-body-sm text-green-600">Email verification is required before sign-in. If the verification message does not arrive, contact support.</p>
             </div>
           ) : (
-            <form onSubmit={handleRegister} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form noValidate onSubmit={handleRegister} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 { label: "Company Name *", name: "companyName", type: "text", placeholder: "Your Company Pvt. Ltd.", col: 2 },
                 { label: "Contact Person *", name: "contactPerson", type: "text", placeholder: "Full Name" },

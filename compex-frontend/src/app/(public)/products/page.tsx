@@ -3,6 +3,7 @@
 import { useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Search } from "lucide-react";
 import { products, manufacturers } from "@/data/mock/products";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -35,17 +36,32 @@ function ProductSearchContent() {
 
   return (
     <div className="flex flex-col w-full px-4 md:px-8 py-8 gap-8">
-      <section>
-        <h1 className="font-headline-lg text-[#111c2d] mb-4">Product Search</h1>
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#44474d]" />
-            <input
-              className="w-full pl-12 pr-4 py-4 rounded bg-white font-body-md text-[#111c2d] border border-[#E4E7EC] focus:outline-none focus:ring-2 focus:ring-[#1769E0] shadow-sm"
-              placeholder="Search by MPN, description, or manufacturer..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+      <section className="overflow-hidden rounded-2xl border border-[#0B1F3A]/10 bg-[#0B1F3A]">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_280px]">
+          <div className="p-6 md:p-8">
+            <p className="font-label-sm text-[#afc6ff] uppercase tracking-widest mb-2">Component catalogue</p>
+            <h1 className="font-headline-lg text-white mb-3">Product Search</h1>
+            <p className="font-body-md text-[#d6e3ff] max-w-2xl mb-6">Search verified electronic components by MPN, description, or manufacturer.</p>
+            <div className="relative max-w-2xl">
+              <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#44474d]" />
+              <input
+                aria-label="Search products by MPN, description, or manufacturer"
+                className="w-full pl-12 pr-4 py-4 rounded bg-white font-body-md text-[#111c2d] border border-white/20 focus:outline-none focus:ring-2 focus:ring-[#afc6ff] shadow-sm"
+                placeholder="Search by MPN, description, or manufacturer..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="relative min-h-48 md:min-h-full">
+            <Image
+              src="/images/products/circuit-board-detail.jpg"
+              alt="Integrated circuits and electronic traces on a circuit board"
+              fill
+              sizes="(max-width: 767px) 100vw, 280px"
+              className="object-cover"
             />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0B1F3A]/35 to-transparent md:bg-none" />
           </div>
         </div>
       </section>

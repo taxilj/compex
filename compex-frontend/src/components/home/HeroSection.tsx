@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRef, useLayoutEffect } from "react";
 import { ArrowRight, Upload, Search, ShieldCheck, Truck, Package } from "lucide-react";
 import gsap from "gsap";
@@ -50,6 +51,7 @@ export function HeroSection() {
               <Search size={18} className="text-[#75777e] shrink-0" />
               <input
                 name="q"
+                aria-label="Search components by MPN or part number"
                 className="w-full bg-transparent border-none outline-none font-body-md text-[#111c2d] placeholder:text-[#75777e]"
                 placeholder="Search by MPN, Part Number..."
               />
@@ -86,7 +88,15 @@ export function HeroSection() {
 
         <div ref={floatRef} className="lg:col-span-5 relative hidden lg:flex items-center justify-center">
           <div className="anim-hero-visual relative">
-            <div className="hero-visual-inner w-[320px] h-[390px] rounded-3xl overflow-hidden shadow-2xl shadow-[#0B1F3A]/20 bg-gradient-to-br from-[#0B1F3A] via-[#122d56] to-[#1769E0] relative">
+            <div className="hero-visual-inner w-[320px] h-[390px] rounded-3xl overflow-hidden shadow-2xl shadow-[#0B1F3A]/20 bg-[#0B1F3A] relative">
+              <Image
+                src="/images/hero/pcb-electronic-components.jpg"
+                alt="Close-up of electronic components on a circuit board"
+                fill
+                sizes="320px"
+                className="object-cover opacity-55"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#0B1F3A]/35 via-[#0B1F3A]/70 to-[#0B1F3A]/95" />
               <div className="absolute inset-0 opacity-[0.07]"
                 style={{
                   backgroundImage: "linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px)",
