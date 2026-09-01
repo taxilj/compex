@@ -1,6 +1,6 @@
 ﻿import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { RegisterSchema, LoginSchema, CompleteAccountSetupSchema } from "./auth.schema.js";
+import { RegisterSchema, LoginSchema, CompleteAccountSetupSchema, ResendVerificationSchema } from "./auth.schema.js";
 import * as authService from "./auth.service.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { ok } from "../../lib/response.js";
@@ -22,6 +22,7 @@ const COOKIE_OPTS = {
 // every other environment and only relax them under NODE_ENV=test.
 const REGISTER_RATE_LIMIT = env.NODE_ENV === "test" ? 1000 : 5;
 const LOGIN_RATE_LIMIT = env.NODE_ENV === "test" ? 1000 : 10;
+const RESEND_VERIFICATION_RATE_LIMIT = env.NODE_ENV === "test" ? 1000 : 5;
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post("/register", { config: { rateLimit: { max: REGISTER_RATE_LIMIT, timeWindow: "1 minute" } } }, async (req, reply) => {
@@ -82,6 +83,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const result = await authService.verifyEmail(token);
     return reply.send(ok(result));
   });
+
+  // Lets a customer request a fresh verification link if the original never
+  // arrived (e.g. a delayed/failed email send during registration). Always
+  // responds the same way regardless of whether the email exists or is
+  // already verified -- see resendVerificationEmail() for why.
+  app.post(
+    "/resend-verification",
+    { config: { rateLimit: { max: RESEND_VERIFICATION_RATE_LIMIT, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const { email } = ResendVerificationSchema.parse(req.body);
+      const result = await authService.resendVerificationEmail(email, req.ip);
+      return reply.send(ok(result));
+    },
+  );
 
   app.post("/complete-account-setup", async (req, reply) => {
     const body = CompleteAccountSetupSchema.parse(req.body);

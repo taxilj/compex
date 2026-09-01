@@ -27,6 +27,11 @@ export const CompleteAccountSetupSchema = z.object({
   password: RegisterSchema.shape.password,
 });
 
+export const ResendVerificationSchema = z.object({
+  email: z.string().email().toLowerCase(),
+});
+
 export type RegisterInput = z.infer<typeof RegisterSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type CompleteAccountSetupInput = z.infer<typeof CompleteAccountSetupSchema>;
+export type ResendVerificationInput = z.infer<typeof ResendVerificationSchema>;

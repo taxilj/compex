@@ -18,6 +18,14 @@ function getTransport() {
     port: env.SMTP_PORT ?? 587,
     secure: (env.SMTP_PORT ?? 587) === 465,
     auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+    // Defense-in-depth: nodemailer's own defaults (2 min connection/socket,
+    // 30s greeting) are far longer than any caller should ever wait on an
+    // in-request email send. Callers on the HTTP request path (see
+    // auth.service.ts) additionally wrap sendEmail() in their own explicit
+    // timeout -- this just keeps the socket itself from lingering past that.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 10_000,
   });
 }
 
