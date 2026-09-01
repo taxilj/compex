@@ -6,7 +6,7 @@ import { requireRole } from "../../middleware/requireRole.js";
 import { ok } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
-import { audit } from "../../lib/audit.js";
+import { auditInTx } from "../../lib/audit.js";
 
 const CostBody = z.object({
   vendorQuoteId: z.string().uuid().optional(),
@@ -23,9 +23,14 @@ const CostBody = z.object({
   notes: z.string().max(2000).optional(),
 });
 
-// All arithmetic in Decimal — no floats for financial calculations
-function calcLandedCost(unitCost: Decimal, body: { quantity: number; exchangeRate: number; shipping: number; insurance: number; customsDuty: number; igst: number; handling: number; otherCosts: number; marginPercent: number }) {
-  const D = (n: number) => new Decimal(n);
+export type NumericInput = number | Decimal;
+
+// All arithmetic in Decimal — no floats for financial calculations.
+// Accepts either plain numbers (fresh request input) or existing Decimal
+// values (unchanged fields on update) so a PATCH never round-trips a
+// stored Decimal through a lossy float before recomputing.
+export function calcLandedCost(unitCost: Decimal, body: { quantity: number; exchangeRate: NumericInput; shipping: NumericInput; insurance: NumericInput; customsDuty: NumericInput; igst: NumericInput; handling: NumericInput; otherCosts: NumericInput; marginPercent: NumericInput }) {
+  const D = (n: NumericInput) => (n instanceof Decimal ? n : new Decimal(n));
   const productCost = unitCost.mul(D(body.quantity)).mul(D(body.exchangeRate));
   const landedCost = productCost
     .add(D(body.shipping))
@@ -76,28 +81,31 @@ export async function adminLandedCostRoutes(app: FastifyInstance): Promise<void>
     const unitCost = await resolveUnitCost(body.vendorQuoteId);
     const { productCost, landedCost, customerPrice } = calcLandedCost(unitCost, body);
 
-    const lc = await prisma.landedCost.create({
-      data: {
-        vendorRfqId: id,
-        vendorQuoteId: body.vendorQuoteId ?? null,
-        currency: body.currency,
-        exchangeRate: new Decimal(body.exchangeRate),
-        quantity: body.quantity,
-        shipping: new Decimal(body.shipping),
-        insurance: new Decimal(body.insurance),
-        customsDuty: new Decimal(body.customsDuty),
-        igst: new Decimal(body.igst),
-        handling: new Decimal(body.handling),
-        otherCosts: new Decimal(body.otherCosts),
-        marginPercent: new Decimal(body.marginPercent),
-        productCost,
-        landedCost,
-        customerPrice,
-        notes: body.notes,
-      },
+    const lc = await prisma.$transaction(async (tx) => {
+      const created = await tx.landedCost.create({
+        data: {
+          vendorRfqId: id,
+          vendorQuoteId: body.vendorQuoteId ?? null,
+          currency: body.currency,
+          exchangeRate: new Decimal(body.exchangeRate),
+          quantity: body.quantity,
+          shipping: new Decimal(body.shipping),
+          insurance: new Decimal(body.insurance),
+          customsDuty: new Decimal(body.customsDuty),
+          igst: new Decimal(body.igst),
+          handling: new Decimal(body.handling),
+          otherCosts: new Decimal(body.otherCosts),
+          marginPercent: new Decimal(body.marginPercent),
+          productCost,
+          landedCost,
+          customerPrice,
+          notes: body.notes,
+        },
+      });
+      await auditInTx(tx, { userId: req.user!.id, action: "landed_cost.created", entityType: "landed_cost", entityId: created.id });
+      return created;
     });
 
-    audit({ userId: req.user!.id, action: "landed_cost.created", entityType: "landed_cost", entityId: lc.id });
     return reply.status(201).send(ok(lc));
   });
 
@@ -111,41 +119,44 @@ export async function adminLandedCostRoutes(app: FastifyInstance): Promise<void>
     const m = {
       vendorQuoteId: "vendorQuoteId" in body ? body.vendorQuoteId : existing.vendorQuoteId,
       quantity: body.quantity ?? existing.quantity,
-      exchangeRate: body.exchangeRate ?? Number(existing.exchangeRate),
-      shipping: body.shipping ?? Number(existing.shipping),
-      insurance: body.insurance ?? Number(existing.insurance),
-      customsDuty: body.customsDuty ?? Number(existing.customsDuty),
-      igst: body.igst ?? Number(existing.igst),
-      handling: body.handling ?? Number(existing.handling),
-      otherCosts: body.otherCosts ?? Number(existing.otherCosts),
-      marginPercent: body.marginPercent ?? Number(existing.marginPercent),
+      exchangeRate: body.exchangeRate ?? existing.exchangeRate,
+      shipping: body.shipping ?? existing.shipping,
+      insurance: body.insurance ?? existing.insurance,
+      customsDuty: body.customsDuty ?? existing.customsDuty,
+      igst: body.igst ?? existing.igst,
+      handling: body.handling ?? existing.handling,
+      otherCosts: body.otherCosts ?? existing.otherCosts,
+      marginPercent: body.marginPercent ?? existing.marginPercent,
     };
 
     const unitCost = await resolveUnitCost(m.vendorQuoteId);
     const { productCost, landedCost, customerPrice } = calcLandedCost(unitCost, m);
 
-    const lc = await prisma.landedCost.update({
-      where: { vendorRfqId: id },
-      data: {
-        vendorQuoteId: m.vendorQuoteId ?? null,
-        currency: body.currency ?? existing.currency,
-        exchangeRate: new Decimal(m.exchangeRate),
-        quantity: m.quantity,
-        shipping: new Decimal(m.shipping),
-        insurance: new Decimal(m.insurance),
-        customsDuty: new Decimal(m.customsDuty),
-        igst: new Decimal(m.igst),
-        handling: new Decimal(m.handling),
-        otherCosts: new Decimal(m.otherCosts),
-        marginPercent: new Decimal(m.marginPercent),
-        productCost,
-        landedCost,
-        customerPrice,
-        notes: body.notes ?? existing.notes,
-      },
+    const lc = await prisma.$transaction(async (tx) => {
+      const updated = await tx.landedCost.update({
+        where: { vendorRfqId: id },
+        data: {
+          vendorQuoteId: m.vendorQuoteId ?? null,
+          currency: body.currency ?? existing.currency,
+          exchangeRate: new Decimal(m.exchangeRate),
+          quantity: m.quantity,
+          shipping: new Decimal(m.shipping),
+          insurance: new Decimal(m.insurance),
+          customsDuty: new Decimal(m.customsDuty),
+          igst: new Decimal(m.igst),
+          handling: new Decimal(m.handling),
+          otherCosts: new Decimal(m.otherCosts),
+          marginPercent: new Decimal(m.marginPercent),
+          productCost,
+          landedCost,
+          customerPrice,
+          notes: body.notes ?? existing.notes,
+        },
+      });
+      await auditInTx(tx, { userId: req.user!.id, action: "landed_cost.updated", entityType: "landed_cost", entityId: existing.id });
+      return updated;
     });
 
-    audit({ userId: req.user!.id, action: "landed_cost.updated", entityType: "landed_cost", entityId: existing.id });
     return reply.send(ok(lc));
   });
 }

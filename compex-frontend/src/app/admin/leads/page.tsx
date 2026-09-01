@@ -18,9 +18,17 @@ export default function AdminLeadsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-headline-lg text-[#111c2d]">Enquiries</h1>
-        <p className="font-body-md text-[#44474d]">Public contact submissions and RFQ-linked leads.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-headline-lg text-[#111c2d]">Enquiries</h1>
+          <p className="font-body-md text-[#44474d]">Public contact submissions and RFQ-linked leads.</p>
+        </div>
+        <a
+          href="/api/v1/admin/leads/export"
+          className="rounded border border-[#E4E7EC] bg-white px-4 py-2 font-label-sm text-[#344054] hover:bg-[#F8FAFC]"
+        >
+          Export CSV
+        </a>
       </div>
 
       {error && <p className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 font-body-sm text-[#B42318]">{error}</p>}

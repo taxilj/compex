@@ -55,6 +55,19 @@ export function startFollowUpWorker() {
 
       const customerName = `${rfq.customer.user.firstName} ${rfq.customer.user.lastName}`;
 
+      // Atomic claim: only one execution can flip sentAt from null -> now while
+      // status is still SCHEDULED. A worker crash between a successful send and
+      // the SENT status write leaves sentAt already set, so a BullMQ retry sees
+      // claim.count === 0 and skips re-sending — no duplicate email, no schema change.
+      // ponytail: claim granularity is per-row, not per-provider-request; fine for
+      // the current single-worker-per-job model, revisit if true concurrent workers
+      // race the same followUpId.
+      const claim = await prisma.followUp.updateMany({
+        where: { id: followUpId, status: "SCHEDULED", sentAt: null },
+        data: { sentAt: new Date() },
+      });
+      if (claim.count === 0) return;
+
       try {
         await sendEmail({
           to: rfq.customer.user.email,
@@ -63,12 +76,12 @@ export function startFollowUpWorker() {
         });
         await prisma.followUp.update({
           where: { id: followUpId },
-          data: { status: "SENT", sentAt: new Date() },
+          data: { status: "SENT" },
         });
       } catch (err) {
         await prisma.followUp.update({
           where: { id: followUpId },
-          data: { status: "FAILED", failureReason: String(err) },
+          data: { status: "FAILED", failureReason: String(err), sentAt: null },
         });
         throw err;
       }

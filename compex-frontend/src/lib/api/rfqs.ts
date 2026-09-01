@@ -30,6 +30,7 @@ export interface BackendRfq {
   updatedAt: string;
   customerId: string;
   items?: BackendRfqItem[];
+  _count?: { items: number };
 }
 
 export function listRfqs(params?: { status?: RfqStatus; page?: number; limit?: number }) {

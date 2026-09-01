@@ -12,7 +12,9 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && user?.role === "CUSTOMER") router.replace("/portal");
+    if (isLoading) return;
+    if (!user) router.replace("/login");
+    else if (user.role === "CUSTOMER") router.replace("/portal");
   }, [isLoading, router, user]);
 
   if (isLoading || !user || user.role === "CUSTOMER") {

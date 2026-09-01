@@ -22,5 +22,11 @@ export const LoginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const CompleteAccountSetupSchema = z.object({
+  token: z.string().min(1),
+  password: RegisterSchema.shape.password,
+});
+
 export type RegisterInput = z.infer<typeof RegisterSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
+export type CompleteAccountSetupInput = z.infer<typeof CompleteAccountSetupSchema>;

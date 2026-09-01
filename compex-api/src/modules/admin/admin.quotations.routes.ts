@@ -6,7 +6,7 @@ import { requireRole } from "../../middleware/requireRole.js";
 import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
-import { audit } from "../../lib/audit.js";
+import { auditInTx } from "../../lib/audit.js";
 import { sendEmail, quotationEmail } from "../../lib/email.js";
 import { generateQuotationNumber } from "./quotation-number.js";
 import { generateQuotationPdf } from "../../lib/pdf.js";
@@ -83,6 +83,15 @@ const CreateBody = z.object({
   deliveryTerms: z.string().max(500).optional(),
   paymentTerms: z.string().max(500).optional(),
   items: z.array(ItemBody).min(1),
+});
+
+const CreateFromSourcingBody = z.object({
+  marginPercent: z.number().min(0).max(1000).default(0),
+  taxRate: z.number().min(0).max(100).default(0),
+  validUntil: z.string().date(),
+  notes: z.string().max(5000).optional(),
+  deliveryTerms: z.string().max(500).optional(),
+  paymentTerms: z.string().max(500).optional(),
 });
 
 const PatchBody = z.object({
@@ -194,27 +203,102 @@ export async function adminQuotationsRoutes(app: FastifyInstance): Promise<void>
     const rfq = await prisma.rfq.findUnique({ where: { id: body.rfqId }, select: { customerId: true } });
     if (!rfq || rfq.customerId !== body.customerId) throw Errors.unprocessable("RFQ does not belong to this customer");
 
-    const quotation = await prisma.quotation.create({
-      data: {
-        quotationNumber,
-        rfqId: body.rfqId,
-        customerId: body.customerId,
-        landedCostId: body.landedCostId ?? null,
-        currency: body.currency,
-        validUntil: new Date(body.validUntil),
-        subtotal,
-        tax,
-        total,
-        notes: body.notes ?? null,
-        deliveryTerms: body.deliveryTerms ?? null,
-        paymentTerms: body.paymentTerms ?? null,
-        createdById: req.user!.id,
-        items: { create: items },
-      },
-      select: QUOTATION_SELECT,
+    const quotation = await prisma.$transaction(async (tx) => {
+      const created = await tx.quotation.create({
+        data: {
+          quotationNumber,
+          rfqId: body.rfqId,
+          customerId: body.customerId,
+          landedCostId: body.landedCostId ?? null,
+          currency: body.currency,
+          validUntil: new Date(body.validUntil),
+          subtotal,
+          tax,
+          total,
+          notes: body.notes ?? null,
+          deliveryTerms: body.deliveryTerms ?? null,
+          paymentTerms: body.paymentTerms ?? null,
+          createdById: req.user!.id,
+          items: { create: items },
+        },
+        select: QUOTATION_SELECT,
+      });
+      await auditInTx(tx, { userId: req.user!.id, action: "quotation.created", entityType: "quotation", entityId: created.id });
+      return created;
     });
 
-    audit({ userId: req.user!.id, action: "quotation.created", entityType: "quotation", entityId: quotation.id });
+    return reply.status(201).send(ok(quotation));
+  });
+
+  // Create a customer quotation from the winning vendor response for every
+  // RFQ line. Vendor prices stay internal: the customer sees only the quoted
+  // selling price after the explicit margin is applied.
+  app.post("/from-sourcing/:rfqId", async (req, reply) => {
+    const { rfqId } = z.object({ rfqId: z.string().uuid() }).parse(req.params);
+    const body = CreateFromSourcingBody.parse(req.body);
+    const rfq = await prisma.rfq.findUnique({
+      where: { id: rfqId },
+      select: { id: true, customerId: true, items: { select: { id: true, lineNumber: true, mpn: true, manufacturer: true, description: true, quantity: true } } },
+    });
+    if (!rfq) throw Errors.notFound("RFQ");
+    if (rfq.items.length === 0) throw Errors.unprocessable("RFQ has no line items");
+
+    const selectedQuotes = await prisma.vendorQuote.findMany({
+      where: { rfqItemId: { in: rfq.items.map((item) => item.id) }, status: "SELECTED" },
+      select: { id: true, rfqItemId: true, unitCost: true, currency: true },
+    });
+    const quoteByItem = new Map(selectedQuotes.map((quote) => [quote.rfqItemId, quote]));
+    if (selectedQuotes.length !== rfq.items.length || quoteByItem.size !== rfq.items.length) {
+      throw Errors.unprocessable("Exactly one vendor quote must be selected for every RFQ line before creating a customer quotation");
+    }
+    const currencies = new Set(selectedQuotes.map((quote) => quote.currency));
+    if (currencies.size !== 1) {
+      throw Errors.unprocessable("Selected vendor quotes must use one currency before creating a customer quotation");
+    }
+
+    const sellingMultiplier = new Decimal(1).add(new Decimal(body.marginPercent).div(100));
+    const { items, subtotal, tax, total } = calcItems(rfq.items.map((item) => {
+      const vendorQuote = quoteByItem.get(item.id)!;
+      return {
+        rfqItemId: item.id,
+        lineNumber: item.lineNumber,
+        mpn: item.mpn,
+        manufacturer: item.manufacturer ?? undefined,
+        description: item.description ?? undefined,
+        quantity: item.quantity,
+        unitPrice: vendorQuote.unitCost.mul(sellingMultiplier).toNumber(),
+        taxRate: body.taxRate,
+      };
+    }));
+    const quotationNumber = await generateQuotationNumber();
+    const quotation = await prisma.$transaction(async (tx) => {
+      const created = await tx.quotation.create({
+        data: {
+          quotationNumber,
+          rfqId: rfq.id,
+          customerId: rfq.customerId,
+          currency: selectedQuotes[0].currency,
+          validUntil: new Date(body.validUntil),
+          subtotal,
+          tax,
+          total,
+          notes: body.notes ?? "Generated from selected vendor sourcing responses.",
+          deliveryTerms: body.deliveryTerms ?? null,
+          paymentTerms: body.paymentTerms ?? null,
+          createdById: req.user!.id,
+          items: { create: items },
+        },
+        select: QUOTATION_SELECT,
+      });
+      await auditInTx(tx, {
+        userId: req.user!.id,
+        action: "quotation.created_from_sourcing",
+        entityType: "quotation",
+        entityId: created.id,
+        newValue: { rfqId, marginPercent: body.marginPercent, vendorQuoteIds: selectedQuotes.map((quote) => quote.id) },
+      });
+      return created;
+    });
     return reply.status(201).send(ok(quotation));
   });
 
@@ -232,7 +316,7 @@ export async function adminQuotationsRoutes(app: FastifyInstance): Promise<void>
         await tx.quotationItem.deleteMany({ where: { quotationId: id } });
         await tx.quotationItem.createMany({ data: itemCalc.items.map((i) => ({ ...i, quotationId: id })) });
       }
-      return tx.quotation.update({
+      const updated = await tx.quotation.update({
         where: { id },
         data: {
           ...(body.currency && { currency: body.currency }),
@@ -244,9 +328,10 @@ export async function adminQuotationsRoutes(app: FastifyInstance): Promise<void>
         },
         select: QUOTATION_SELECT,
       });
+      await auditInTx(tx, { userId: req.user!.id, action: "quotation.updated", entityType: "quotation", entityId: id });
+      return updated;
     });
 
-    audit({ userId: req.user!.id, action: "quotation.updated", entityType: "quotation", entityId: id });
     return reply.send(ok(quotation));
   });
 
@@ -270,10 +355,14 @@ export async function adminQuotationsRoutes(app: FastifyInstance): Promise<void>
 
     const portalUrl = `${env.CORS_ORIGIN}/portal/quotes/${id}`;
 
-    const updated = await prisma.quotation.update({
-      where: { id },
-      data: { status: "SENT", sentAt: new Date() },
-      select: QUOTATION_SELECT,
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.quotation.update({
+        where: { id },
+        data: { status: "SENT", sentAt: new Date() },
+        select: QUOTATION_SELECT,
+      });
+      await auditInTx(tx, { userId: req.user!.id, action: "quotation.sent", entityType: "quotation", entityId: id });
+      return u;
     });
 
     sendEmail({
@@ -285,7 +374,6 @@ export async function adminQuotationsRoutes(app: FastifyInstance): Promise<void>
 
     cancelFollowUps(q.rfqId).catch((err) => console.error("[FOLLOWUP] Cancel after send failed:", err));
 
-    audit({ userId: req.user!.id, action: "quotation.sent", entityType: "quotation", entityId: id });
     return reply.send(ok(updated));
   });
 

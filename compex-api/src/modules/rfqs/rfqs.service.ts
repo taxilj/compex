@@ -2,9 +2,12 @@
 import { prisma } from "../../lib/prisma.js";
 import { Errors } from "../../lib/errors.js";
 import { audit } from "../../lib/audit.js";
+import { env } from "../../config/env.js";
 import { nextRfqNumber } from "./rfq-number.js";
-import { sendEmail, rfqConfirmationEmail } from "../../lib/email.js";
+import { nextRfqItemLineNumber } from "./rfq-line-number.js";
+import { sendEmail, rfqConfirmationEmail, websiteEnquiryEmail } from "../../lib/email.js";
 import { scheduleFollowUps } from "../../jobs/follow-up-scheduler.js";
+import { adminLeadUrl, safeNotificationError } from "../leads/website-enquiries.service.js";
 import type {
   CreateRfqInput,
   UpdateRfqInput,
@@ -25,6 +28,7 @@ const RFQ_SELECT = {
   createdAt: true,
   updatedAt: true,
   customerId: true,
+  _count: { select: { items: true } },
 } as const;
 
 // Verify ownership — returns 404 to prevent ID enumeration
@@ -131,6 +135,7 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
   });
   if (!customerRecord) throw Errors.notFound("Customer");
 
+  let leadId = "";
   const updated = await prisma.$transaction(async (tx) => {
     const rfq = await tx.rfq.update({
       where: { id: rfqId },
@@ -149,7 +154,7 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
       },
     });
     // Create lead if not already linked to this RFQ
-    await tx.lead.upsert({
+    const lead = await tx.lead.upsert({
       where: { rfqId },
       update: {},
       create: {
@@ -161,8 +166,11 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
         companyName: customerRecord.company.name,
         source: "DIRECT",
         status: "NEW",
+        notificationStatus: "PENDING",
       },
+      select: { id: true, notificationStatus: true },
     });
+    leadId = lead.id;
     return rfq;
   });
 
@@ -178,9 +186,57 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
     ),
   }).catch((err) => console.error("[EMAIL] RFQ confirmation failed:", err));
 
+  // Sales notification: same never-lose-the-record pattern as the public enquiry form —
+  // the RFQ/Lead is already committed above, so an email failure only marks the Lead FAILED.
+  notifySalesOfRfq(leadId, rfqId, customerRecord, updated.rfqNumber, updated.deliveryLocation)
+    .catch((err) => console.error("[EMAIL] Sales notification failed:", err));
+
   scheduleFollowUps(rfqId).catch((err) => console.error("[FOLLOWUP] Schedule failed:", err));
 
   return updated;
+}
+
+async function notifySalesOfRfq(
+  leadId: string,
+  rfqId: string,
+  customerRecord: { user: { email: string; firstName: string; lastName: string; phone: string | null }; company: { name: string } },
+  rfqNumber: string,
+  deliveryLocation: string | null,
+): Promise<void> {
+  const items = await prisma.rfqItem.findMany({
+    where: { rfqId },
+    select: { mpn: true, manufacturer: true, description: true, quantity: true },
+    orderBy: { lineNumber: "asc" },
+  });
+  try {
+    const delivery = await sendEmail({
+      to: env.ENQUIRY_NOTIFICATION_TO,
+      replyTo: customerRecord.user.email,
+      subject: `New RFQ — ${rfqNumber}`,
+      html: websiteEnquiryEmail({
+        referenceNumber: rfqNumber,
+        source: "REQUEST_QUOTE",
+        submittedAt: new Date().toISOString(),
+        contactName: `${customerRecord.user.firstName} ${customerRecord.user.lastName}`,
+        companyName: customerRecord.company.name,
+        contactEmail: customerRecord.user.email,
+        contactPhone: customerRecord.user.phone ?? undefined,
+        message: "Submitted via the customer portal RFQ wizard.",
+        deliveryLocation: deliveryLocation ?? undefined,
+        items,
+        adminUrl: adminLeadUrl(),
+      }),
+    });
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { notificationStatus: "SENT", notificationSentAt: new Date(), notificationMessageId: delivery.messageId ?? undefined, notificationError: null },
+    });
+  } catch (error) {
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { notificationStatus: "FAILED", notificationError: safeNotificationError(error) },
+    }).catch((updateError) => console.error("[rfq-notify] notification status update failed", updateError));
+  }
 }
 
 export async function addItem(
@@ -192,21 +248,21 @@ export async function addItem(
   const rfq = await assertOwnership(rfqId, customerId);
   if (rfq.status !== "DRAFT") throw Errors.unprocessable("Items can only be added to DRAFT RFQs");
 
-  const lineNumber =
-    (await prisma.rfqItem.count({ where: { rfqId } })) + 1;
-
-  return prisma.rfqItem.create({
-    data: {
-      rfqId,
-      lineNumber,
-      mpn: input.mpn,
-      manufacturer: input.manufacturer,
-      description: input.description,
-      quantity: input.quantity,
-      targetPriceUsd: input.targetPriceUsd != null ? new Decimal(input.targetPriceUsd) : undefined,
-      requiredDate: input.requiredDate ? new Date(input.requiredDate) : undefined,
-      notes: input.notes,
-    },
+  return prisma.$transaction(async (tx) => {
+    const lineNumber = await nextRfqItemLineNumber(tx, rfqId);
+    return tx.rfqItem.create({
+      data: {
+        rfqId,
+        lineNumber,
+        mpn: input.mpn,
+        manufacturer: input.manufacturer,
+        description: input.description,
+        quantity: input.quantity,
+        targetPriceUsd: input.targetPriceUsd != null ? new Decimal(input.targetPriceUsd) : undefined,
+        requiredDate: input.requiredDate ? new Date(input.requiredDate) : undefined,
+        notes: input.notes,
+      },
+    });
   });
 }
 

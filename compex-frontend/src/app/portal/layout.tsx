@@ -13,7 +13,9 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && user && user.role !== "CUSTOMER") router.replace("/admin");
+    if (isLoading) return;
+    if (!user) router.replace("/login");
+    else if (user.role !== "CUSTOMER") router.replace("/admin");
   }, [isLoading, router, user]);
 
   if (isLoading || !user || user.role !== "CUSTOMER") {

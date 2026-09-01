@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Physically separate database for integration/browser QA. It is deliberately
+  # not the development database and cannot start until its password is supplied
+  # outside source control.
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: compex_test
+      POSTGRES_USER: compex_test
+      POSTGRES_PASSWORD: ${COMPEX_TEST_POSTGRES_PASSWORD:?Set COMPEX_TEST_POSTGRES_PASSWORD outside source control}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+
+volumes:
+  redis_data:
+  postgres_test_data:

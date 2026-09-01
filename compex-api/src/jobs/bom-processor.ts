@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma.js";
 import { getStorage } from "../modules/documents/documents.service.js";
 import { env } from "../config/env.js";
 import { Decimal } from "@prisma/client/runtime/library";
+import { nextRfqItemLineNumber } from "../modules/rfqs/rfq-line-number.js";
 
 // XLSX safety: disable formula evaluation, no macro execution
 const XLSX_READ_OPTS: XLSX.ParsingOptions = {
@@ -82,16 +83,19 @@ export function startBomWorker() {
     async (job) => {
       const { documentId, rfqId } = job.data as { documentId: string; rfqId: string };
 
-      await prisma.document.update({
-        where: { id: documentId },
+      // Claim only an unprocessed upload. A duplicate BullMQ delivery must not
+      // parse and append the same BOM twice.
+      const claimed = await prisma.document.updateMany({
+        where: { id: documentId, processingStatus: "UPLOADED" },
         data: { processingStatus: "PROCESSING" },
       });
+      if (claimed.count !== 1) return;
+
+      const doc = await prisma.document.findUniqueOrThrow({ where: { id: documentId } });
 
       try {
-        const doc = await prisma.document.findUniqueOrThrow({ where: { id: documentId } });
         const storage = getStorage();
-        const buffer = await (storage as any).readFile?.(doc.storageKey) ??
-          (() => { throw new Error("Storage provider does not support direct read — use S3 GetObject"); })();
+        const buffer = await storage.readFile(doc.storageKey);
 
         const ext = doc.storageKey.endsWith(".csv") ? ".csv" : ".xlsx";
         const rows = parseRows(buffer, ext);
@@ -99,23 +103,23 @@ export function startBomWorker() {
         const validRows = rows.filter((r) => r.mpn && r.quantity && r.quantity > 0);
         if (validRows.length === 0) throw new Error("No valid rows found in BOM (mpn + quantity required)");
 
-        const existingCount = await prisma.rfqItem.count({ where: { rfqId } });
-
-        await prisma.rfqItem.createMany({
-          data: validRows.map((row, i) => ({
-            rfqId,
-            lineNumber: existingCount + i + 1,
-            mpn: row.mpn!,
-            manufacturer: row.manufacturer,
-            description: row.description,
-            quantity: row.quantity!,
-            targetPriceUsd: row.targetPriceUsd != null ? new Decimal(row.targetPriceUsd) : undefined,
-          })),
-        });
-
-        await prisma.document.update({
-          where: { id: documentId },
-          data: { processingStatus: "COMPLETED" },
+        await prisma.$transaction(async (tx) => {
+          const firstLineNumber = await nextRfqItemLineNumber(tx, rfqId);
+          await tx.rfqItem.createMany({
+            data: validRows.map((row, i) => ({
+              rfqId,
+              lineNumber: firstLineNumber + i,
+              mpn: row.mpn!,
+              manufacturer: row.manufacturer,
+              description: row.description,
+              quantity: row.quantity!,
+              targetPriceUsd: row.targetPriceUsd != null ? new Decimal(row.targetPriceUsd) : undefined,
+            })),
+          });
+          await tx.document.update({
+            where: { id: documentId },
+            data: { processingStatus: "COMPLETED" },
+          });
         });
       } catch (err) {
         await prisma.document.update({

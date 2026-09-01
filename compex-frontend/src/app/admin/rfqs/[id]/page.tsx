@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, MapPin, Save } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Save, Send } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { getAdminRfq, updateAdminRfqStatus, type AdminRfq } from "@/lib/api/admin";
 import type { BackendRfqItem, RfqStatus } from "@/lib/api/rfqs";
@@ -96,6 +96,11 @@ export default function AdminRfqDetailPage() {
             <select id="next-status" value={nextStatus} onChange={(e) => setNextStatus(e.target.value as RfqStatus | "")} className="mt-1 w-full rounded border border-[#E4E7EC] px-3 py-2"><option value="">Select a valid transition</option>{allowed.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select>
             <button onClick={() => void saveStatus()} disabled={!nextStatus || saving} className="mt-4 flex w-full items-center justify-center gap-2 rounded bg-[#1769E0] px-4 py-2.5 font-label-md text-white hover:bg-[#1257b8] disabled:cursor-not-allowed disabled:opacity-50"><Save size={16} /> {saving ? "Saving…" : "Save transition"}</button>
           </> : <p className="mt-4 rounded bg-[#f0f3ff] p-3 font-body-sm text-[#44474d]">No further status transition is available.</p>}
+          {rfq.status === "SOURCING" && rfq.items.length > 0 && (
+            <Link href={`/admin/vendor-rfqs?rfqId=${rfq.id}`} className="mt-4 flex w-full items-center justify-center gap-2 rounded border border-[#1769E0] px-4 py-2.5 font-label-md text-[#1769E0] hover:bg-[#f0f3ff]">
+              <Send size={16} /> Source with vendors
+            </Link>
+          )}
         </aside>
       </div>
     </div>

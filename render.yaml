@@ -15,11 +15,21 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: EMAIL_PROVIDER
-        value: log
+        sync: false
       - key: ENQUIRY_NOTIFICATION_TO
         value: sales@compexsolution.com
       - key: STORAGE_PROVIDER
-        value: local
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_REGION
+        sync: false
       - key: CORS_ORIGIN
         value: https://compex-frontend.vercel.app
       - key: DATABASE_URL

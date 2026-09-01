@@ -35,6 +35,14 @@ export class S3StorageProvider implements StorageProvider {
     );
   }
 
+  async readFile(key: string): Promise<Buffer> {
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    if (!result.Body) throw new Error("Storage object has no body");
+    return Buffer.from(await result.Body.transformToByteArray());
+  }
+
   async getSignedUrl(key: string, expiresInSeconds = 60): Promise<string> {
     return getSignedUrl(
       this.client,

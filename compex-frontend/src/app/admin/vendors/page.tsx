@@ -32,7 +32,7 @@ export default function AdminVendorsPage() {
         <div>
           <h1 className="font-headline-lg text-[#111c2d]">Vendor Management</h1>
           <p className="font-body-md text-[#44474d]">
-            {loading ? "Loading…" : `${total} vendors`}
+            {loading ? "Loading…" : `${total} vendor${total === 1 ? "" : "s"}`}
           </p>
         </div>
       </div>

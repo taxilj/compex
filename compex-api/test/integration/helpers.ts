@@ -1,6 +1,7 @@
 ﻿import { buildApp } from "../../src/app.js";
 import { prisma } from "../../src/lib/prisma.js";
 import type { FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
 
 export async function createTestApp(): Promise<FastifyInstance> {
   const app = await buildApp();
@@ -30,13 +31,27 @@ export async function cleanDb() {
     );
   }
 
-  // Delete in FK-safe order
+  // Delete in FK-safe order (children before parents)
+  await prisma.testEmail.deleteMany();
   await prisma.auditLog.deleteMany();
+  await prisma.quotationItem.deleteMany();
+  await prisma.quotation.deleteMany();
+  await prisma.landedCost.deleteMany();
+  await prisma.vendorQuote.deleteMany();
+  await prisma.vendorRfqItem.deleteMany();
+  await prisma.vendorRfq.deleteMany();
+  await prisma.vendor.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.manufacturer.deleteMany();
   await prisma.document.deleteMany();
   await prisma.rfqItem.deleteMany();
+  await prisma.followUp.deleteMany();
+  await prisma.lead.deleteMany();
   await prisma.rfq.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.emailVerification.deleteMany();
+  await prisma.accountSetupToken.deleteMany();
   await prisma.customer.deleteMany();
   await prisma.user.deleteMany();
   await prisma.company.deleteMany();
@@ -47,6 +62,7 @@ export async function registerAndLogin(
   email: string,
   suffix = "",
 ) {
+  const password = makeTestPassword();
   await app.inject({
     method: "POST",
     url: "/api/v1/auth/register",
@@ -56,7 +72,7 @@ export async function registerAndLogin(
       lastName: "User",
       email,
       phone: "9876543210",
-      password: "TestPass1234!",
+      password,
     },
   });
 
@@ -69,7 +85,38 @@ export async function registerAndLogin(
   const res = await app.inject({
     method: "POST",
     url: "/api/v1/auth/login",
-    payload: { email, password: "TestPass1234!" },
+    payload: { email, password },
+  });
+
+  const body = res.json();
+  return { accessToken: body.data.accessToken as string };
+}
+
+export function makeTestPassword(): string {
+  return `A1${randomUUID().replaceAll("-", "")}`;
+}
+
+// No public registration path creates ADMIN/STAFF users — they're provisioned
+// out-of-band (seed script / ops). Test-only equivalent: create the user
+// directly, then log in through the real endpoint like any other user.
+export async function createAdminAndLogin(app: FastifyInstance, email: string) {
+  const bcrypt = await import("bcryptjs");
+  const password = makeTestPassword();
+  await prisma.user.create({
+    data: {
+      email,
+      passwordHash: await bcrypt.hash(password, 12),
+      role: "ADMIN",
+      status: "ACTIVE",
+      firstName: "Test",
+      lastName: "Admin",
+    },
+  });
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/login",
+    payload: { email, password },
   });
 
   const body = res.json();

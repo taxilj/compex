@@ -68,7 +68,7 @@ export default function RFQsPage() {
                       <Link href={`/portal/rfqs/${rfq.id}`} className="font-mono-label text-[#1769E0] hover:underline font-medium">{rfq.rfqNumber}</Link>
                     </td>
                     <td className="py-3 px-5 font-body-sm text-[#44474d]">{rfq.createdAt.split("T")[0]}</td>
-                    <td className="py-3 px-5 font-body-sm text-[#111c2d]">{rfq.items?.length ?? "—"}</td>
+                    <td className="py-3 px-5 font-body-sm text-[#111c2d]">{rfq._count?.items ?? rfq.items?.length ?? 0}</td>
                     <td className="py-3 px-5 font-body-sm text-[#111c2d]">{rfq.deliveryLocation ?? "—"}</td>
                     <td className="py-3 px-5 font-body-sm text-[#44474d]">
                       <span className="flex items-center gap-1">

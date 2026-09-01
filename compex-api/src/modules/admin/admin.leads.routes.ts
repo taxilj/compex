@@ -62,9 +62,78 @@ const LeadCreate = z.object({
   notes: z.string().max(5000).optional(),
 });
 
+// Neutralize CSV formula injection: a leading =, +, -, @, tab, or CR makes
+// Excel/Sheets interpret the cell as a formula when the file is opened.
+function csvCell(value: string): string {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+const LeadExportQuery = z.object({
+  status: z.enum(["NEW", "CONTACTED", "QUALIFIED", "QUOTATION", "WON", "LOST"]).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  source: LeadSourceSchema.optional(),
+  assignedToId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
+});
+
 export async function adminLeadsRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", authenticate);
   app.addHook("preHandler", requireRole("STAFF", "ADMIN"));
+
+  // Registered before "/:id" so the literal path always wins over the param route.
+  app.get("/export", async (req, reply) => {
+    const q = LeadExportQuery.parse(req.query);
+    const where = {
+      ...(q.status && { status: q.status }),
+      ...(q.priority && { priority: q.priority }),
+      ...(q.source && { source: q.source }),
+      ...(q.assignedToId && { assignedToId: q.assignedToId }),
+      ...(q.customerId && { customerId: q.customerId }),
+    };
+    const leads = await prisma.lead.findMany({
+      where,
+      select: {
+        referenceNumber: true,
+        contactName: true,
+        companyName: true,
+        contactEmail: true,
+        contactPhone: true,
+        status: true,
+        notes: true,
+        createdAt: true,
+        items: { select: { mpn: true, quantity: true } },
+        rfq: { select: { rfqNumber: true, items: { select: { mpn: true, quantity: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const header = ["Reference Number", "Customer Name", "Company", "Email", "Phone", "Product/Component", "Quantity", "Message", "Status", "Created At"];
+    const rows = leads.map((lead) => {
+      // Enquiry-form leads carry their own LeadItem rows; portal-RFQ leads don't —
+      // fall back to the linked RFQ's items so the export isn't blank for them.
+      const items = lead.items.length ? lead.items : (lead.rfq?.items ?? []);
+      return [
+        lead.referenceNumber ?? lead.rfq?.rfqNumber ?? "",
+        lead.contactName,
+        lead.companyName,
+        lead.contactEmail,
+        lead.contactPhone ?? "",
+        items.map((item) => item.mpn).join("; "),
+        items.map((item) => item.quantity).join("; "),
+        (lead.notes ?? "").replace(/\r?\n/g, " "),
+        lead.status,
+        lead.createdAt.toISOString(),
+      ];
+    });
+    const csv = [header, ...rows].map((row) => row.map((cell) => csvCell(String(cell))).join(",")).join("\r\n");
+
+    audit({ userId: req.user!.id, action: "lead.exported", entityType: "lead", newValue: { count: leads.length } });
+    return reply
+      .header("Content-Type", "text/csv; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="compex-enquiries-${new Date().toISOString().slice(0, 10)}.csv"`)
+      .send(csv);
+  });
 
   app.get("/", async (req, reply) => {
     const q = z.object({

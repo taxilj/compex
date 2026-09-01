@@ -20,6 +20,7 @@ export interface AdminRfq {
     user: { email: string; firstName: string; lastName: string };
   };
   items?: BackendRfqItem[];
+  _count?: { items: number };
 }
 
 export interface PaginatedResponse<T> {
@@ -50,6 +51,48 @@ export interface Manufacturer {
   updatedAt: string;
 }
 
+export interface AdminCustomer {
+  id: string;
+  accountNumber: string;
+  createdAt: string;
+  updatedAt: string;
+  user: { id: string; email: string; firstName: string; lastName: string; phone: string | null; status: "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED" };
+  company: { id: string; name: string; gstin: string | null; city: string | null; address: string | null };
+  _count: { rfqs: number; quotations: number };
+}
+
+export interface AdminCustomerInput {
+  companyName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  gstin?: string;
+  city?: string;
+  address?: string;
+}
+
+export function listCustomers(params?: { q?: string; page?: number; limit?: number }) {
+  const query = new URLSearchParams();
+  if (params?.q) query.set("q", params.q);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  const suffix = query.toString();
+  return apiFetchPaginated<AdminCustomer>(`/admin/customers${suffix ? `?${suffix}` : ""}`);
+}
+
+export function getCustomer(id: string) {
+  return apiFetch<AdminCustomer>(`/admin/customers/${id}`);
+}
+
+export function createCustomer(data: AdminCustomerInput) {
+  return apiFetch<AdminCustomer>("/admin/customers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateCustomer(id: string, data: Partial<AdminCustomerInput>) {
+  return apiFetch<AdminCustomer>(`/admin/customers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function listAdminRfqs(params?: { status?: RfqStatus; priority?: RfqPriority; page?: number; limit?: number }) {
   const q = new URLSearchParams();
   if (params?.status) q.set("status", params.status);
@@ -77,6 +120,59 @@ export function listVendors() {
 
 export function createVendor(data: { name: string; contactEmail: string; contactPhone?: string; address?: string; notes?: string }) {
   return apiFetch<Vendor>("/admin/vendors", { method: "POST", body: JSON.stringify(data) });
+}
+
+export type VendorRfqStatus = "DRAFT" | "SENT" | "REPLIED" | "CLOSED";
+export type VendorQuoteStatus = "RECEIVED" | "SELECTED" | "REJECTED";
+
+export interface AdminVendorQuote {
+  id: string;
+  rfqItemId: string;
+  status: VendorQuoteStatus;
+  unitCost: string;
+  currency: string;
+  leadTimeDays: number | null;
+  moq: number | null;
+  notes: string | null;
+}
+
+export interface AdminVendorRfq {
+  id: string;
+  vendorRfqNumber: string;
+  rfqId: string;
+  vendorId: string;
+  status: VendorRfqStatus;
+  emailSentAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  vendor: Pick<Vendor, "id" | "name" | "contactEmail">;
+  items: { id: string; rfqItemId: string; quantity: number; notes: string | null }[];
+  quotes: AdminVendorQuote[];
+}
+
+export function listVendorRfqs(params?: { rfqId?: string; page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params?.rfqId) q.set("rfqId", params.rfqId);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return apiFetchPaginated<AdminVendorRfq>(`/admin/vendor-rfqs${qs ? `?${qs}` : ""}`);
+}
+
+export function createVendorRfq(data: { rfqId: string; vendorId: string; itemIds: string[]; notes?: string }) {
+  return apiFetch<AdminVendorRfq>("/admin/vendor-rfqs", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function sendVendorRfq(id: string) {
+  return apiFetch<AdminVendorRfq>(`/admin/vendor-rfqs/${id}/send`, { method: "POST" });
+}
+
+export function recordVendorQuote(id: string, data: { rfqItemId: string; unitCost: number; currency?: string; leadTimeDays?: number; moq?: number; notes?: string }) {
+  return apiFetch<AdminVendorQuote>(`/admin/vendor-rfqs/${id}/quotes`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function selectVendorQuote(vendorRfqId: string, quoteId: string, status: "SELECTED" | "REJECTED") {
+  return apiFetch<AdminVendorQuote>(`/admin/vendor-rfqs/${vendorRfqId}/quotes/${quoteId}`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
 
 export function listManufacturers() {
@@ -118,6 +214,14 @@ export function listAdminQuotations(params?: { status?: string; page?: number; l
   if (params?.limit) q.set("limit", String(params.limit));
   const qs = q.toString();
   return apiFetchPaginated<AdminQuotation>(`/admin/quotations${qs ? `?${qs}` : ""}`);
+}
+
+export function createQuotationFromSourcing(rfqId: string, data: { marginPercent: number; taxRate?: number; validUntil: string; notes?: string }) {
+  return apiFetch<AdminQuotation>(`/admin/quotations/from-sourcing/${rfqId}`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function sendAdminQuotation(id: string) {
+  return apiFetch<AdminQuotation>(`/admin/quotations/${id}/send`, { method: "POST" });
 }
 
   export interface AdminLead {

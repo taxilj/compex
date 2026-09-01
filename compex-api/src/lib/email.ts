@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
+import { prisma } from "./prisma.js";
 
 interface EmailOptions {
   to: string;
@@ -7,6 +8,8 @@ interface EmailOptions {
   subject: string;
   html: string;
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
+  // Used only by the isolated test provider. Never log this value.
+  testActionUrl?: string;
 }
 
 function getTransport() {
@@ -20,7 +23,22 @@ function getTransport() {
 
 export async function sendEmail(opts: EmailOptions): Promise<{ messageId?: string }> {
   if (env.EMAIL_PROVIDER === "log") {
-    throw new Error("Email provider is not configured");
+    throw new Error("Email delivery is disabled in this environment");
+  }
+
+  if (env.EMAIL_PROVIDER === "test") {
+    if (env.NODE_ENV !== "test") {
+      throw new Error("The test email provider is allowed only when NODE_ENV=test");
+    }
+    await prisma.testEmail.create({
+      data: {
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+        actionUrl: opts.testActionUrl,
+      },
+    });
+    return { messageId: "test-email" };
   }
 
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) {
@@ -102,7 +120,7 @@ export function rfqConfirmationEmail(
   </div>
   <div style="padding:32px">
     <h2 style="color:#0B1F3A;margin-top:0">RFQ Received — ${rfqNumber}</h2>
-    <p>Dear ${customerName},</p>
+    <p>Dear ${escapeHtml(customerName)},</p>
     <p>Thank you for submitting your Request for Quotation. We have received your requirement and our sourcing team will review it shortly.</p>
     <table style="width:100%;border-collapse:collapse;margin:20px 0">
       <tr><td style="padding:8px;color:#666;width:40%">RFQ Number</td><td style="padding:8px;font-weight:bold">${rfqNumber}</td></tr>
@@ -139,7 +157,7 @@ export function quotationEmail(
   </div>
   <div style="padding:32px">
     <h2 style="color:#0B1F3A;margin-top:0">Quotation Ready — ${quotationNumber}</h2>
-    <p>Dear ${customerName},</p>
+    <p>Dear ${escapeHtml(customerName)},</p>
     <p>Your quotation is ready. Please find the details below.</p>
     <table style="width:100%;border-collapse:collapse;margin:20px 0">
       <tr><td style="padding:8px;color:#666;width:40%">Quotation Number</td><td style="padding:8px;font-weight:bold">${quotationNumber}</td></tr>
@@ -151,6 +169,41 @@ export function quotationEmail(
     </p>
     <p style="font-size:13px;color:#666">The quotation PDF is attached to this email for your reference.</p>
     <p>For any questions, contact us at <a href="mailto:sales@compexsolution.com">sales@compexsolution.com</a>.</p>
+  </div>
+  <div style="background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center">
+    Compex Solution Pvt. Ltd. &nbsp;|&nbsp; sales@compexsolution.com
+  </div>
+</div>`;
+}
+
+export function vendorRfqEmail(
+  vendorName: string,
+  vendorRfqNumber: string,
+  items: Array<{ mpn: string; manufacturer?: string | null; quantity: number }>,
+  notes?: string | null,
+): string {
+  const rows = items
+    .map(
+      (item) =>
+        `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(item.mpn)}</td><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(item.manufacturer ?? "—")}</td><td style="padding:8px;border-bottom:1px solid #eee">${item.quantity}</td></tr>`,
+    )
+    .join("");
+  return `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+  <div style="background:#0B1F3A;padding:24px 32px">
+    <h1 style="color:#fff;margin:0;font-size:20px">Compex Solution</h1>
+    <p style="color:#aac;margin:4px 0 0;font-size:13px">Electronic Component Sourcing & Procurement</p>
+  </div>
+  <div style="padding:32px">
+    <h2 style="color:#0B1F3A;margin-top:0">Request for Quotation — ${escapeHtml(vendorRfqNumber)}</h2>
+    <p>Dear ${escapeHtml(vendorName)},</p>
+    <p>We would like to request your best pricing, lead time, and MOQ for the following components:</p>
+    <table style="width:100%;border-collapse:collapse;margin:20px 0">
+      <thead><tr style="background:#f8f8f8"><th style="padding:8px;text-align:left">MPN</th><th style="padding:8px;text-align:left">Manufacturer</th><th style="padding:8px;text-align:left">Quantity</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${notes ? `<p><strong>Additional notes:</strong> ${escapeHtml(notes)}</p>` : ""}
+    <p>Please reply to this email with your quotation at your earliest convenience.</p>
   </div>
   <div style="background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center">
     Compex Solution Pvt. Ltd. &nbsp;|&nbsp; sales@compexsolution.com
@@ -179,7 +232,7 @@ export function followUpEmail(
     <h1 style="color:#fff;margin:0;font-size:20px">Compex Solution</h1>
   </div>
   <div style="padding:32px">
-    <p>Dear ${customerName},</p>
+    <p>Dear ${escapeHtml(customerName)},</p>
     <p>${messages[type]}</p>
     <p>Contact us at <a href="mailto:sales@compexsolution.com">sales@compexsolution.com</a>.</p>
   </div>
@@ -191,4 +244,15 @@ export function followUpEmail(
 
 export function verificationEmail(token: string, baseUrl: string): string {
   return `<p>Verify your email: <a href="${baseUrl}/verify-email?token=${token}">Click here</a></p><p>Expires in 24 hours.</p>`;
+}
+
+export function accountSetupEmail(token: string, baseUrl: string): string {
+  const setupUrl = `${baseUrl}/setup-account?token=${encodeURIComponent(token)}`;
+  return `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+  <h2>Set up your Compex Solution customer account</h2>
+  <p>An administrator created a customer account for you. Confirm control of this email and choose your own password to activate it.</p>
+  <p><a href="${setupUrl}">Set up account</a></p>
+  <p>This link expires in 24 hours and can be used once.</p>
+</div>`;
 }

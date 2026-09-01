@@ -13,6 +13,9 @@ import { adminLandedCostRoutes } from "./modules/admin/admin.landed-cost.routes.
 import { adminQuotationsRoutes } from "./modules/admin/admin.quotations.routes.js";
 import { adminOrganizationsRoutes } from "./modules/admin/admin.organizations.routes.js";
 import { adminSettingsRoutes } from "./modules/admin/admin.settings.routes.js";
+import { adminCustomersRoutes } from "./modules/admin/admin.customers.routes.js";
+import { testEmailRoutes } from "./modules/test-support/test-email.routes.js";
+import { env } from "./config/env.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 import { publicLeadsRoutes } from "./modules/leads/public-leads.routes.js";
 
@@ -35,8 +38,12 @@ export async function buildApp() {
   await app.register(adminQuotationsRoutes, { prefix: "/api/v1/admin/quotations" });
   await app.register(adminOrganizationsRoutes, { prefix: "/api/v1/admin/organizations" });
   await app.register(adminSettingsRoutes, { prefix: "/api/v1/admin/settings" });
+  await app.register(adminCustomersRoutes, { prefix: "/api/v1/admin/customers" });
   await app.register(publicLeadsRoutes, { prefix: "/api/v1/leads" });
   await app.register(quotesRoutes, { prefix: "/api/v1/quotes" });
+  if (env.NODE_ENV === "test") {
+    await app.register(testEmailRoutes, { prefix: "/api/v1/test" });
+  }
 
   app.get("/health", async () => ({ status: "ok" }));
 

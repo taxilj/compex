@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   FileText,
   ClipboardList,
+  Send,
   Users,
   Settings,
   Building,
@@ -19,6 +20,7 @@ const navGroups = [
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
       { href: "/admin/rfqs", label: "RFQ Management", icon: FileText, disabled: false },
+      { href: "/admin/vendor-rfqs", label: "Sourcing", icon: Send, disabled: false },
       { href: "/admin/leads", label: "Enquiries", icon: ClipboardList, disabled: false },
       { href: "/admin/quotes", label: "Quotes", icon: ClipboardList, disabled: false },
     ],
@@ -26,6 +28,7 @@ const navGroups = [
   {
     label: "Management",
     items: [
+      { href: "/admin/customers", label: "Customers", icon: Users, disabled: false },
       { href: "/admin/vendors", label: "Vendors", icon: Users, disabled: false },
       { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory, disabled: false },
       { href: "/admin/organization", label: "Organization", icon: Building, disabled: false },

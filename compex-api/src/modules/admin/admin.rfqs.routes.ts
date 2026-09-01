@@ -27,6 +27,7 @@ const RFQ_ADMIN_SELECT = {
       user: { select: { email: true, firstName: true, lastName: true } },
     },
   },
+  _count: { select: { items: true } },
 } as const;
 
 export async function adminRfqsRoutes(app: FastifyInstance): Promise<void> {
@@ -36,16 +37,16 @@ export async function adminRfqsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async (req, reply) => {
     const query = z
       .object({
-        status: z.string().optional(),
-        priority: z.string().optional(),
+        status: z.enum(["DRAFT", "SUBMITTED", "UNDER_REVIEW", "SOURCING", "CANCELLED"]).optional(),
+        priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
         page: z.coerce.number().int().positive().default(1),
         limit: z.coerce.number().int().positive().max(100).default(20),
       })
       .parse(req.query);
 
     const where = {
-      ...(query.status ? { status: query.status as never } : {}),
-      ...(query.priority ? { priority: query.priority as never } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.priority ? { priority: query.priority } : {}),
     };
     const skip = (query.page - 1) * query.limit;
 

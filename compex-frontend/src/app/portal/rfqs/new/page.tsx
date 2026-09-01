@@ -44,8 +44,8 @@ export default function NewRFQPage() {
   const updateComp = (id: string, field: keyof CompEntry, val: string) =>
     setComps((prev) => prev.map((c) => (c.id === id ? { ...c, [field]: val } : c)));
 
-  const next = () => setStep((s) => (Math.min(s + 1, 5) as StepNum));
-  const back = () => setStep((s) => (Math.max(s - 1, 1) as StepNum));
+  const next = () => { setSubmitError(null); setStep((s) => (Math.min(s + 1, 5) as StepNum)); };
+  const back = () => { setSubmitError(null); setStep((s) => (Math.max(s - 1, 1) as StepNum)); };
 
   const handleSubmit = async () => {
     const validComps = comps.filter((c) => c.mpn.trim());

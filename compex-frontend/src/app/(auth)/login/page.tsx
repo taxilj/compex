@@ -17,8 +17,27 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
+  const [regFieldErrors, setRegFieldErrors] = useState<Record<string, string>>({});
   const [regLoading, setRegLoading] = useState(false);
   const [regSuccess, setRegSuccess] = useState(false);
+
+  function validateRegForm(): Record<string, string> {
+    const errors: Record<string, string> = {};
+    if (!regForm.companyName.trim()) errors.companyName = "Company name is required.";
+    if (!regForm.contactPerson.trim()) errors.contactPerson = "Contact person is required.";
+    if (!regForm.email.trim()) errors.email = "Business email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regForm.email.trim())) errors.email = "Enter a valid email address.";
+    if (!regForm.phone.trim()) errors.phone = "Phone number is required.";
+    else if (!/^[0-9+\-\s()]{7,20}$/.test(regForm.phone.trim())) errors.phone = "Enter a valid phone number.";
+    if (regForm.gstin.trim() && !/^[0-9A-Z]{15}$/i.test(regForm.gstin.trim())) errors.gstin = "GSTIN must be 15 characters, e.g. 27AABCT1234H1Z5.";
+    if (!regForm.city.trim()) errors.city = "City is required.";
+    if (!regForm.password) errors.password = "Password is required.";
+    else if (regForm.password.length < 10) errors.password = "Password must be at least 10 characters.";
+    else if (!/[A-Z]/.test(regForm.password) || !/[0-9]/.test(regForm.password)) {
+      errors.password = "Password must include an uppercase letter and a number.";
+    }
+    return errors;
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +63,9 @@ export default function LoginPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError(null);
+    const fieldErrors = validateRegForm();
+    setRegFieldErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length > 0) return;
     setRegLoading(true);
     try {
       const parts = regForm.contactPerson.trim().split(" ");
@@ -156,11 +178,11 @@ export default function LoginPage() {
         <div className="max-w-xl mx-auto w-full">
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="font-headline-lg text-[#111c2d] mb-1">New Vendor Registration</h2>
-              <p className="font-body-md text-[#44474d]">Join our enterprise supply chain network.</p>
+              <h2 className="font-headline-lg text-[#111c2d] mb-1">Customer Registration</h2>
+              <p className="font-body-md text-[#44474d]">Create a customer account to manage sourcing requests and quotations.</p>
             </div>
             <span className="hidden sm:flex items-center gap-1 bg-[#f0f3ff] border border-[#E4E7EC] text-[#44474d] px-3 py-1 rounded-full font-label-sm text-xs">
-              B2B Portal
+              Customer Portal
             </span>
           </div>
 
@@ -181,14 +203,28 @@ export default function LoginPage() {
                 { label: "Password *", name: "password", type: "password", placeholder: "Min. 10 characters" },
               ].map((field) => (
                 <div key={field.name} className={field.col === 2 ? "col-span-full" : ""}>
-                  <label className="block font-label-md text-[#44474d] mb-1.5">{field.label}</label>
+                  <label className="block font-label-md text-[#44474d] mb-1.5" htmlFor={`reg-${field.name}`}>{field.label}</label>
                   <input
+                    id={`reg-${field.name}`}
                     type={field.type}
                     placeholder={field.placeholder}
                     value={regForm[field.name as keyof typeof regForm]}
-                    onChange={(e) => setRegForm({ ...regForm, [field.name]: e.target.value })}
-                    className="w-full bg-[#f9f9ff] border border-[#E4E7EC] rounded px-4 py-3 font-body-md text-[#111c2d] focus:outline-none focus:ring-2 focus:ring-[#1769E0] focus:border-[#1769E0]"
+                    onChange={(e) => {
+                      setRegForm({ ...regForm, [field.name]: e.target.value });
+                      if (regFieldErrors[field.name]) {
+                        setRegFieldErrors((prev) => {
+                          const next = { ...prev };
+                          delete next[field.name];
+                          return next;
+                        });
+                      }
+                    }}
+                    aria-invalid={!!regFieldErrors[field.name]}
+                    className={`w-full bg-[#f9f9ff] border rounded px-4 py-3 font-body-md text-[#111c2d] focus:outline-none focus:ring-2 ${regFieldErrors[field.name] ? "border-red-400 focus:ring-red-400 focus:border-red-400" : "border-[#E4E7EC] focus:ring-[#1769E0] focus:border-[#1769E0]"}`}
                   />
+                  {regFieldErrors[field.name] && (
+                    <p className="mt-1 text-xs text-red-600">{regFieldErrors[field.name]}</p>
+                  )}
                 </div>
               ))}
               {regError && (

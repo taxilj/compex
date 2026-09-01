@@ -1,13 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { Decimal } from "@prisma/client/runtime/library";
+import { Prisma } from "@prisma/client";
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireRole } from "../../middleware/requireRole.js";
 import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
-import { audit } from "../../lib/audit.js";
+import { audit, auditInTx } from "../../lib/audit.js";
 import { nextVendorRfqNumber } from "./vendor-rfq-number.js";
+import { sendEmail, vendorRfqEmail } from "../../lib/email.js";
 
 const VENDOR_RFQ_SELECT = {
   id: true,
@@ -141,9 +143,124 @@ export async function adminVendorRfqsRoutes(app: FastifyInstance): Promise<void>
         },
       });
       await tx.vendorRfq.update({ where: { id }, data: { status: "REPLIED" } });
+      await auditInTx(tx, {
+        userId: req.user!.id,
+        action: "vendor_quote.created",
+        entityType: "vendor_quote",
+        entityId: q.id,
+        newValue: { vendorRfqId: id, rfqItemId: body.rfqItemId, unitCost: body.unitCost, currency: body.currency, leadTimeDays: body.leadTimeDays, moq: body.moq },
+      });
       return q;
     });
 
     return reply.status(201).send(ok(quote));
+  });
+
+  // Send the vendor RFQ to the vendor (DRAFT -> SENT). Email delivery is
+  // best-effort — a broken/unconfigured mail provider never blocks the
+  // status transition itself.
+  app.post("/:id/send", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+
+    const vrfq = await prisma.vendorRfq.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        notes: true,
+        vendorRfqNumber: true,
+        vendor: { select: { name: true, contactEmail: true } },
+        items: { select: { quantity: true, rfqItem: { select: { mpn: true, manufacturer: true } } } },
+      },
+    });
+    if (!vrfq) throw Errors.notFound("VendorRfq");
+    if (vrfq.status !== "DRAFT") {
+      throw Errors.unprocessable(`Cannot send a vendor RFQ with status: ${vrfq.status}`);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.vendorRfq.update({
+        where: { id },
+        data: { status: "SENT", emailSentAt: new Date() },
+        select: VENDOR_RFQ_SELECT,
+      });
+      await auditInTx(tx, {
+        userId: req.user!.id,
+        action: "vendor_rfq.sent",
+        entityType: "vendor_rfq",
+        entityId: id,
+        newValue: { vendorRfqNumber: vrfq.vendorRfqNumber },
+      });
+      return u;
+    });
+
+    sendEmail({
+      to: vrfq.vendor.contactEmail,
+      subject: `Request for Quotation — ${vrfq.vendorRfqNumber}`,
+      html: vendorRfqEmail(
+        vrfq.vendor.name,
+        vrfq.vendorRfqNumber,
+        vrfq.items.map((i) => ({ mpn: i.rfqItem.mpn, manufacturer: i.rfqItem.manufacturer, quantity: i.quantity })),
+        vrfq.notes,
+      ),
+    }).catch((err) => console.error("[EMAIL] Vendor RFQ send failed:", err));
+
+    return reply.send(ok(updated));
+  });
+
+  // Mark a vendor quote as the selected winner for its RFQ line item — any
+  // other still-open (RECEIVED) quote for the same line item, across any
+  // vendor, is automatically rejected so there is exactly one winner per item.
+  app.patch("/:id/quotes/:quoteId", async (req, reply) => {
+    const { id, quoteId } = z.object({ id: z.string().uuid(), quoteId: z.string().uuid() }).parse(req.params);
+    const { status } = z.object({ status: z.enum(["SELECTED", "REJECTED"]) }).parse(req.body);
+
+    const quote = await prisma.vendorQuote.findFirst({ where: { id: quoteId, vendorRfqId: id } });
+    if (!quote) throw Errors.notFound("VendorQuote");
+
+    let updated;
+    try {
+      updated = await prisma.$transaction(async (tx) => {
+        // Serialize quote decisions for one RFQ item before touching any quote
+        // rows. Without this, simultaneous selections lock their own quote
+        // first and then deadlock while rejecting each other.
+        await tx.$queryRaw`
+          SELECT "id"
+          FROM "rfq_items"
+          WHERE "id" = ${quote.rfqItemId}::uuid
+          FOR UPDATE
+        `;
+        const claimed = await tx.vendorQuote.updateMany({
+          where: { id: quoteId, vendorRfqId: id, status: "RECEIVED" },
+          data: { status },
+        });
+        if (claimed.count !== 1) {
+          throw Errors.unprocessable("Only RECEIVED vendor quotes can be selected or rejected");
+        }
+        if (status === "SELECTED") {
+          await tx.vendorQuote.updateMany({
+            where: { rfqItemId: quote.rfqItemId, status: "RECEIVED", id: { not: quoteId } },
+            data: { status: "REJECTED" },
+          });
+        }
+        const q = await tx.vendorQuote.findUniqueOrThrow({ where: { id: quoteId } });
+        await auditInTx(tx, {
+          userId: req.user!.id,
+          action: status === "SELECTED" ? "vendor_quote.selected" : "vendor_quote.rejected",
+          entityType: "vendor_quote",
+          entityId: quoteId,
+          oldValue: { status: quote.status },
+          newValue: { status },
+        });
+        return q;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw Errors.conflict("Another vendor quote is already selected for this RFQ line");
+      }
+      throw error;
+    }
+
+    return reply.send(ok(updated));
   });
 }

@@ -5,6 +5,7 @@ import { requireRole } from "../../middleware/requireRole.js";
 import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
+import { auditInTx } from "../../lib/audit.js";
 
 const VendorBody = z.object({
   name: z.string().min(1).max(200),
@@ -36,7 +37,11 @@ export async function adminVendorsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/", async (req, reply) => {
-    const vendor = await prisma.vendor.create({ data: VendorBody.parse(req.body) });
+    const vendor = await prisma.$transaction(async (tx) => {
+      const v = await tx.vendor.create({ data: VendorBody.parse(req.body) });
+      await auditInTx(tx, { userId: req.user!.id, action: "vendor.created", entityType: "vendor", entityId: v.id, newValue: v });
+      return v;
+    });
     return reply.status(201).send(ok(vendor));
   });
 
@@ -44,7 +49,11 @@ export async function adminVendorsRoutes(app: FastifyInstance): Promise<void> {
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
     const existing = await prisma.vendor.findUnique({ where: { id } });
     if (!existing) throw Errors.notFound("Vendor");
-    const vendor = await prisma.vendor.update({ where: { id }, data: VendorBody.partial().parse(req.body) });
+    const vendor = await prisma.$transaction(async (tx) => {
+      const v = await tx.vendor.update({ where: { id }, data: VendorBody.partial().parse(req.body) });
+      await auditInTx(tx, { userId: req.user!.id, action: "vendor.updated", entityType: "vendor", entityId: id, oldValue: existing, newValue: v });
+      return v;
+    });
     return reply.send(ok(vendor));
   });
 }

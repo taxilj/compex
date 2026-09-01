@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, apiFetchPaginated } from "./client";
 
 export interface QuoteItem {
   id: string;
@@ -45,7 +45,7 @@ export function listCustomerQuotes(params?: { status?: string; page?: number; li
   if (params?.page) qs.set("page", String(params.page));
   if (params?.limit) qs.set("limit", String(params.limit));
   const q = qs.toString();
-  return apiFetch<PaginatedQuotes>(`/quotes${q ? `?${q}` : ""}`);
+  return apiFetchPaginated<CustomerQuote>(`/quotes${q ? `?${q}` : ""}`);
 }
 
 export function getCustomerQuote(id: string) {

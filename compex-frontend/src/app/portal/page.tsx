@@ -17,7 +17,10 @@ export default function PortalDashboardPage() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    Promise.all([listRfqs({ limit: 4 }), listCustomerQuotes({ limit: 1 })])
+    // Fetch up to the backend's page cap (not just the 4 shown below) so the
+    // "Open RFQs" stat card counts the customer's real open RFQs, not just
+    // whichever 4 happened to be the most recent.
+    Promise.all([listRfqs({ limit: 100 }), listCustomerQuotes({ limit: 1 })])
       .then(([rfqResult, quoteResult]) => { setRfqs(rfqResult); setQuoteCount(quoteResult.total); })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -86,7 +89,7 @@ export default function PortalDashboardPage() {
                         {rfq.rfqNumber}
                       </Link>
                     </td>
-                    <td className="py-3 px-5 font-body-sm text-[#111c2d]">{rfq.items?.length ?? 0} items</td>
+                    <td className="py-3 px-5 font-body-sm text-[#111c2d]">{rfq._count?.items ?? rfq.items?.length ?? 0} items</td>
                     <td className="py-3 px-5 font-body-sm text-[#111c2d]">{rfq.deliveryLocation ?? "—"}</td>
                     <td className="py-3 px-5 font-body-sm text-[#44474d]">
                       <span className="flex items-center gap-1">

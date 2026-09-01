@@ -18,13 +18,36 @@ const schema = z.object({
   S3_SECRET_KEY: z.string().optional(),
   S3_REGION: z.string().default("auto"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
-  EMAIL_PROVIDER: z.enum(["log", "smtp"]).default("log"),
+  // `test` is deliberately usable only with NODE_ENV=test. It stores mail in
+  // the isolated test database so browser QA can follow a normal email link
+  // without exposing verification tokens in application logs.
+  EMAIL_PROVIDER: z.enum(["log", "smtp", "test"]).default("log"),
   EMAIL_FROM: z.string().default("noreply@compexsolution.com"),
   ENQUIRY_NOTIFICATION_TO: z.string().email().default("sales@compexsolution.com"),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+}).superRefine((value, ctx) => {
+  if (value.STORAGE_PROVIDER === "s3") {
+    for (const key of ["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY"] as const) {
+      if (!value[key]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is required when STORAGE_PROVIDER=s3` });
+    }
+  }
+  if (value.EMAIL_PROVIDER === "smtp") {
+    for (const key of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"] as const) {
+      if (!value[key]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is required when EMAIL_PROVIDER=smtp` });
+    }
+  }
+  if (value.EMAIL_PROVIDER === "test" && value.NODE_ENV !== "test") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["EMAIL_PROVIDER"], message: "EMAIL_PROVIDER=test requires NODE_ENV=test" });
+  }
+  if (value.NODE_ENV === "production" && value.EMAIL_PROVIDER !== "smtp") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["EMAIL_PROVIDER"], message: "Production requires EMAIL_PROVIDER=smtp" });
+  }
+  if (value.NODE_ENV === "production" && value.STORAGE_PROVIDER !== "s3") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["STORAGE_PROVIDER"], message: "Production requires persistent S3-compatible storage" });
+  }
 });
 
 const parsed = schema.safeParse(process.env);

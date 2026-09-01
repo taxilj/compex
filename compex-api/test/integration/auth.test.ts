@@ -2,6 +2,7 @@
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanDb } from "./helpers.js";
 import { prisma } from "../../src/lib/prisma.js";
+import { makeTestPassword } from "./helpers.js";
 
 let app: FastifyInstance;
 
@@ -15,7 +16,7 @@ const REG = {
   lastName: "Smith",
   email: "jane@acme.com",
   phone: "9876543210",
-  password: "SecurePass1!",
+  password: makeTestPassword(),
 };
 
 // 1. Customer registration
@@ -44,13 +45,15 @@ it("login succeeds after email verification", async () => {
   const res = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: REG.email, password: REG.password } });
   expect(res.statusCode).toBe(200);
   expect(res.json().data.accessToken).toBeTruthy();
+  expect(res.cookies.find((cookie) => cookie.name === "access_token")?.sameSite).toBe("Lax");
 });
 
 it("login returns same message for wrong email and wrong password", async () => {
   await app.inject({ method: "POST", url: "/api/v1/auth/register", payload: REG });
   await prisma.user.update({ where: { email: REG.email }, data: { status: "ACTIVE" } });
-  const wrongPw = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: REG.email, password: "Wrong1234!" } });
-  const wrongEmail = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "nobody@nope.com", password: "Wrong1234!" } });
+  const incorrectPassword = makeTestPassword();
+  const wrongPw = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: REG.email, password: incorrectPassword } });
+  const wrongEmail = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "nobody@nope.com", password: incorrectPassword } });
   // Both must return 401 — prevents user enumeration
   expect(wrongPw.statusCode).toBe(401);
   expect(wrongEmail.statusCode).toBe(401);

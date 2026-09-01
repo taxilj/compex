@@ -4,3 +4,5 @@ dist/
 .env.local
 uploads/
 *.log
+# QA audit scratch files (local only, not committed)
+.qa-*

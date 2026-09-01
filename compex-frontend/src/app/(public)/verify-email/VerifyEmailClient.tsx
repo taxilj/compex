@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle, Loader2, XCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
@@ -8,9 +8,11 @@ import { apiFetch } from "@/lib/api/client";
 export function VerifyEmailClient({ token }: { token?: string }) {
   const [state, setState] = useState<"loading" | "success" | "error">(token ? "loading" : "error");
   const [message, setMessage] = useState(token ? "Verifying your email…" : "The verification link is missing its token.");
+  const firedRef = useRef(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || firedRef.current) return;
+    firedRef.current = true;
     apiFetch<{ message: string }>("/auth/verify-email", {
       method: "POST",
       body: JSON.stringify({ token }),

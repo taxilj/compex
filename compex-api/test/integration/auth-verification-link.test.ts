@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
 
 // Set before any module in this file's isolated registry imports config/env.js,
 // so the fix (env.CORS_ORIGIN) is provably what drives the verification link —
@@ -28,6 +29,7 @@ describe("registration verification link", () => {
   });
 
   it("links to the deployed frontend origin (CORS_ORIGIN), never localhost", async () => {
+    const password = `A1${randomUUID().replaceAll("-", "")}`;
     await app.inject({
       method: "POST",
       url: "/api/v1/auth/register",
@@ -37,7 +39,7 @@ describe("registration verification link", () => {
         lastName: "Smith",
         email: "jane-verify@acme.com",
         phone: "9876543210",
-        password: "SecurePass1!",
+        password,
       },
     });
 

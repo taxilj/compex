@@ -159,10 +159,9 @@ function FilterGroup({ label, children }: { label: string; children: React.React
 
 function CheckItem({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
   return (
-    <label className="flex items-center gap-3 cursor-pointer group">
+    <label className="flex items-center gap-3 cursor-pointer group" onClick={onChange}>
       <div
         className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${checked ? "bg-[#0B1F3A] border-[#0B1F3A]" : "border-[#c4c6ce] group-hover:border-[#0B1F3A]"}`}
-        onClick={onChange}
       >
         {checked && <span className="text-white text-xs">✓</span>}
       </div>

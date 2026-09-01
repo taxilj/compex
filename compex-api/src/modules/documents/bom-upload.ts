@@ -59,7 +59,7 @@ export async function bomUploadHandler(
   }
 
   // Basic file signature check for XLSX (PK zip magic bytes)
-  if (ext === ".xlsx" && buffer[0] !== 0x50 && buffer[1] !== 0x4b) {
+  if (ext === ".xlsx" && (buffer[0] !== 0x50 || buffer[1] !== 0x4b)) {
     throw Errors.validation("File does not appear to be a valid XLSX file");
   }
 

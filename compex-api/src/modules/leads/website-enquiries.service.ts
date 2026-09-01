@@ -50,11 +50,11 @@ async function nextReference(tx: Prisma.TransactionClient, source: WebsiteEnquir
   return `${prefix}-${new Date().getFullYear()}-${String(rows[0].nextval).padStart(6, "0")}`;
 }
 
-function adminLeadUrl(): string {
+export function adminLeadUrl(): string {
   return `${env.CORS_ORIGIN.split(",")[0].trim().replace(/\/$/, "")}/admin/leads`;
 }
 
-function safeNotificationError(error: unknown): string {
+export function safeNotificationError(error: unknown): string {
   if (error instanceof Error && error.message === "Email provider is not configured") return error.message;
   return "Notification delivery failed";
 }

@@ -126,7 +126,7 @@ export default function AdminRFQsPage() {
                       {r.customer.user.firstName} {r.customer.user.lastName}
                     </td>
                     <td className="px-4 py-3 text-[#111c2d] text-sm">{r.customer.company.name}</td>
-                    <td className="px-4 py-3 text-[#111c2d] text-sm font-mono">{r.items?.length ?? "—"}</td>
+                    <td className="px-4 py-3 text-[#111c2d] text-sm font-mono">{r._count?.items ?? r.items?.length ?? 0}</td>
                     <td className="px-4 py-3"><StatusBadge status={r.status.toLowerCase()} /></td>
                     <td className="px-4 py-3">
                       <span className={`capitalize text-xs font-semibold ${PRIORITY_COLOR[r.priority] ?? ""}`}>{r.priority}</span>

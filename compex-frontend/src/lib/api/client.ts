@@ -52,7 +52,7 @@ async function fetchWithRefresh(path: string, init?: RequestInit): Promise<Respo
 
   let res = await makeReq();
 
-  const isPublicAuthRequest = path === "/auth/login" || path === "/auth/register" || path === "/auth/verify-email";
+  const isPublicAuthRequest = path === "/auth/login" || path === "/auth/register" || path === "/auth/verify-email" || path === "/auth/complete-account-setup";
 
   if (res.status === 401 && !isPublicAuthRequest) {
     try {

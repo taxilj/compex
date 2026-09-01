@@ -141,6 +141,7 @@ model User {
   customer           Customer?
   refreshTokens      RefreshToken[]
   emailVerification  EmailVerification?
+  accountSetupToken  AccountSetupToken?
   assignedLeads      Lead[]             @relation("LeadAssignee")
   createdQuotations  Quotation[]        @relation("QuotationCreator")
   @@map("users")
@@ -223,6 +224,7 @@ model RfqItem {
   vendorQuotes     VendorQuote[]
   quotationItems   QuotationItem[]
 
+  @@unique([rfqId, lineNumber])
   @@map("rfq_items")
 }
 
@@ -274,6 +276,36 @@ model EmailVerification {
   @@map("email_verifications")
 }
 
+// One-time invitation for an administrator-provisioned customer. The raw token
+// is never returned by the customer-management API and is only delivered by
+// the configured email provider.
+model AccountSetupToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @unique @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account_setup_tokens")
+}
+
+// Test-only email sink. Code can write here only when NODE_ENV=test and the
+// `test` provider is selected. Production has no route that exposes this data.
+model TestEmail {
+  id        String   @id @default(uuid()) @db.Uuid
+  to        String
+  subject   String
+  html      String
+  actionUrl String?  @map("action_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([to, createdAt])
+  @@map("test_emails")
+}
+
 model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
   userId     String?  @map("user_id") @db.Uuid
@@ -300,6 +332,8 @@ model Manufacturer {
   website   String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  products Product[]
 
   @@map("manufacturers")
 }
@@ -584,6 +618,33 @@ model Setting {
   @@unique([category, value])
   @@index([category])
   @@map("settings")
+}
+
+model Category {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id             String        @id @default(uuid()) @db.Uuid
+  mpn            String        @unique
+  description    String?
+  manufacturerId String?       @map("manufacturer_id") @db.Uuid
+  categoryId     String?       @map("category_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  manufacturer Manufacturer? @relation(fields: [manufacturerId], references: [id])
+  category     Category?     @relation(fields: [categoryId], references: [id])
+
+  @@map("products")
 }
 
 model LeadItem {

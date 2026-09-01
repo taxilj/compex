@@ -8,9 +8,9 @@ import {
 } from "../../lib/jwt.js";
 import { sendEmail, verificationEmail } from "../../lib/email.js";
 import { Errors } from "../../lib/errors.js";
-import { audit } from "../../lib/audit.js";
+import { audit, auditInTx } from "../../lib/audit.js";
 import { env } from "../../config/env.js";
-import type { RegisterInput, LoginInput } from "./auth.schema.js";
+import type { RegisterInput, LoginInput, CompleteAccountSetupInput } from "./auth.schema.js";
 
 const BCRYPT_ROUNDS = 12;
 const MAX_FAILED_ATTEMPTS = 5;
@@ -18,7 +18,7 @@ const LOCKOUT_MINUTES = 15;
 const REFRESH_EXPIRES_DAYS = 30;
 
 function accountNumber(): string {
-  return `CX-${Date.now().toString(36).toUpperCase()}`;
+  return `CX-${crypto.randomUUID().replaceAll("-", "").slice(0, 16).toUpperCase()}`;
 }
 
 export async function register(input: RegisterInput, ipAddress?: string) {
@@ -63,17 +63,24 @@ export async function register(input: RegisterInput, ipAddress?: string) {
       },
     });
 
-    return newUser;
+    return { user: newUser, companyId: company.id };
   });
 
-  audit({ userId: user.id, action: "auth.register", ipAddress });
+  try {
+    await sendEmail({
+      to: input.email,
+      subject: "Verify your Compex Solution account",
+      html: verificationEmail(verifyToken, env.CORS_ORIGIN),
+      testActionUrl: `${env.CORS_ORIGIN}/verify-email?token=${encodeURIComponent(verifyToken)}`,
+    });
+  } catch {
+    // The account and its pending verification remain durable. Deleting them
+    // after an external delivery failure loses legitimate business data.
+    audit({ userId: user.user.id, action: "auth.registration_verification_email_failed", ipAddress });
+    return { message: "Registration created, but verification email delivery is currently unavailable. Please try again later." };
+  }
 
-  // Fire-and-forget email — not awaited so registration doesn't fail on email errors
-  sendEmail({
-    to: input.email,
-    subject: "Verify your Compex Solution account",
-    html: verificationEmail(verifyToken, env.CORS_ORIGIN),
-  }).catch(console.error);
+  audit({ userId: user.user.id, action: "auth.register", ipAddress });
 
   return { message: "Registration successful. Please verify your email." };
 }
@@ -233,4 +240,25 @@ export async function verifyEmail(token: string) {
   ]);
 
   return { message: "Email verified. You can now log in." };
+}
+
+export async function completeAccountSetup(input: CompleteAccountSetupInput, ipAddress?: string) {
+  const record = await prisma.accountSetupToken.findUnique({ where: { tokenHash: hashToken(input.token) } });
+  if (!record || record.usedAt) throw Errors.notFound("Account setup token");
+  if (record.expiresAt < new Date()) throw Errors.unprocessable("Account setup token expired");
+
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.accountSetupToken.updateMany({ where: { id: record.id, usedAt: null }, data: { usedAt: new Date() } });
+    if (claimed.count !== 1) throw Errors.notFound("Account setup token");
+    await tx.user.update({ where: { id: record.userId }, data: { passwordHash, status: "ACTIVE" } });
+    await auditInTx(tx, {
+      userId: record.userId,
+      action: "customer.account_activated",
+      entityType: "user",
+      entityId: record.userId,
+      ipAddress,
+    });
+  });
+  return { message: "Your customer account is active. You can now sign in." };
 }
