@@ -292,7 +292,23 @@ export async function logout(rawToken: string, userId: string) {
 
 export async function verifyEmail(token: string) {
   const record = await prisma.emailVerification.findUnique({ where: { token } });
-  if (!record || record.verifiedAt) throw Errors.notFound("Verification token");
+  if (!record) throw Errors.notFound("Verification token");
+
+  // Idempotent on a token that has already been consumed. Mail providers
+  // routinely "click" links server-side to scan them for phishing/malware
+  // (Gmail link-scanning, Outlook Safe Links, corporate mail gateways)
+  // before the real user ever opens the email -- that scan hits this
+  // one-time endpoint first and legitimately consumes the token. Treating a
+  // second call as 404 punished the *actual* customer for their own inbox's
+  // security scanner and made a working verification look broken. The
+  // account is already ACTIVE at that point, so this is success, not an
+  // error -- it does not weaken security: only the holder of the original
+  // correct token can ever reach this branch, and it reveals nothing an
+  // attacker couldn't already infer from a plain 404.
+  if (record.verifiedAt) {
+    return { message: "Email already verified. You can log in." };
+  }
+
   if (record.expiresAt < new Date()) throw Errors.unprocessable("Verification token expired");
 
   await prisma.$transaction([
