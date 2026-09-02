@@ -1,4 +1,5 @@
 import { Queue } from "bullmq";
+import IORedis from "ioredis";
 import { env } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
 
@@ -13,9 +14,17 @@ let followUpQueue: Queue | null = null;
 
 function getQueue(): Queue {
   if (!followUpQueue) {
-    followUpQueue = new Queue("follow-ups", {
-      connection: { url: env.REDIS_URL },
+    // Producer connection: bounded retries/timeout so a Redis outage fails a
+    // single enqueue attempt quickly instead of hammering Redis with an
+    // unbounded reconnect/retry loop in the background. Mirrors the BOM
+    // upload queue's producer connection (workers still legitimately use
+    // maxRetriesPerRequest: null for blocking commands).
+    const connection = new IORedis(env.REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 5000,
+      retryStrategy: () => null,
     });
+    followUpQueue = new Queue("follow-ups", { connection });
   }
   return followUpQueue;
 }
@@ -41,11 +50,20 @@ export async function scheduleFollowUps(rfqId: string): Promise<void> {
         status: "SCHEDULED",
       },
     });
-    await queue.add(
-      "send-follow-up",
-      { followUpId: followUp.id, rfqId, type },
-      { delay: delayMs, jobId: `followup-${followUp.id}` },
-    );
+    try {
+      await queue.add(
+        "send-follow-up",
+        { followUpId: followUp.id, rfqId, type },
+        { delay: delayMs, jobId: `followup-${followUp.id}` },
+      );
+    } catch (err) {
+      // Enqueue failed (e.g. Redis unreachable): the FollowUp row would be
+      // stuck "SCHEDULED" forever with no job behind it, so roll it back
+      // instead of leaving a phantom record, log, and keep trying the
+      // remaining follow-up types rather than aborting the whole batch.
+      console.error(`[FOLLOWUP] Enqueue failed for ${followUpType} on RFQ ${rfqId}:`, err);
+      await prisma.followUp.delete({ where: { id: followUp.id } }).catch(() => {});
+    }
   }
 }
 

@@ -72,8 +72,12 @@ export default function AdminRfqDetailPage() {
 
       {error && <p role="alert" className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="space-y-5 rounded-xl border border-[#E4E7EC] bg-white p-6 lg:col-span-2">
+      {/* lg:grid-cols-[3fr_1fr] (not the even lg:grid-cols-3 + col-span-2 split) gives the
+          line-items table enough of this page's max-w-[1180px] budget to fit its natural
+          content width without horizontal scrolling on common desktop sizes (1366/1440);
+          the narrower aside still has ample room for its notes field and status control. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_1fr]">
+        <section className="space-y-5 rounded-xl border border-[#E4E7EC] bg-white p-6">
           <div className="flex flex-wrap justify-between gap-4">
             <div><p className="font-label-sm uppercase tracking-wide text-[#667085]">Customer account</p><p className="font-body-md text-[#111c2d]">{rfq.customer.accountNumber}</p><p className="font-body-sm text-[#667085]">{rfq.customer.user.email}</p></div>
             <div><p className="font-label-sm uppercase tracking-wide text-[#667085]">Delivery</p><p className="flex items-center gap-1 font-body-md text-[#111c2d]"><MapPin size={15} /> {rfq.deliveryLocation ?? "Not specified"}</p><p className="font-body-sm text-[#667085]">Required {rfq.requiredDate?.split("T")[0] ?? "date not specified"}</p></div>

@@ -10,9 +10,12 @@ export function proxy(request: NextRequest) {
 
   // These legacy prototypes render hard-coded commercial data. Keep them out
   // of authenticated workflows until matching API-backed modules exist.
+  // NOTE: "/admin/customers" is a real, API-backed, tested feature (see
+  // admin.customers.routes.ts and the AdminSidebar "Management" nav group) —
+  // it must not be redirected alongside the genuinely unbuilt mock pages below.
   const { pathname } = request.nextUrl;
   const unsupportedAdminRoutes = [
-    "/admin/customers", "/admin/invoices", "/admin/orders", "/admin/products",
+    "/admin/invoices", "/admin/orders", "/admin/products",
     "/admin/purchase-orders", "/admin/reports", "/admin/shipments",
   ];
   const unsupportedPortalPrefixes = [

@@ -22,7 +22,15 @@ let bomQueue: Queue | null = null;
 
 function getQueue(): Queue {
   if (!bomQueue) {
-    const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+    // Producer connection: bounded retries/timeout so a request fails fast
+    // with a clear error instead of hanging forever when Redis is
+    // unreachable. (Workers legitimately use maxRetriesPerRequest: null for
+    // blocking commands — this is the producer side only.)
+    const connection = new IORedis(env.REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 5000,
+      retryStrategy: () => null,
+    });
     bomQueue = new Queue("bom-processing", { connection });
   }
   return bomQueue;
@@ -83,9 +91,18 @@ export async function bomUploadHandler(
 
   audit({ userId, customerId, action: "bom.uploaded", entityType: "rfq", entityId: rfqId });
 
-  // Enqueue async processing job
-  const queue = getQueue();
-  await queue.add("parse-bom", { documentId: doc.id, rfqId, customerId });
+  // Enqueue async processing job. The file is already stored and the
+  // Document row already created above, so a queue failure here must not
+  // hang the HTTP request indefinitely (see getQueue): fail fast with a
+  // clear 503 instead, so the customer isn't left on an infinite spinner.
+  try {
+    const queue = getQueue();
+    await queue.add("parse-bom", { documentId: doc.id, rfqId, customerId });
+  } catch (err) {
+    throw Errors.serviceUnavailable(
+      "BOM upload was saved but processing is temporarily unavailable. Please try again shortly or contact support.",
+    );
+  }
 
   return { jobId: doc.id, message: "BOM uploaded and queued for processing" };
 }

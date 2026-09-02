@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Search, Loader2 } from "lucide-react";
 import { listAdminQuotations, sendAdminQuotation, type AdminQuotation } from "@/lib/api/admin";
@@ -24,14 +24,14 @@ export default function AdminQuotesPage() {
   const [tab, setTab] = useState<typeof STATUS_TABS[number]>("All");
   const [sendingId, setSendingId] = useState<string | null>(null);
 
-  function load() {
+  const load = useCallback(() => {
     listAdminQuotations({ status: tab !== "All" ? tab : undefined, limit: 50 })
       .then((res) => { setQuotes(res.data); setTotal(res.total); setError(null); })
       .catch(() => setError("Failed to load quotations."))
       .finally(() => setLoading(false));
-  }
+  }, [tab]);
 
-  useEffect(() => { load(); }, [tab]);
+  useEffect(() => { load(); }, [load]);
 
   async function handleSend(id: string) {
     setSendingId(id);
