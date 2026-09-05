@@ -18,6 +18,12 @@ import { testEmailRoutes } from "./modules/test-support/test-email.routes.js";
 import { env } from "./config/env.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 import { publicLeadsRoutes } from "./modules/leads/public-leads.routes.js";
+import { productsRoutes } from "./modules/catalog/products.routes.js";
+import { manufacturersRoutes } from "./modules/catalog/manufacturers.routes.js";
+import { categoriesRoutes } from "./modules/catalog/categories.routes.js";
+import { adminProductsRoutes } from "./modules/admin/admin.products.routes.js";
+import { adminCategoriesRoutes } from "./modules/admin/admin.categories.routes.js";
+import { adminCatalogImportRoutes } from "./modules/catalog-import/admin.catalog-import.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -41,6 +47,12 @@ export async function buildApp() {
   await app.register(adminCustomersRoutes, { prefix: "/api/v1/admin/customers" });
   await app.register(publicLeadsRoutes, { prefix: "/api/v1/leads" });
   await app.register(quotesRoutes, { prefix: "/api/v1/quotes" });
+  await app.register(productsRoutes, { prefix: "/api/v1/products" });
+  await app.register(manufacturersRoutes, { prefix: "/api/v1/manufacturers" });
+  await app.register(categoriesRoutes, { prefix: "/api/v1/categories" });
+  await app.register(adminProductsRoutes, { prefix: "/api/v1/admin/products" });
+  await app.register(adminCategoriesRoutes, { prefix: "/api/v1/admin/categories" });
+  await app.register(adminCatalogImportRoutes, { prefix: "/api/v1/admin/catalog-import" });
   if (env.NODE_ENV === "test") {
     await app.register(testEmailRoutes, { prefix: "/api/v1/test" });
   }

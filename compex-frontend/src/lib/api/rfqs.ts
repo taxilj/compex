@@ -6,6 +6,7 @@ export type RfqPriority = "LOW" | "MEDIUM" | "HIGH";
 export interface BackendRfqItem {
   id: string;
   rfqId: string;
+  productId: string | null;
   lineNumber: number;
   mpn: string;
   manufacturer: string | null;
@@ -64,6 +65,7 @@ export function addRfqItem(
     quantity: number;
     targetPriceUsd?: number;
     notes?: string;
+    productId?: string;
   },
 ) {
   return apiFetch<BackendRfqItem>(`/rfqs/${rfqId}/items`, {

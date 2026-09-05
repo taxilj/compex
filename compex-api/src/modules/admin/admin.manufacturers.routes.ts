@@ -12,6 +12,10 @@ const ManufacturerBody = z.object({
   slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
   logoUrl: z.string().url().optional(),
   website: z.string().url().optional(),
+  description: z.string().max(2000).optional(),
+  country: z.string().max(100).optional(),
+  source: z.string().max(50).optional(),
+  sourceUrl: z.string().url().optional(),
 });
 
 export async function adminManufacturersRoutes(app: FastifyInstance): Promise<void> {

@@ -42,7 +42,7 @@ async function main() {
   await prisma.product.upsert({
     where: { mpn: "QA-MPN-001" },
     update: {},
-    create: { mpn: "QA-MPN-001", description: "Synthetic QA product", manufacturerId: manufacturer.id, categoryId: category.id },
+    create: { mpn: "QA-MPN-001", normalizedMpn: "QAMPN001", description: "Synthetic QA product", manufacturerId: manufacturer.id, categoryId: category.id },
   });
   let vendor = await prisma.vendor.findFirst({ where: { contactEmail: "qa-vendor@invalid.test" }, select: { id: true } });
   if (!vendor) {

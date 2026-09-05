@@ -1,38 +1,68 @@
-﻿"use client";
+"use client";
 
-import { useState, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Search } from "lucide-react";
-import { products, manufacturers } from "@/data/mock/products";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { listProducts, listCategories, type BackendProduct, type CategoryWithChildren } from "@/lib/api/products";
+import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufacturers";
 
-const categories = ["Microcontrollers", "DSP Controllers", "Power Management", "Gate Drivers", "Sensors"];
+const PAGE_SIZE = 24;
 
 function ProductSearchContent() {
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState(searchParams.get("q") ?? "");
-  const [selectedManufacturers, setSelectedManufacturers] = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [availability, setAvailability] = useState<string[]>([]);
+  const router = useRouter();
+  const [query] = useState(searchParams.get("q") ?? "");
+  const [searchInput, setSearchInput] = useState(query);
+  const [manufacturerId, setManufacturerId] = useState<string | undefined>(undefined);
+  const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
+  const [page, setPage] = useState(1);
 
-  const results = useMemo(() => {
-    return products.filter((p) => {
-      const matchQuery =
-        !query ||
-        p.mpn.toLowerCase().includes(query.toLowerCase()) ||
-        p.description.toLowerCase().includes(query.toLowerCase()) ||
-        p.manufacturer.toLowerCase().includes(query.toLowerCase());
-      const matchMfr = selectedManufacturers.length === 0 || selectedManufacturers.includes(p.manufacturer);
-      const matchCat = selectedCategories.length === 0 || selectedCategories.includes(p.category);
-      const matchAvail = availability.length === 0 || availability.includes(p.availability);
-      return matchQuery && matchMfr && matchCat && matchAvail;
+  const [products, setProducts] = useState<BackendProduct[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [manufacturers, setManufacturers] = useState<ManufacturerListItem[]>([]);
+  const [categories, setCategories] = useState<CategoryWithChildren[]>([]);
+
+  useEffect(() => {
+    listManufacturers({ limit: 100 }).then((r) => setManufacturers(r.data)).catch(() => {});
+    listCategories().then(setCategories).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
+      listProducts({ q: query || undefined, manufacturerId, categoryId, page, limit: PAGE_SIZE })
+        .then((r) => {
+          if (cancelled) return;
+          setProducts(r.data);
+          setTotal(r.total);
+        })
+        .catch(() => {
+          if (!cancelled) setError("Could not load products. Please try again.");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     });
-  }, [query, selectedManufacturers, selectedCategories, availability]);
+    return () => {
+      cancelled = true;
+    };
+  }, [query, manufacturerId, categoryId, page]);
 
-  const toggle = (arr: string[], val: string, set: (v: string[]) => void) =>
-    arr.includes(val) ? set(arr.filter((x) => x !== val)) : set([...arr, val]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const mpn = searchInput.trim().toUpperCase();
+    if (mpn) router.push(`/products/${encodeURIComponent(mpn)}`);
+  };
 
   return (
     <div className="flex flex-col w-full px-4 md:px-8 py-8 gap-8">
@@ -42,16 +72,16 @@ function ProductSearchContent() {
             <p className="font-label-sm text-[#afc6ff] uppercase tracking-widest mb-2">Component catalogue</p>
             <h1 className="font-headline-lg text-white mb-3">Product Search</h1>
             <p className="font-body-md text-[#d6e3ff] max-w-2xl mb-6">Search verified electronic components by MPN, description, or manufacturer.</p>
-            <div className="relative max-w-2xl">
+            <form onSubmit={submitSearch} className="relative max-w-2xl">
               <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#44474d]" />
               <input
                 aria-label="Search products by MPN, description, or manufacturer"
                 className="w-full pl-12 pr-4 py-4 rounded bg-white font-body-md text-[#111c2d] border border-white/20 focus:outline-none focus:ring-2 focus:ring-[#afc6ff] shadow-sm"
-                placeholder="Search by MPN, description, or manufacturer..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by exact MPN or part number..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
               />
-            </div>
+            </form>
           </div>
           <div className="relative min-h-48 md:min-h-full">
             <Image
@@ -71,7 +101,7 @@ function ProductSearchContent() {
           <div className="flex justify-between items-center pb-4 border-b border-[#E4E7EC] mb-4">
             <h2 className="font-headline-sm text-[#111c2d]">Filters</h2>
             <button
-              onClick={() => { setSelectedManufacturers([]); setSelectedCategories([]); setAvailability([]); }}
+              onClick={() => { setManufacturerId(undefined); setCategoryId(undefined); setPage(1); }}
               className="font-label-sm text-[#1769E0] hover:underline uppercase tracking-wider"
             >
               Clear All
@@ -79,55 +109,48 @@ function ProductSearchContent() {
           </div>
           <FilterGroup label="Category">
             {categories.map((c) => (
-              <CheckItem key={c} label={c} checked={selectedCategories.includes(c)} onChange={() => toggle(selectedCategories, c, setSelectedCategories)} />
+              <CheckItem key={c.id} label={c.name} checked={categoryId === c.id} onChange={() => { setCategoryId(categoryId === c.id ? undefined : c.id); setPage(1); }} />
             ))}
+            {categories.length === 0 && <p className="font-body-sm text-[#44474d]">No categories yet</p>}
           </FilterGroup>
           <FilterGroup label="Manufacturer">
             {manufacturers.map((m) => (
-              <CheckItem key={m.name} label={m.name} checked={selectedManufacturers.includes(m.name)} onChange={() => toggle(selectedManufacturers, m.name, setSelectedManufacturers)} />
+              <CheckItem key={m.id} label={m.name} checked={manufacturerId === m.id} onChange={() => { setManufacturerId(manufacturerId === m.id ? undefined : m.id); setPage(1); }} />
             ))}
-          </FilterGroup>
-          <FilterGroup label="Availability">
-            {[
-              { value: "available", label: "Available" },
-              { value: "on_request", label: "Available on Request" },
-              { value: "limited", label: "Limited Stock" },
-            ].map((a) => (
-              <CheckItem key={a.value} label={a.label} checked={availability.includes(a.value)} onChange={() => toggle(availability, a.value, setAvailability)} />
-            ))}
+            {manufacturers.length === 0 && <p className="font-body-sm text-[#44474d]">No manufacturers yet</p>}
           </FilterGroup>
         </aside>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-4">
             <p className="font-body-sm text-[#44474d]">
-              <span className="font-label-md text-[#111c2d]">{results.length}</span> result{results.length !== 1 ? "s" : ""} found
+              <span className="font-label-md text-[#111c2d]">{total}</span> result{total !== 1 ? "s" : ""} found
             </p>
           </div>
+          {error && <p className="mb-4 font-body-sm text-[#B42318]" role="alert">{error}</p>}
           <div className="bg-white rounded shadow-sm border border-[#E4E7EC] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left min-w-[700px]">
                 <thead>
                   <tr className="bg-[#f0f3ff]">
-                    {["MPN", "Manufacturer", "Description", "Package", "Lead Time", "MOQ", "Availability", "Action"].map((h) => (
+                    {["MPN", "Manufacturer", "Category", "Package", "Lifecycle", "Description", "Action"].map((h) => (
                       <th key={h} className="py-3 px-4 font-label-sm text-[#44474d] uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E4E7EC]">
-                  {results.map((p) => (
+                  {products.map((p) => (
                     <tr key={p.id} className="hover:bg-[#f0f3ff]/50 transition-colors">
                       <td className="py-3 px-4">
-                        <Link href={`/products/${p.mpn}`} className="font-mono-label text-[#1769E0] hover:underline font-medium">{p.mpn}</Link>
+                        <Link href={`/products/${p.mpn}${p.manufacturer?.id ? `?manufacturerId=${encodeURIComponent(p.manufacturer.id)}` : ""}`} className="font-mono-label text-[#1769E0] hover:underline font-medium">{p.mpn}</Link>
                       </td>
-                      <td className="py-3 px-4 font-body-sm text-[#111c2d]">{p.manufacturer}</td>
-                      <td className="py-3 px-4 font-body-sm text-[#44474d] max-w-[250px] truncate">{p.description}</td>
-                      <td className="py-3 px-4 font-mono-label text-[#111c2d]">{p.package}</td>
-                      <td className="py-3 px-4 font-body-sm text-[#111c2d]">{p.leadTimeDays}d</td>
-                      <td className="py-3 px-4 font-mono-label text-[#111c2d]">{p.moq.toLocaleString()}</td>
-                      <td className="py-3 px-4"><StatusBadge status={p.availability} /></td>
+                      <td className="py-3 px-4 font-body-sm text-[#111c2d]">{p.manufacturer?.name ?? "—"}</td>
+                      <td className="py-3 px-4 font-body-sm text-[#111c2d]">{p.category?.name ?? "—"}</td>
+                      <td className="py-3 px-4 font-mono-label text-[#111c2d]">{p.packageType ?? "—"}</td>
+                      <td className="py-3 px-4 font-body-sm text-[#111c2d]">{p.lifecycleStatus ?? "—"}</td>
+                      <td className="py-3 px-4 font-body-sm text-[#44474d] max-w-[250px] truncate">{p.description ?? "—"}</td>
                       <td className="py-3 px-4">
-                        <Link href={`/request-quote?mpn=${p.mpn}`} className="bg-[#1769E0] text-white px-3 py-1.5 rounded font-label-sm text-xs hover:bg-[#1257b8] transition-colors whitespace-nowrap">
+                        <Link href={`/request-quote?mpn=${encodeURIComponent(p.mpn)}&manufacturer=${encodeURIComponent(p.manufacturer?.name ?? "")}`} className="bg-[#1769E0] text-white px-3 py-1.5 rounded font-label-sm text-xs hover:bg-[#1257b8] transition-colors whitespace-nowrap">
                           Request Quote
                         </Link>
                       </td>
@@ -136,12 +159,36 @@ function ProductSearchContent() {
                 </tbody>
               </table>
             </div>
-            {results.length === 0 && (
+            {!loading && products.length === 0 && (
               <div className="py-16 text-center">
                 <p className="font-body-md text-[#44474d]">No products found. Try a different search term or clear the filters.</p>
               </div>
             )}
+            {loading && (
+              <div className="py-16 text-center">
+                <p className="font-body-md text-[#44474d]">Loading products...</p>
+              </div>
+            )}
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-6">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="px-4 py-2 rounded border border-[#E4E7EC] font-label-sm text-[#111c2d] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f0f3ff]"
+              >
+                Previous
+              </button>
+              <span className="font-body-sm text-[#44474d]">Page {page} of {totalPages}</span>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="px-4 py-2 rounded border border-[#E4E7EC] font-label-sm text-[#111c2d] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f0f3ff]"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

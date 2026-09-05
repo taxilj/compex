@@ -34,8 +34,14 @@ export default function RequestQuotePage() {
   });
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("mode") === "bom") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "bom") {
       queueMicrotask(() => setActiveTab("bom"));
+    }
+    const mpn = params.get("mpn");
+    if (mpn) {
+      const manufacturer = params.get("manufacturer") ?? "";
+      queueMicrotask(() => setItems([{ mpn, manufacturer, description: "", quantity: "1" }]));
     }
   }, []);
 

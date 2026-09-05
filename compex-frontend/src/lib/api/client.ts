@@ -72,6 +72,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return parseJson<T>(await fetchWithRefresh(path, init));
 }
 
+// Public endpoints deliberately use a separate same-origin namespace. This
+// prevents product lookup from inheriting authenticated refresh/redirect
+// behaviour and keeps its browser URL at /api/products/lookup.
+export async function apiFetchPublic<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { ...init, credentials: "same-origin", headers: buildHeaders(init) });
+  return parseJson<T>(res);
+}
+
 export async function apiFetchPaginated<T>(path: string, init?: RequestInit): Promise<{ data: T[]; total: number; page: number; limit: number }> {
   const res = await fetchWithRefresh(path, init);
   if (res.status === 204) return { data: [], total: 0, page: 1, limit: 20 };

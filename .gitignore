@@ -16,3 +16,6 @@ next-env.d.ts
 uploads/
 stitch_compex_sourcing_procurement_platform/
 .gstack/
+
+# Local QA Postgres bootstrap (portable binaries, data dir) — never commit
+.qa-infra/

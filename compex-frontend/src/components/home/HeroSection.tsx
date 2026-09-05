@@ -2,12 +2,21 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRef, useLayoutEffect } from "react";
+import { useRef, useLayoutEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Upload, Search, ShieldCheck, Truck, Package } from "lucide-react";
 import gsap from "gsap";
 
 export function HeroSection() {
   const floatRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [mpn, setMpn] = useState("");
+
+  const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalized = mpn.trim().toUpperCase();
+    if (normalized) router.push(`/products/${encodeURIComponent(normalized)}`);
+  };
 
   useLayoutEffect(() => {
     if (!floatRef.current) return;
@@ -46,7 +55,7 @@ export function HeroSection() {
             Streamline your supply chain with direct access to global manufacturers and authorized distributors. We handle bulk procurement, customs clearance, and secure domestic delivery.
           </p>
 
-          <form action="/products" method="GET" className="anim-hero-6 w-full max-w-xl bg-white p-2 rounded-2xl shadow-md border border-[#E4E7EC] flex items-center gap-2">
+          <form onSubmit={submitSearch} className="anim-hero-6 w-full max-w-xl bg-white p-2 rounded-2xl shadow-md border border-[#E4E7EC] flex items-center gap-2">
             <div className="flex-1 flex items-center px-4 py-2.5 gap-3">
               <Search size={18} className="text-[#75777e] shrink-0" />
               <input
@@ -54,6 +63,8 @@ export function HeroSection() {
                 aria-label="Search components by MPN or part number"
                 className="w-full bg-transparent border-none outline-none font-body-md text-[#111c2d] placeholder:text-[#75777e]"
                 placeholder="Search by MPN, Part Number..."
+                value={mpn}
+                onChange={(event) => setMpn(event.target.value)}
               />
             </div>
             <button

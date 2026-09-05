@@ -10,7 +10,10 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   async rewrites() {
-    return [{ source: "/api/v1/:path*", destination: `${API_BASE}/:path*` }];
+    return [
+      { source: "/api/v1/:path*", destination: `${API_BASE}/:path*` },
+      { source: "/api/products/:path*", destination: `${API_BASE}/products/:path*` },
+    ];
   },
 };
 

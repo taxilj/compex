@@ -6,11 +6,13 @@ import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { audit } from "../../lib/audit.js";
+import { SOURCING_STATUSES, allowedNextSourcingStatuses, type SourcingStatus } from "../rfqs/sourcing-state-machine.js";
 
 const RFQ_ADMIN_SELECT = {
   id: true,
   rfqNumber: true,
   status: true,
+  sourcingStatus: true,
   priority: true,
   deliveryLocation: true,
   requiredDate: true,
@@ -111,6 +113,35 @@ export async function adminRfqsRoutes(app: FastifyInstance): Promise<void> {
           entityId: id,
           oldValue: { status: existing.status },
           newValue: { status },
+        },
+      });
+      return rfq;
+    });
+
+    return reply.send(ok(updated));
+  });
+
+  app.patch("/:id/sourcing-status", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const { sourcingStatus } = z.object({ sourcingStatus: z.enum(SOURCING_STATUSES) }).parse(req.body);
+    const existing = await prisma.rfq.findUnique({ where: { id }, select: { sourcingStatus: true } });
+    if (!existing) throw Errors.notFound("RFQ");
+
+    const allowed = allowedNextSourcingStatuses(existing.sourcingStatus as SourcingStatus | null);
+    if (!allowed.includes(sourcingStatus)) {
+      throw Errors.unprocessable(`Cannot transition sourcing workflow from ${existing.sourcingStatus ?? "UNINITIALIZED"} to ${sourcingStatus}`);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const rfq = await tx.rfq.update({ where: { id }, data: { sourcingStatus }, select: RFQ_ADMIN_SELECT });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: "rfq.sourcing_status_changed",
+          entityType: "rfq",
+          entityId: id,
+          oldValue: { sourcingStatus: existing.sourcingStatus },
+          newValue: { sourcingStatus },
         },
       });
       return rfq;

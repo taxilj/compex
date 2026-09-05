@@ -12,6 +12,9 @@ import {
   Settings,
   Building,
   Factory,
+  Package,
+  FolderTree,
+  UploadCloud,
 } from "lucide-react";
 
 const navGroups = [
@@ -31,6 +34,9 @@ const navGroups = [
       { href: "/admin/customers", label: "Customers", icon: Users, disabled: false },
       { href: "/admin/vendors", label: "Vendors", icon: Users, disabled: false },
       { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory, disabled: false },
+      { href: "/admin/products", label: "Products", icon: Package, disabled: false },
+      { href: "/admin/categories", label: "Categories", icon: FolderTree, disabled: false },
+      { href: "/admin/catalog-import", label: "Catalog Import", icon: UploadCloud, disabled: false },
       { href: "/admin/organization", label: "Organization", icon: Building, disabled: false },
       { href: "/admin/settings", label: "Settings", icon: Settings, disabled: false },
     ],

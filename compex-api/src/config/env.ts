@@ -28,6 +28,27 @@ const schema = z.object({
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+  // Mouser Search API key (https://www.mouser.com/api-hub/). Optional at
+  // boot — only required when an admin actually triggers a Mouser import.
+  MOUSER_API_KEY: z.string().optional(),
+  // element14 Product Search API. Keep this server-only; the public frontend
+  // never receives distributor credentials.
+  ELEMENT14_API_KEY: z.string().optional(),
+  ELEMENT14_STORE_ID: z.string().default("in.element14.com"),
+  // DigiKey Product Information V4 requires OAuth client credentials. The
+  // mapper is present, but no authenticated call is attempted without both.
+  DIGIKEY_CLIENT_ID: z.string().optional(),
+  DIGIKEY_CLIENT_SECRET: z.string().optional(),
+  // Nexar Supply API (https://api.nexar.com/graphql) -- OAuth2 client
+  // credentials against https://identity.nexar.com/connect/token. Both
+  // values are required for an authenticated call; the fetcher is present
+  // but never attempts a request without them (same pattern as DigiKey).
+  NEXAR_CLIENT_ID: z.string().optional(),
+  NEXAR_CLIENT_SECRET: z.string().optional(),
+  NEXAR_SCOPE: z.string().default("supply.domain"),
+  // How long a repeated exact-MPN Nexar lookup is served from cache instead
+  // of hitting the upstream API again. 0 disables caching.
+  NEXAR_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).default(3600),
 }).superRefine((value, ctx) => {
   if (value.STORAGE_PROVIDER === "s3") {
     for (const key of ["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY"] as const) {

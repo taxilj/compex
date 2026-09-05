@@ -1,10 +1,24 @@
 import { apiFetch, apiFetchPaginated } from "./client";
 import type { RfqStatus, RfqPriority, BackendRfqItem } from "./rfqs";
 
+export type SourcingStatus =
+  | "NEW"
+  | "REVIEWING"
+  | "SOURCING"
+  | "SUPPLIER_QUOTES_PENDING"
+  | "SUPPLIER_QUOTES_RECEIVED"
+  | "COMPARE"
+  | "CUSTOMER_QUOTE_READY"
+  | "QUOTE_SENT"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "ORDER_PROCUREMENT";
+
 export interface AdminRfq {
   id: string;
   rfqNumber: string;
   status: RfqStatus;
+  sourcingStatus: SourcingStatus | null;
   priority: RfqPriority;
   deliveryLocation: string | null;
   requiredDate: string | null;
@@ -47,8 +61,73 @@ export interface Manufacturer {
   slug: string;
   logoUrl: string | null;
   website: string | null;
+  description: string | null;
+  country: string | null;
+  source: string;
+  sourceUrl: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  parentId: string | null;
+  parent: { id: string; name: string } | null;
+  _count: { products: number; children: number };
+}
+
+export interface AdminProduct {
+  id: string;
+  mpn: string;
+  name: string | null;
+  description: string | null;
+  specifications: Record<string, unknown> | null;
+  packageType: string | null;
+  mountingType: string | null;
+  lifecycleStatus: string | null;
+  datasheetUrl: string | null;
+  images: string[];
+  isActive: boolean;
+  source: string;
+  importStatus: string;
+  lastImportedAt: string | null;
+  manufacturerId: string | null;
+  categoryId: string | null;
+  manufacturer: { id: string; name: string } | null;
+  category: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminProductInput {
+  mpn: string;
+  name?: string;
+  description?: string;
+  manufacturerId?: string;
+  categoryId?: string;
+  specifications?: Record<string, unknown>;
+  packageType?: string;
+  mountingType?: string;
+  lifecycleStatus?: string;
+  datasheetUrl?: string;
+  images?: string[];
+  isActive?: boolean;
+}
+
+export interface CatalogImportRun {
+  id: string;
+  source: string;
+  status: "RUNNING" | "COMPLETED" | "FAILED";
+  cursor: string | null;
+  itemsProcessed: number;
+  itemsCreated: number;
+  itemsUpdated: number;
+  itemsFailed: number;
+  errorLog: unknown;
+  startedAt: string;
+  completedAt: string | null;
 }
 
 export interface AdminCustomer {
@@ -179,8 +258,78 @@ export function listManufacturers() {
   return apiFetchPaginated<Manufacturer>("/admin/manufacturers");
 }
 
-export function createManufacturer(data: { name: string; slug: string; logoUrl?: string; website?: string }) {
+export function createManufacturer(data: { name: string; slug: string; logoUrl?: string; website?: string; description?: string; country?: string; sourceUrl?: string }) {
   return apiFetch<Manufacturer>("/admin/manufacturers", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateManufacturer(id: string, data: Partial<{ name: string; slug: string; logoUrl: string; website: string; description: string; country: string; sourceUrl: string }>) {
+  return apiFetch<Manufacturer>(`/admin/manufacturers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function listAdminCategories() {
+  return apiFetch<AdminCategory[]>("/admin/categories");
+}
+
+export function createCategory(data: { name: string; description?: string; parentId?: string }) {
+  return apiFetch<AdminCategory>("/admin/categories", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateCategory(id: string, data: Partial<{ name: string; description: string; parentId: string }>) {
+  return apiFetch<AdminCategory>(`/admin/categories/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function listAdminProducts(params?: { q?: string; categoryId?: string; manufacturerId?: string; importStatus?: string; isActive?: boolean; page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined && value !== "") q.set(key, String(value));
+  }
+  const qs = q.toString();
+  return apiFetchPaginated<AdminProduct>(`/admin/products${qs ? `?${qs}` : ""}`);
+}
+
+export function createProduct(data: AdminProductInput) {
+  return apiFetch<AdminProduct>("/admin/products", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateProduct(id: string, data: Partial<AdminProductInput>) {
+  return apiFetch<AdminProduct>(`/admin/products/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function uploadCatalogCsv(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<CatalogImportRun>("/admin/catalog-import/csv", { method: "POST", body: form });
+}
+
+export function importFromMouser(mpn: string) {
+  return apiFetch<{ run: CatalogImportRun; product: AdminProduct | null }>(`/admin/catalog-import/mouser/${encodeURIComponent(mpn)}`, { method: "POST" });
+}
+
+export function updateAdminRfqSourcingStatus(id: string, sourcingStatus: SourcingStatus) {
+  return apiFetch<AdminRfq>(`/admin/rfqs/${id}/sourcing-status`, {
+    method: "PATCH",
+    body: JSON.stringify({ sourcingStatus }),
+  });
+}
+
+export function importFromElement14(mpn: string) {
+  return apiFetch<{ run: CatalogImportRun; product: AdminProduct | null }>(`/admin/catalog-import/element14/${encodeURIComponent(mpn)}`, { method: "POST" });
+}
+
+export function importFromDigiKey(mpn: string) {
+  return apiFetch<{ run: CatalogImportRun; product: AdminProduct | null }>(`/admin/catalog-import/digikey/${encodeURIComponent(mpn)}`, { method: "POST" });
+}
+
+export function importFromNexar(mpn: string) {
+  return apiFetch<{ run: CatalogImportRun; product: AdminProduct | null }>(`/admin/catalog-import/nexar/${encodeURIComponent(mpn)}`, { method: "POST" });
+}
+
+export function listCatalogImportRuns(params?: { page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return apiFetchPaginated<CatalogImportRun>(`/admin/catalog-import/runs${qs ? `?${qs}` : ""}`);
 }
 
 export interface AdminQuotation {
@@ -256,6 +405,13 @@ export function listAdminLeads(params?: { status?: string; page?: number; limit?
   if (params?.limit) q.set("limit", String(params.limit));
   const qs = q.toString();
   return apiFetchPaginated<AdminLead>(`/admin/leads${qs ? `?${qs}` : ""}`);
+}
+
+export function convertLeadToRfq(leadId: string, customerId: string) {
+  return apiFetch<{ lead: AdminLead; rfq: AdminRfq & { items: BackendRfqItem[] } }>(`/admin/leads/${leadId}/convert-to-rfq`, {
+    method: "POST",
+    body: JSON.stringify({ customerId }),
+  });
 }
 
 export interface Organization {

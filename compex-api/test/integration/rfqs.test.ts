@@ -1,6 +1,6 @@
 ﻿import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { createTestApp, cleanDb, registerAndLogin } from "./helpers.js";
+import { createAdminAndLogin, createTestApp, cleanDb, registerAndLogin } from "./helpers.js";
 import { prisma } from "../../src/lib/prisma.js";
 
 let app: FastifyInstance;
@@ -67,6 +67,42 @@ it("submits RFQ with items", async () => {
   });
   expect(res.statusCode).toBe(200);
   expect(res.json().data.status).toBe("SUBMITTED");
+});
+
+it("keeps internal sourcing states private and rejects skipped transitions", async () => {
+  const rfqRes = await app.inject({ method: "POST", url: "/api/v1/rfqs", headers: { authorization: `Bearer ${token}` }, payload: {} });
+  const rfqId = rfqRes.json().data.id as string;
+  await app.inject({
+    method: "POST",
+    url: `/api/v1/rfqs/${rfqId}/items`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { mpn: "SOURCING-QA-001", quantity: 1 },
+  });
+  await app.inject({ method: "POST", url: `/api/v1/rfqs/${rfqId}/submit`, headers: { authorization: `Bearer ${token}` } });
+
+  const { accessToken: adminToken } = await createAdminAndLogin(app, "sourcing-admin@test.com");
+  const detail = await app.inject({ method: "GET", url: `/api/v1/admin/rfqs/${rfqId}`, headers: { authorization: `Bearer ${adminToken}` } });
+  expect(detail.json().data.sourcingStatus).toBe("NEW");
+
+  const skipped = await app.inject({
+    method: "PATCH",
+    url: `/api/v1/admin/rfqs/${rfqId}/sourcing-status`,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { sourcingStatus: "CUSTOMER_QUOTE_READY" },
+  });
+  expect(skipped.statusCode).toBe(422);
+
+  const moved = await app.inject({
+    method: "PATCH",
+    url: `/api/v1/admin/rfqs/${rfqId}/sourcing-status`,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { sourcingStatus: "REVIEWING" },
+  });
+  expect(moved.statusCode).toBe(200);
+  expect(moved.json().data.sourcingStatus).toBe("REVIEWING");
+
+  const customerView = await app.inject({ method: "GET", url: `/api/v1/rfqs/${rfqId}`, headers: { authorization: `Bearer ${token}` } });
+  expect(customerView.json().data).not.toHaveProperty("sourcingStatus");
 });
 
 // 11. Invalid RFQ data rejected

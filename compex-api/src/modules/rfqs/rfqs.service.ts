@@ -139,7 +139,7 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
   const updated = await prisma.$transaction(async (tx) => {
     const rfq = await tx.rfq.update({
       where: { id: rfqId },
-      data: { status: "SUBMITTED", submittedAt: new Date() },
+      data: { status: "SUBMITTED", sourcingStatus: "NEW", submittedAt: new Date() },
       select: { ...RFQ_SELECT, deliveryLocation: true },
     });
     await tx.auditLog.create({
@@ -248,15 +248,25 @@ export async function addItem(
   const rfq = await assertOwnership(rfqId, customerId);
   if (rfq.status !== "DRAFT") throw Errors.unprocessable("Items can only be added to DRAFT RFQs");
 
+  let linkedProduct: { id: string; mpn: string; description: string | null; manufacturer: { name: string } | null } | null = null;
+  if (input.productId) {
+    linkedProduct = await prisma.product.findFirst({
+      where: { id: input.productId, isActive: true },
+      select: { id: true, mpn: true, description: true, manufacturer: { select: { name: true } } },
+    });
+    if (!linkedProduct) throw Errors.notFound("Product");
+  }
+
   return prisma.$transaction(async (tx) => {
     const lineNumber = await nextRfqItemLineNumber(tx, rfqId);
     return tx.rfqItem.create({
       data: {
         rfqId,
+        productId: linkedProduct?.id,
         lineNumber,
-        mpn: input.mpn,
-        manufacturer: input.manufacturer,
-        description: input.description,
+        mpn: linkedProduct?.mpn ?? input.mpn,
+        manufacturer: linkedProduct?.manufacturer?.name ?? input.manufacturer,
+        description: linkedProduct?.description ?? input.description,
         quantity: input.quantity,
         targetPriceUsd: input.targetPriceUsd != null ? new Decimal(input.targetPriceUsd) : undefined,
         requiredDate: input.requiredDate ? new Date(input.requiredDate) : undefined,

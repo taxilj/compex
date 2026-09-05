@@ -7,6 +7,8 @@ import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { audit } from "../../lib/audit.js";
 import { cancelFollowUps } from "../../jobs/follow-up-scheduler.js";
+import { normalizeMpn } from "../catalog-import/normalizer.js";
+import { nextRfqNumber } from "../rfqs/rfq-number.js";
 
 const LEAD_SELECT = {
   id: true,
@@ -60,6 +62,10 @@ const LeadCreate = z.object({
   source: LeadSourceSchema.default("DIRECT"),
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
   notes: z.string().max(5000).optional(),
+});
+
+const ConvertLeadToRfq = z.object({
+  customerId: z.string().uuid(),
 });
 
 // Neutralize CSV formula injection: a leading =, +, -, @, tab, or CR makes
@@ -173,6 +179,102 @@ export async function adminLeadsRoutes(app: FastifyInstance): Promise<void> {
     const lead = await prisma.lead.create({ data: body, select: LEAD_SELECT });
     audit({ userId: req.user!.id, action: "lead.created", entityType: "lead", entityId: lead.id });
     return reply.status(201).send(ok(lead));
+  });
+
+  // Public enquiries remain Leads until a staff member selects the customer
+  // account that will own the portal RFQ. This avoids silently creating
+  // customer accounts or anonymous RFQs from a public form submission.
+  app.post("/:id/convert-to-rfq", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const { customerId } = ConvertLeadToRfq.parse(req.body);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const lead = await tx.lead.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          rfqId: true,
+          customerId: true,
+          priority: true,
+          deliveryLocation: true,
+          requiredDate: true,
+          notes: true,
+          items: {
+            select: {
+              productId: true,
+              lineNumber: true,
+              mpn: true,
+              manufacturer: true,
+              description: true,
+              quantity: true,
+            },
+            orderBy: { lineNumber: "asc" },
+          },
+        },
+      });
+      if (!lead) throw Errors.notFound("Lead");
+      if (lead.rfqId) throw Errors.conflict("Lead is already linked to an RFQ");
+      if (lead.items.length === 0) throw Errors.unprocessable("Only enquiries with component line items can be converted to an RFQ");
+
+      const customer = await tx.customer.findUnique({ where: { id: customerId }, select: { id: true } });
+      if (!customer) throw Errors.notFound("Customer");
+
+      const normalizedMpns = [...new Set(lead.items.filter((item) => !item.productId).map((item) => normalizeMpn(item.mpn)))];
+      const products = normalizedMpns.length
+        ? await tx.product.findMany({ where: { normalizedMpn: { in: normalizedMpns } }, select: { id: true, normalizedMpn: true } })
+        : [];
+      const productByNormalizedMpn = new Map(products.map((product) => [product.normalizedMpn, product.id]));
+
+      const rfq = await tx.rfq.create({
+        data: {
+          rfqNumber: await nextRfqNumber(tx),
+          customerId,
+          status: "SUBMITTED",
+          sourcingStatus: "NEW",
+          priority: lead.priority,
+          deliveryLocation: lead.deliveryLocation,
+          requiredDate: lead.requiredDate,
+          additionalNotes: lead.notes,
+          submittedAt: new Date(),
+          items: {
+            create: lead.items.map((item) => ({
+              productId: item.productId ?? productByNormalizedMpn.get(normalizeMpn(item.mpn)),
+              lineNumber: item.lineNumber,
+              mpn: item.mpn,
+              manufacturer: item.manufacturer,
+              description: item.description,
+              quantity: item.quantity,
+            })),
+          },
+        },
+        select: {
+          id: true,
+          rfqNumber: true,
+          sourcingStatus: true,
+          items: { select: { id: true, productId: true, mpn: true, quantity: true } },
+        },
+      });
+
+      const linkedLead = await tx.lead.update({
+        where: { id: lead.id },
+        data: { customerId, rfqId: rfq.id },
+        select: LEAD_SELECT,
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          customerId,
+          action: "lead.converted_to_rfq",
+          entityType: "lead",
+          entityId: lead.id,
+          oldValue: { customerId: lead.customerId, rfqId: null },
+          newValue: { customerId, rfqId: rfq.id, rfqNumber: rfq.rfqNumber },
+        },
+      });
+      return { lead: linkedLead, rfq };
+    });
+
+    return reply.status(201).send(ok(result));
   });
 
   app.patch("/:id", async (req, reply) => {

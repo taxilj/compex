@@ -34,6 +34,7 @@ export async function cleanDb() {
   // Delete in FK-safe order (children before parents)
   await prisma.testEmail.deleteMany();
   await prisma.auditLog.deleteMany();
+  await prisma.catalogImportRun.deleteMany();
   await prisma.quotationItem.deleteMany();
   await prisma.quotation.deleteMany();
   await prisma.landedCost.deleteMany();

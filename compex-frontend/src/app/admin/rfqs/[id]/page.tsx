@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, MapPin, Save, Send } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
-import { getAdminRfq, updateAdminRfqStatus, type AdminRfq } from "@/lib/api/admin";
+import { getAdminRfq, updateAdminRfqSourcingStatus, updateAdminRfqStatus, type AdminRfq, type SourcingStatus } from "@/lib/api/admin";
 import type { BackendRfqItem, RfqStatus } from "@/lib/api/rfqs";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
@@ -17,6 +17,20 @@ const NEXT_STATUSES: Record<RfqStatus, RfqStatus[]> = {
   CANCELLED: [],
 };
 
+const NEXT_SOURCING_STATUSES: Record<SourcingStatus, SourcingStatus[]> = {
+  NEW: ["REVIEWING"],
+  REVIEWING: ["SOURCING"],
+  SOURCING: ["SUPPLIER_QUOTES_PENDING"],
+  SUPPLIER_QUOTES_PENDING: ["SUPPLIER_QUOTES_RECEIVED"],
+  SUPPLIER_QUOTES_RECEIVED: ["COMPARE"],
+  COMPARE: ["CUSTOMER_QUOTE_READY"],
+  CUSTOMER_QUOTE_READY: ["QUOTE_SENT"],
+  QUOTE_SENT: ["ACCEPTED", "REJECTED"],
+  ACCEPTED: ["ORDER_PROCUREMENT"],
+  REJECTED: [],
+  ORDER_PROCUREMENT: [],
+};
+
 type AdminRfqDetail = AdminRfq & { items: BackendRfqItem[]; documents: unknown[] };
 
 export default function AdminRfqDetailPage() {
@@ -26,6 +40,7 @@ export default function AdminRfqDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextStatus, setNextStatus] = useState<RfqStatus | "">("");
+  const [nextSourcingStatus, setNextSourcingStatus] = useState<SourcingStatus | "">("");
   const [internalNotes, setInternalNotes] = useState("");
 
   useEffect(() => {
@@ -40,6 +55,7 @@ export default function AdminRfqDetailPage() {
   }, [id]);
 
   const allowed = useMemo(() => rfq ? NEXT_STATUSES[rfq.status] : [], [rfq]);
+  const allowedSourcing = useMemo(() => !rfq ? [] : rfq.sourcingStatus ? NEXT_SOURCING_STATUSES[rfq.sourcingStatus] : ["NEW" as SourcingStatus], [rfq]);
 
   async function saveStatus() {
     if (!rfq || !nextStatus) return;
@@ -52,6 +68,22 @@ export default function AdminRfqDetailPage() {
       setNextStatus("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not update the RFQ.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveSourcingStatus() {
+    if (!rfq || !nextSourcingStatus) return;
+    if (!window.confirm(`Move internal sourcing to ${nextSourcingStatus.replaceAll("_", " ")}?`)) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateAdminRfqSourcingStatus(rfq.id, nextSourcingStatus);
+      setRfq({ ...rfq, ...updated });
+      setNextSourcingStatus("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not update the sourcing workflow.");
     } finally {
       setSaving(false);
     }
@@ -105,6 +137,15 @@ export default function AdminRfqDetailPage() {
               <Send size={16} /> Source with vendors
             </Link>
           )}
+          <div className="mt-6 border-t border-[#E4E7EC] pt-5">
+            <h3 className="font-headline-sm text-[#111c2d]">Internal sourcing</h3>
+            <p className="mt-1 font-body-sm text-[#667085]">{rfq.sourcingStatus?.replaceAll("_", " ") ?? "Legacy RFQ — not initialized"}</p>
+            {allowedSourcing.length > 0 ? <>
+              <label className="mt-4 block font-label-sm text-[#44474d]" htmlFor="next-sourcing-status">Next internal state</label>
+              <select id="next-sourcing-status" value={nextSourcingStatus} onChange={(e) => setNextSourcingStatus(e.target.value as SourcingStatus | "")} className="mt-1 w-full rounded border border-[#E4E7EC] px-3 py-2"><option value="">Select a valid transition</option>{allowedSourcing.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select>
+              <button onClick={() => void saveSourcingStatus()} disabled={!nextSourcingStatus || saving} className="mt-3 flex w-full items-center justify-center gap-2 rounded border border-[#1769E0] px-4 py-2.5 font-label-md text-[#1769E0] hover:bg-[#f0f3ff] disabled:cursor-not-allowed disabled:opacity-50"><Save size={16} /> {saving ? "Saving…" : "Save internal state"}</button>
+            </> : <p className="mt-3 rounded bg-[#f0f3ff] p-3 font-body-sm text-[#44474d]">This internal workflow is complete.</p>}
+          </div>
         </aside>
       </div>
     </div>

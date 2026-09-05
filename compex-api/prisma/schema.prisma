@@ -29,6 +29,23 @@ enum RFQStatus {
   CANCELLED
 }
 
+// Internal sourcing progress is deliberately separate from RFQStatus.  That
+// preserves the meaning of existing customer-visible RFQ records while giving
+// staff an explicit, private workflow after an RFQ has been submitted.
+enum SourcingStatus {
+  NEW
+  REVIEWING
+  SOURCING
+  SUPPLIER_QUOTES_PENDING
+  SUPPLIER_QUOTES_RECEIVED
+  COMPARE
+  CUSTOMER_QUOTE_READY
+  QUOTE_SENT
+  ACCEPTED
+  REJECTED
+  ORDER_PROCUREMENT
+}
+
 enum RFQPriority {
   LOW
   MEDIUM
@@ -138,12 +155,13 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  customer           Customer?
-  refreshTokens      RefreshToken[]
-  emailVerification  EmailVerification?
-  accountSetupToken  AccountSetupToken?
-  assignedLeads      Lead[]             @relation("LeadAssignee")
-  createdQuotations  Quotation[]        @relation("QuotationCreator")
+  customer          Customer?
+  refreshTokens     RefreshToken[]
+  emailVerification EmailVerification?
+  accountSetupToken AccountSetupToken?
+  assignedLeads     Lead[]             @relation("LeadAssignee")
+  createdQuotations Quotation[]        @relation("QuotationCreator")
+
   @@map("users")
 }
 
@@ -169,12 +187,12 @@ model Customer {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  user        User        @relation(fields: [userId], references: [id])
-  company     Company     @relation(fields: [companyId], references: [id])
-  rfqs        Rfq[]
-  documents   Document[]
-  leads       Lead[]
-  quotations  Quotation[]
+  user       User        @relation(fields: [userId], references: [id])
+  company    Company     @relation(fields: [companyId], references: [id])
+  rfqs       Rfq[]
+  documents  Document[]
+  leads      Lead[]
+  quotations Quotation[]
 
   @@map("customers")
 }
@@ -184,6 +202,7 @@ model Rfq {
   rfqNumber        String      @unique @map("rfq_number")
   customerId       String      @map("customer_id") @db.Uuid
   status           RFQStatus   @default(DRAFT)
+  sourcingStatus   SourcingStatus? @map("sourcing_status")
   priority         RFQPriority @default(MEDIUM)
   deliveryLocation String?     @map("delivery_location")
   requiredDate     DateTime?   @map("required_date") @db.Date
@@ -193,13 +212,13 @@ model Rfq {
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
 
-  customer    Customer    @relation(fields: [customerId], references: [id])
-  items       RfqItem[]
-  documents   Document[]
-  vendorRfqs  VendorRfq[]
-  lead        Lead?
-  quotations  Quotation[]
-  followUps   FollowUp[]
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  items      RfqItem[]
+  documents  Document[]
+  vendorRfqs VendorRfq[]
+  lead       Lead?
+  quotations Quotation[]
+  followUps  FollowUp[]
 
   @@map("rfqs")
 }
@@ -207,6 +226,7 @@ model Rfq {
 model RfqItem {
   id             String        @id @default(uuid()) @db.Uuid
   rfqId          String        @map("rfq_id") @db.Uuid
+  productId      String?       @map("product_id") @db.Uuid
   lineNumber     Int           @map("line_number")
   mpn            String
   manufacturer   String?
@@ -219,12 +239,14 @@ model RfqItem {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  rfq              Rfq             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  vendorRfqItems   VendorRfqItem[]
-  vendorQuotes     VendorQuote[]
-  quotationItems   QuotationItem[]
+  rfq            Rfq             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  product        Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  vendorRfqItems VendorRfqItem[]
+  vendorQuotes   VendorQuote[]
+  quotationItems QuotationItem[]
 
   @@unique([rfqId, lineNumber])
+  @@index([productId])
   @@map("rfq_items")
 }
 
@@ -280,12 +302,12 @@ model EmailVerification {
 // is never returned by the customer-management API and is only delivered by
 // the configured email provider.
 model AccountSetupToken {
-  id         String    @id @default(uuid()) @db.Uuid
-  userId     String    @unique @map("user_id") @db.Uuid
-  tokenHash  String    @unique @map("token_hash")
-  expiresAt  DateTime  @map("expires_at")
-  usedAt     DateTime? @map("used_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @unique @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -325,13 +347,17 @@ model AuditLog {
 // ─── P0-A: Vendor & Manufacturer ─────────────────────────────────────────────
 
 model Manufacturer {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String   @unique
-  logoUrl   String?  @map("logo_url")
-  website   String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  logoUrl     String?  @map("logo_url")
+  website     String?
+  description String?
+  country     String?
+  source      String   @default("MANUAL")
+  sourceUrl   String?  @map("source_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   products Product[]
 
@@ -354,15 +380,15 @@ model Vendor {
 }
 
 model VendorRfq {
-  id             String          @id @default(uuid()) @db.Uuid
-  vendorRfqNumber String         @unique @map("vendor_rfq_number")
-  rfqId          String          @map("rfq_id") @db.Uuid
-  vendorId       String          @map("vendor_id") @db.Uuid
-  status         VendorRfqStatus @default(DRAFT)
-  emailSentAt    DateTime?       @map("email_sent_at")
-  notes          String?
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  id              String          @id @default(uuid()) @db.Uuid
+  vendorRfqNumber String          @unique @map("vendor_rfq_number")
+  rfqId           String          @map("rfq_id") @db.Uuid
+  vendorId        String          @map("vendor_id") @db.Uuid
+  status          VendorRfqStatus @default(DRAFT)
+  emailSentAt     DateTime?       @map("email_sent_at")
+  notes           String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
 
   rfq        Rfq             @relation(fields: [rfqId], references: [id])
   vendor     Vendor          @relation(fields: [vendorId], references: [id])
@@ -374,9 +400,9 @@ model VendorRfq {
 }
 
 model VendorRfqItem {
-  id          String @id @default(uuid()) @db.Uuid
-  vendorRfqId String @map("vendor_rfq_id") @db.Uuid
-  rfqItemId   String @map("rfq_item_id") @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
+  vendorRfqId String  @map("vendor_rfq_id") @db.Uuid
+  rfqItemId   String  @map("rfq_item_id") @db.Uuid
   quantity    Int
   notes       String?
 
@@ -409,31 +435,31 @@ model VendorQuote {
 // ─── P0-B: Lead / CRM ────────────────────────────────────────────────────────
 
 model Lead {
-  id             String      @id @default(uuid()) @db.Uuid
-  referenceNumber String?    @unique @map("reference_number")
-  idempotencyKey String?     @unique @map("idempotency_key")
-  customerId     String?     @map("customer_id") @db.Uuid
-  rfqId          String?     @unique @map("rfq_id") @db.Uuid
-  contactName    String      @map("contact_name")
-  contactEmail   String      @map("contact_email")
-  contactPhone   String?     @map("contact_phone")
-  companyName    String      @map("company_name")
-  subject        String?
-  deliveryLocation String?   @map("delivery_location")
-  requiredDate   DateTime?   @map("required_date") @db.Date
-  source         LeadSource  @default(DIRECT)
-  status         LeadStatus  @default(NEW)
-  priority       RFQPriority @default(MEDIUM)
-  notificationStatus NotificationStatus? @map("notification_status")
-  notificationSentAt DateTime? @map("notification_sent_at")
-  notificationError String?  @map("notification_error")
-  notificationMessageId String? @map("notification_message_id")
-  assignedToId   String?     @map("assigned_to_id") @db.Uuid
-  lastContactAt  DateTime?   @map("last_contact_at")
-  nextFollowUpAt DateTime?   @map("next_follow_up_at")
-  notes          String?
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  id                    String              @id @default(uuid()) @db.Uuid
+  referenceNumber       String?             @unique @map("reference_number")
+  idempotencyKey        String?             @unique @map("idempotency_key")
+  customerId            String?             @map("customer_id") @db.Uuid
+  rfqId                 String?             @unique @map("rfq_id") @db.Uuid
+  contactName           String              @map("contact_name")
+  contactEmail          String              @map("contact_email")
+  contactPhone          String?             @map("contact_phone")
+  companyName           String              @map("company_name")
+  subject               String?
+  deliveryLocation      String?             @map("delivery_location")
+  requiredDate          DateTime?           @map("required_date") @db.Date
+  source                LeadSource          @default(DIRECT)
+  status                LeadStatus          @default(NEW)
+  priority              RFQPriority         @default(MEDIUM)
+  notificationStatus    NotificationStatus? @map("notification_status")
+  notificationSentAt    DateTime?           @map("notification_sent_at")
+  notificationError     String?             @map("notification_error")
+  notificationMessageId String?             @map("notification_message_id")
+  assignedToId          String?             @map("assigned_to_id") @db.Uuid
+  lastContactAt         DateTime?           @map("last_contact_at")
+  nextFollowUpAt        DateTime?           @map("next_follow_up_at")
+  notes                 String?
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
 
   customer   Customer?  @relation(fields: [customerId], references: [id])
   rfq        Rfq?       @relation(fields: [rfqId], references: [id])
@@ -509,25 +535,28 @@ model Quotation {
 }
 
 model QuotationItem {
-  id          String   @id @default(uuid()) @db.Uuid
-  quotationId String   @map("quotation_id") @db.Uuid
-  rfqItemId   String?  @map("rfq_item_id") @db.Uuid
-  lineNumber  Int      @map("line_number")
-  mpn         String
+  id           String   @id @default(uuid()) @db.Uuid
+  quotationId  String   @map("quotation_id") @db.Uuid
+  rfqItemId    String?  @map("rfq_item_id") @db.Uuid
+  productId    String?  @map("product_id") @db.Uuid
+  lineNumber   Int      @map("line_number")
+  mpn          String
   manufacturer String?
-  description String?
-  quantity    Int
-  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 4)
-  taxRate     Decimal  @default(0) @map("tax_rate") @db.Decimal(8, 4)
-  taxAmount   Decimal  @default(0) @map("tax_amount") @db.Decimal(18, 4)
-  lineTotal   Decimal  @map("line_total") @db.Decimal(18, 4)
-  notes       String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  description  String?
+  quantity     Int
+  unitPrice    Decimal  @map("unit_price") @db.Decimal(18, 4)
+  taxRate      Decimal  @default(0) @map("tax_rate") @db.Decimal(8, 4)
+  taxAmount    Decimal  @default(0) @map("tax_amount") @db.Decimal(18, 4)
+  lineTotal    Decimal  @map("line_total") @db.Decimal(18, 4)
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   rfqItem   RfqItem?  @relation(fields: [rfqItemId], references: [id])
+  product   Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
 
+  @@index([productId])
   @@map("quotation_items")
 }
 
@@ -621,35 +650,119 @@ model Setting {
 }
 
 model Category {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @unique
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
   description String?
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  parentId    String?  @map("parent_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryHierarchy")
   products Product[]
 
+  @@index([parentId])
   @@map("categories")
 }
 
 model Product {
-  id             String        @id @default(uuid()) @db.Uuid
-  mpn            String        @unique
-  description    String?
-  manufacturerId String?       @map("manufacturer_id") @db.Uuid
-  categoryId     String?       @map("category_id") @db.Uuid
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  // MPN text is no longer globally unique on its own: two different real
+  // manufacturers can legitimately share an MPN string. Canonical matching
+  // during import is manufacturer-aware (normalizedMpn + manufacturerId) —
+  // see upsert.ts's findExistingProduct(). mpn/normalizedMpn stay indexed
+  // (not unique) so search and the public /products/:mpn lookup stay fast;
+  // when a source provides no manufacturer at all, import falls back to
+  // plain-normalizedMpn matching (see upsert.ts comment) since there is no
+  // stronger signal available.
+  mpn             String
+  normalizedMpn   String    @map("normalized_mpn")
+  name            String?
+  description     String?
+  manufacturerId  String?   @map("manufacturer_id") @db.Uuid
+  categoryId      String?   @map("category_id") @db.Uuid
+  specifications  Json?
+  packageType     String?   @map("package_type")
+  mountingType    String?   @map("mounting_type")
+  lifecycleStatus String?   @map("lifecycle_status")
+  datasheetUrl    String?   @map("datasheet_url")
+  images          String[]  @default([])
+  isActive        Boolean   @default(true) @map("is_active")
+  source          String    @default("MANUAL")
+  sourceUrl       String?   @map("source_url")
+  sourceProductId String?   @map("source_product_id")
+  lastImportedAt  DateTime? @map("last_imported_at")
+  dataHash        String?   @map("data_hash")
+  importStatus    String    @default("MANUAL") @map("import_status")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  manufacturer Manufacturer? @relation(fields: [manufacturerId], references: [id])
-  category     Category?     @relation(fields: [categoryId], references: [id])
+  manufacturer   Manufacturer?   @relation(fields: [manufacturerId], references: [id])
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  rfqItems       RfqItem[]
+  quotationItems QuotationItem[]
+  leadItems      LeadItem[]
+  sources        ProductSource[]
 
+  @@unique([normalizedMpn, manufacturerId], name: "product_normalizedMpn_manufacturer_unique")
+  @@index([normalizedMpn])
+  @@index([mpn])
+  @@index([name])
+  @@index([manufacturerId])
+  @@index([categoryId])
   @@map("products")
+}
+
+// Provider-specific catalog data is intentionally separate from the public
+// canonical Product. A second legitimate source must not overwrite the first
+// source's provenance or create a duplicate product page.
+model ProductSource {
+  id              String   @id @default(uuid()) @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  source          String
+  sourceProductId String?  @map("source_product_id")
+  sourceUrl       String?  @map("source_url")
+  datasheetUrl    String?  @map("datasheet_url")
+  images          String[] @default([])
+  specifications  Json?
+  lifecycleStatus String?  @map("lifecycle_status")
+  // Internal-sourcing-only commercial data (seller name, price, stock,
+  // MOQ, lead time, offer URL) for sources that provide it, e.g. Nexar
+  // Supply offers. Deliberately never read by the public product API
+  // (products.routes.ts only selects Product with manufacturer/category,
+  // never `sources`) or any customer-facing response -- see
+  // nexar-mapper.ts's InternalOffer type for the shape stored here.
+  internalOffers  Json?    @map("internal_offers")
+  dataHash        String?  @map("data_hash")
+  lastImportedAt  DateTime @default(now()) @map("last_imported_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, source])
+  @@index([source, sourceProductId])
+  @@map("product_sources")
+}
+
+model CatalogImportRun {
+  id             String    @id @default(uuid()) @db.Uuid
+  source         String
+  status         String    @default("RUNNING")
+  cursor         String?
+  itemsProcessed Int       @default(0) @map("items_processed")
+  itemsCreated   Int       @default(0) @map("items_created")
+  itemsUpdated   Int       @default(0) @map("items_updated")
+  itemsFailed    Int       @default(0) @map("items_failed")
+  errorLog       Json?     @map("error_log")
+  startedAt      DateTime  @default(now()) @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+
+  @@map("catalog_import_runs")
 }
 
 model LeadItem {
   id           String   @id @default(uuid()) @db.Uuid
   leadId       String   @map("lead_id") @db.Uuid
+  productId    String?  @map("product_id") @db.Uuid
   lineNumber   Int      @map("line_number")
   mpn          String
   manufacturer String?
@@ -657,8 +770,10 @@ model LeadItem {
   quantity     Int
   createdAt    DateTime @default(now()) @map("created_at")
 
-  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead    Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@unique([leadId, lineNumber])
+  @@index([productId])
   @@map("lead_items")
 }

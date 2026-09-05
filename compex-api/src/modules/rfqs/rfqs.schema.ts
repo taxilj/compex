@@ -22,6 +22,10 @@ export const CreateRfqItemSchema = z.object({
   targetPriceUsd: z.number().nonnegative().optional(),
   requiredDate: z.string().date().optional(),
   notes: z.string().max(500).optional(),
+  // Optional link to a catalog Product (Phase 6). When present, the server
+  // overwrites mpn/manufacturer/description from the product record rather
+  // than trusting client-supplied text for a linked item.
+  productId: z.string().uuid().optional(),
 });
 
 export const UpdateRfqItemSchema = CreateRfqItemSchema.partial();
