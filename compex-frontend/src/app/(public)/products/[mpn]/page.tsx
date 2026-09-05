@@ -94,10 +94,14 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
           <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-[#E4E7EC] flex items-center justify-between">
               <h2 className="font-headline-sm text-[#111c2d]">Technical Specifications</h2>
-              {product.datasheetUrl && (
+              {product.datasheetUrl ? (
                 <a href={product.datasheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[#1769E0] hover:underline font-label-md text-sm">
                   <FileText size={16} /> Download Datasheet (PDF)
                 </a>
+              ) : (
+                <span className="flex items-center gap-2 text-[#44474d]/60 font-label-md text-sm">
+                  <FileText size={16} /> Datasheet unavailable
+                </span>
               )}
             </div>
             {product.specifications.length > 0 ? (
