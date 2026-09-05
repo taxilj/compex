@@ -40,7 +40,7 @@ async function main() {
     create: { name: "Compex QA Electronic Components", description: "Synthetic QA category" },
   });
   await prisma.product.upsert({
-    where: { mpn: "QA-MPN-001" },
+    where: { product_normalizedMpn_manufacturer_unique: { normalizedMpn: "QAMPN001", manufacturerId: manufacturer.id } },
     update: {},
     create: { mpn: "QA-MPN-001", normalizedMpn: "QAMPN001", description: "Synthetic QA product", manufacturerId: manufacturer.id, categoryId: category.id },
   });
