@@ -18,7 +18,8 @@ export function computeDataHash(item: NormalizedProduct): string {
     images: item.images ?? null,
     specifications: item.specifications ?? null,
     // Included so a refreshed price/stock/MOQ snapshot from a source like
-    // Nexar is recognised as a real change (ProductSource gets re-imported)
+    // a changed source payload is recognised as a real change (ProductSource
+    // gets re-imported)
     // rather than being silently skipped as "unchanged" -- it never affects
     // the Product row itself, only ProductSource.
     internalOffers: item.internalOffers ?? null,

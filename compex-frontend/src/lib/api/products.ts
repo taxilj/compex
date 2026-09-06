@@ -47,7 +47,7 @@ export interface PublicProduct {
   specifications: Array<{ name: string; value: string }>;
 }
 
-export type ProviderName = "MOUSER" | "DIGIKEY" | "ELEMENT14" | "NEXAR";
+export type ProviderName = "MOUSER" | "DIGIKEY" | "ELEMENT14";
 export type ProviderResultStatus = "FOUND" | "NO_MATCH" | "ERROR" | "TIMEOUT" | "RATE_LIMITED";
 
 export interface ProviderStatusEntry {

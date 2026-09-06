@@ -4,7 +4,7 @@ import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { PRODUCT_INCLUDE, searchProducts } from "./product-search.js";
-import { anyPrimaryOrFallbackConfigured, searchMpnAcrossProviders } from "./mpn-search-orchestrator.js";
+import { anyPrimaryConfigured, searchMpnAcrossProviders } from "./mpn-search-orchestrator.js";
 
 const ProductListQuery = z.object({
   q: z.string().max(200).optional(),
@@ -22,7 +22,7 @@ const ProductDetailQuery = z.object({
 
 export async function productsRoutes(app: FastifyInstance): Promise<void> {
   // Multi-supplier exact-MPN search (Mouser + DigiKey + element14 primary,
-  // Nexar Supply fallback-only -- see mpn-search-orchestrator.ts). Always
+  // provider lookup -- see mpn-search-orchestrator.ts). Always
   // 200s on a successful search, even with no result or a partial provider
   // outage: `sources` tells the frontend which providers found the part /
   // failed / were rate-limited / timed out, so it can render a non-blocking
@@ -31,7 +31,7 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
   // (no provider credentials at all) is an error response.
   app.get("/lookup", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
     const { mpn } = z.object({ mpn: z.string() }).parse(req.query);
-    if (!anyPrimaryOrFallbackConfigured()) {
+    if (!anyPrimaryConfigured()) {
       return reply.status(503).send({
         success: false,
         error: { code: "SEARCH_NOT_CONFIGURED", message: "Live product lookup is not configured." },

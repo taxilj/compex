@@ -320,10 +320,6 @@ export function importFromDigiKey(mpn: string) {
   return apiFetch<{ run: CatalogImportRun; product: AdminProduct | null }>(`/admin/catalog-import/digikey/${encodeURIComponent(mpn)}`, { method: "POST" });
 }
 
-export function importFromNexar(mpn: string) {
-  return apiFetch<{ run: CatalogImportRun; product: AdminProduct | null }>(`/admin/catalog-import/nexar/${encodeURIComponent(mpn)}`, { method: "POST" });
-}
-
 export function listCatalogImportRuns(params?: { page?: number; limit?: number }) {
   const q = new URLSearchParams();
   if (params?.page) q.set("page", String(params.page));

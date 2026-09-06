@@ -3,26 +3,31 @@ import { cacheGet, cacheSet } from "../../lib/cache.js";
 import { createMouserFetcher } from "../catalog-import/fetchers/mouser-fetcher.js";
 import { createDigiKeyFetcher } from "../catalog-import/fetchers/digikey-fetcher.js";
 import { createElement14Fetcher } from "../catalog-import/fetchers/element14-fetcher.js";
-import { isNexarConfigured } from "../catalog-import/fetchers/nexar-client.js";
 import type { RawCatalogItem } from "../catalog-import/types.js";
 import { env } from "../../config/env.js";
-import {
-  normalizePublicMpn,
-  lookupPublicProduct,
-  type PublicProduct,
-} from "./public-product-lookup.js";
+import { Errors } from "../../lib/errors.js";
 
 // Multi-supplier exact-MPN search orchestrator (COMPEX multi-supplier live
 // search feature). Mouser / DigiKey / element14 run in parallel as PRIMARY
-// sources; Nexar Supply is FALLBACK ONLY, and only when all three primaries
-// come back with a confirmed NO_MATCH. A primary provider that errors,
-// times out, or is rate-limited is explicitly NOT the same thing as
-// "no result" and must never trigger the Nexar fallback -- see
-// shouldFallbackToNexar() below.
+// sources. Each runs independently, and the result is merged only from
+// successful exact-MPN matches.
 
 export type PrimaryProviderName = "MOUSER" | "DIGIKEY" | "ELEMENT14";
-export type ProviderName = PrimaryProviderName | "NEXAR";
+export type ProviderName = PrimaryProviderName;
 export type ProviderResultStatus = "FOUND" | "NO_MATCH" | "ERROR" | "TIMEOUT" | "RATE_LIMITED";
+
+export type PublicProduct = {
+  mpn: string;
+  manufacturer: string;
+  productName: string;
+  description?: string;
+  category?: string;
+  imageUrl?: string;
+  datasheetUrl?: string;
+  lifecycleStatus?: string;
+  compliance?: string[];
+  specifications: Array<{ name: string; value: string }>;
+};
 
 export interface ProviderStatusEntry {
   provider: ProviderName;
@@ -46,6 +51,15 @@ const PRODUCT_CACHE_NAMESPACE = "public-mpn-search-product";
 const STATUS_CACHE_NAMESPACE = "public-mpn-search-status";
 const PRODUCT_CACHE_TTL_SECONDS = 24 * 60 * 60;
 const STATUS_CACHE_TTL_SECONDS = 10 * 60;
+const MAX_MPN_LENGTH = 100;
+
+export function normalizePublicMpn(value: string): string {
+  const mpn = value.trim().toUpperCase();
+  if (!mpn) throw Errors.validation("MPN is required");
+  if (mpn.length > MAX_MPN_LENGTH) throw Errors.validation(`MPN must be ${MAX_MPN_LENGTH} characters or fewer`);
+  if (!/^[A-Z0-9][A-Z0-9 ._+/#-]*$/.test(mpn)) throw Errors.validation("MPN contains invalid characters");
+  return mpn;
+}
 
 interface PrimaryOutcome {
   provider: PrimaryProviderName;
@@ -151,8 +165,8 @@ function isComplianceSpecName(name: string): boolean {
   return /rohs|reach|compliance|conflict mineral/i.test(name);
 }
 
-// Same public-safe shape as public-product-lookup.ts's mapNexarPublicProduct
-// -- deliberately facts-only, never sourceUrl/sourceProductId/internalOffers.
+// Deliberately facts-only: never expose sourceUrl, sourceProductId, or
+// internal offers.
 export function mapRawItemToPublicProduct(item: RawCatalogItem): PublicProduct {
   const specifications = specEntries(item.specifications);
   const compliance = specifications.filter((spec) => isComplianceSpecName(spec.name)).map((spec) => spec.value);
@@ -171,8 +185,8 @@ export function mapRawItemToPublicProduct(item: RawCatalogItem): PublicProduct {
   };
 }
 
-export function anyPrimaryOrFallbackConfigured(): boolean {
-  return Boolean(env.MOUSER_API_KEY || (env.DIGIKEY_CLIENT_ID && env.DIGIKEY_CLIENT_SECRET) || env.ELEMENT14_API_KEY || isNexarConfigured());
+export function anyPrimaryConfigured(): boolean {
+  return Boolean(env.MOUSER_API_KEY || (env.DIGIKEY_CLIENT_ID && env.DIGIKEY_CLIENT_SECRET) || env.ELEMENT14_API_KEY);
 }
 
 export async function searchMpnAcrossProviders(input: string): Promise<MpnSearchResult> {
@@ -198,36 +212,21 @@ export async function searchMpnAcrossProviders(input: string): Promise<MpnSearch
 
   const sources: ProviderStatusEntry[] = outcomes.map(({ provider, status }) => ({ provider, status }));
   const foundItems = outcomes.filter((o): o is PrimaryOutcome & { item: RawCatalogItem } => o.status === "FOUND" && Boolean(o.item)).map((o) => o.item);
-  // Fallback rule (Phase 3): Nexar runs ONLY when every primary is a
-  // confirmed NO_MATCH. Any ERROR/TIMEOUT/RATE_LIMITED on any primary blocks
-  // the fallback, even if the other two are NO_MATCH.
-  const allPrimariesConfirmedNoMatch = outcomes.every((o) => o.status === "NO_MATCH");
-
   let product: PublicProduct | null = null;
 
   if (foundItems.length > 0) {
     const merged = mergeRawCatalogItems(foundItems);
     product = merged ? mapRawItemToPublicProduct(merged) : null;
-  } else if (allPrimariesConfirmedNoMatch) {
-    try {
-      const nexarProduct = await lookupPublicProduct(mpn);
-      sources.push({ provider: "NEXAR", status: nexarProduct ? "FOUND" : "NO_MATCH" });
-      product = nexarProduct;
-    } catch (err) {
-      sources.push({ provider: "NEXAR", status: classifyThrown(err) });
-    }
   }
   // Otherwise: a mix of NO_MATCH and ERROR/TIMEOUT/RATE_LIMITED with nothing
-  // FOUND. Nexar must not run; product stays null and `sources` carries the
-  // per-provider detail so the UI can show a non-blocking partial-failure
-  // notice instead of a false "this part doesn't exist".
+  // FOUND. Product stays null and `sources` carries the per-provider detail
+  // so the UI can show a non-blocking partial-failure notice instead of a
+  // false "this part doesn't exist".
 
-  // A definitive answer (something found, or every source that actually
-  // resolved says NO_MATCH) is safe to cache as product facts. A provider
-  // failure must never poison the cache with a false "not found".
-  const nexarEntry = sources.find((s) => s.provider === "NEXAR");
-  const definitiveNoResult = allPrimariesConfirmedNoMatch && (!nexarEntry || nexarEntry.status === "NO_MATCH");
-  const definitive = foundItems.length > 0 || definitiveNoResult;
+  // A definitive answer (something found, or all three sources report
+  // NO_MATCH) is safe to cache as product facts. A provider failure must
+  // never poison the cache with a false "not found".
+  const definitive = foundItems.length > 0 || outcomes.every((o) => o.status === "NO_MATCH");
 
   if (definitive) {
     await cacheSet(PRODUCT_CACHE_NAMESPACE, mpn, product, PRODUCT_CACHE_TTL_SECONDS);

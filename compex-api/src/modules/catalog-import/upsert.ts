@@ -99,7 +99,7 @@ export async function upsertProduct(item: NormalizedProduct, source: string): Pr
   // internalOffers is intentionally only ever written here, on
   // ProductSource -- never on `shared` above, which feeds the public
   // Product row. See prisma/schema.prisma's ProductSource.internalOffers
-  // comment and nexar-mapper.ts's InternalOffer type.
+  // comment for the access boundary.
   const internalOffers = item.internalOffers as Prisma.InputJsonValue | undefined;
 
   await prisma.productSource.upsert({

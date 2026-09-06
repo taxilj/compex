@@ -194,21 +194,19 @@ describe("public product search", () => {
     expect(selected.json().data.manufacturer.id).toBe(selectedProduct.manufacturerId);
   });
 
-  // Nexar task Phase 5 / Phase 18 item 10: pricing/offer data collected for
-  // internal sourcing (see ProductSource.internalOffers) must never reach
-  // the public product API, no matter which source imported it.
-  it("never includes supplier pricing/offer data in the public product response, even for a product imported with Nexar internal offers", async () => {
-    const parsed = RawCatalogItemSchema.parse({ mpn: "NEXAR-PRICED-PART", manufacturer: "Acme Co" });
-    const normalized = await normalizeItem(parsed, "NEXAR");
+  // Internal sourcing data must never reach the public product API.
+  it("never includes supplier pricing/offer data in the public product response", async () => {
+    const parsed = RawCatalogItemSchema.parse({ mpn: "PRICED-PART", manufacturer: "Acme Co" });
+    const normalized = await normalizeItem(parsed, "MOUSER");
     await upsertProduct(
       {
         ...normalized,
         internalOffers: [{ seller: "Digi-Key", price: 12.34, currency: "USD", moq: 5, inventoryLevel: 900, factoryLeadDays: 30, sku: "SECRET-SKU" }],
       },
-      "NEXAR",
+      "MOUSER",
     );
 
-    const res = await app.inject({ method: "GET", url: "/api/v1/products/NEXAR-PRICED-PART" });
+    const res = await app.inject({ method: "GET", url: "/api/v1/products/PRICED-PART" });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.data).not.toHaveProperty("sources");

@@ -10,7 +10,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   MOUSER: "Mouser",
   DIGIKEY: "DigiKey",
   ELEMENT14: "element14",
-  NEXAR: "Nexar",
 };
 
 export default function ProductDetailPage({ params }: { params: Promise<{ mpn: string }> }) {

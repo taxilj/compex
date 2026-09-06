@@ -10,7 +10,6 @@ import { createCsvFetcher } from "./fetchers/csv-fetcher.js";
 import { createMouserFetcher } from "./fetchers/mouser-fetcher.js";
 import { createElement14Fetcher } from "./fetchers/element14-fetcher.js";
 import { createDigiKeyFetcher } from "./fetchers/digikey-fetcher.js";
-import { createNexarFetcher } from "./fetchers/nexar-fetcher.js";
 import { runImport } from "./run-import.js";
 import { PRODUCT_INCLUDE } from "../catalog/product-search.js";
 
@@ -98,30 +97,6 @@ export async function adminCatalogImportRoutes(app: FastifyInstance): Promise<vo
   app.post("/digikey/:mpn", async (req, reply) => {
     const { mpn } = z.object({ mpn: z.string().trim().min(1).max(100) }).parse(req.params);
     const fetcher = createDigiKeyFetcher(mpn);
-    const run = await prisma.catalogImportRun.create({ data: { source: fetcher.source } });
-
-    try {
-      const importResult = await runImport(fetcher, run.id);
-      const result = await prisma.catalogImportRun.findUnique({ where: { id: run.id } });
-      const products = await prisma.product.findMany({ where: { id: { in: importResult.productIds } }, include: PRODUCT_INCLUDE });
-      return reply.status(201).send(ok({ run: result, product: products.length === 1 ? products[0] : null, products }));
-    } catch {
-      const failed = await prisma.catalogImportRun.findUnique({ where: { id: run.id } });
-      return reply.status(502).send(ok({ run: failed, product: null }));
-    }
-
-  });
-
-  // Single-MPN lookup against Nexar Supply (Phase 8) -- same idempotent
-  // run-import.ts pipeline as Mouser/element14/DigiKey above, so dedup,
-  // hash-skip and CatalogImportRun tracking are shared for free. Any
-  // internal offer data Nexar returns lands only on ProductSource.internal
-  // Offers (see upsert.ts) and is never included in the public Product
-  // fields returned here -- this admin route is itself staff/admin-only
-  // (see the authenticate/requireRole hooks above), not the public API.
-  app.post("/nexar/:mpn", async (req, reply) => {
-    const { mpn } = z.object({ mpn: z.string().trim().min(1).max(100) }).parse(req.params);
-    const fetcher = createNexarFetcher(mpn);
     const run = await prisma.catalogImportRun.create({ data: { source: fetcher.source } });
 
     try {

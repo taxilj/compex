@@ -3,10 +3,8 @@ import { env } from "../config/env.js";
 
 // Small shared cache helper backed by the same Redis instance already used
 // for BullMQ (env.REDIS_URL) -- see follow-up-scheduler.ts for the existing
-// producer-connection pattern this mirrors. Introduced for Phase 16 of the
-// Nexar integration (repeated exact-MPN lookups should not re-hit the
-// upstream API), but written generically so any future provider fetcher can
-// reuse it instead of inventing per-source caching.
+// producer-connection pattern this mirrors. It is generic so each provider
+// lookup can reuse it instead of inventing per-source caching.
 //
 // Deliberately NOT process-memory-only: this process (compex-api on Render)
 // can run multiple instances/replicas, and a bare in-memory Map would give
@@ -51,8 +49,8 @@ export interface CacheEntry<T> {
   cachedAt: string;
 }
 
-// namespace keeps unrelated callers (Nexar MPN lookups, anything added
-// later) from ever colliding on the same Redis key.
+// namespace keeps unrelated callers from ever colliding on the same Redis
+// key.
 export async function cacheGet<T>(namespace: string, key: string): Promise<CacheEntry<T> | null> {
   const redis = getClient();
   if (!redis) return null;
@@ -82,7 +80,7 @@ export async function cacheSet<T>(namespace: string, key: string, value: T, ttlS
 
 // A provider-specific failure (bad MPN response, upstream 5xx, etc.) must
 // never poison the cache for that key -- callers should simply not call
-// cacheSet() on failure, which is the default in nexar-fetcher.ts. This
+// cacheSet() on failure. This
 // helper exists so that intent is explicit and greppable at call sites.
 export async function cacheDelete(namespace: string, key: string): Promise<void> {
   const redis = getClient();

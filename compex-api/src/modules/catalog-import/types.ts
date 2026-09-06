@@ -16,8 +16,8 @@ export interface RawCatalogItem {
   images?: string[];
   specifications?: Record<string, unknown>;
   // Internal-sourcing-only data (seller, price, stock, MOQ, lead time, offer
-  // URL) from a live source that provides it, e.g. Nexar Supply. Stored only
-  // on ProductSource.internalOffers -- normalizer.ts/upsert.ts never let
+  // URL) from a live source that provides it. Stored only on
+  // ProductSource.internalOffers -- normalizer.ts/upsert.ts never let
   // this reach the Product model, which is what the public API reads. Left
   // undefined by every other fetcher (Mouser/element14/DigiKey/CSV never
   // capture commercial data at all).

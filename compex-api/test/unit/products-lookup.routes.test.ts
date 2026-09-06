@@ -3,12 +3,12 @@ import rateLimit from "@fastify/rate-limit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  anyPrimaryOrFallbackConfigured: vi.fn(),
+  anyPrimaryConfigured: vi.fn(),
   searchMpnAcrossProviders: vi.fn(),
 }));
 
 vi.mock("../../src/modules/catalog/mpn-search-orchestrator.js", () => ({
-  anyPrimaryOrFallbackConfigured: mocks.anyPrimaryOrFallbackConfigured,
+  anyPrimaryConfigured: mocks.anyPrimaryConfigured,
   searchMpnAcrossProviders: mocks.searchMpnAcrossProviders,
 }));
 
@@ -38,7 +38,7 @@ describe("GET /products/lookup", () => {
   }
 
   it("returns an honest configuration error without invoking the orchestrator when no provider credentials exist", async () => {
-    mocks.anyPrimaryOrFallbackConfigured.mockReturnValue(false);
+    mocks.anyPrimaryConfigured.mockReturnValue(false);
     const response = await (await app()).inject({ method: "GET", url: "/products/lookup?mpn=STM32F103C8T6" });
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ success: false, error: { code: "SEARCH_NOT_CONFIGURED", message: "Live product lookup is not configured." } });
@@ -46,24 +46,23 @@ describe("GET /products/lookup", () => {
   });
 
   it("returns 200 with a null product and provider sources for a confirmed no-match (not a 404)", async () => {
-    mocks.anyPrimaryOrFallbackConfigured.mockReturnValue(true);
+    mocks.anyPrimaryConfigured.mockReturnValue(true);
     mocks.searchMpnAcrossProviders.mockResolvedValue({
       product: null,
       sources: [
         { provider: "MOUSER", status: "NO_MATCH" },
         { provider: "DIGIKEY", status: "NO_MATCH" },
         { provider: "ELEMENT14", status: "NO_MATCH" },
-        { provider: "NEXAR", status: "NO_MATCH" },
       ],
     });
     const response = await (await app()).inject({ method: "GET", url: "/products/lookup?mpn=NO-SUCH-PART" });
     expect(response.statusCode).toBe(200);
     expect(response.json().data.product).toBeNull();
-    expect(response.json().data.sources).toHaveLength(4);
+    expect(response.json().data.sources).toHaveLength(3);
   });
 
   it("returns 200 with product null and partial-failure sources when providers error, rather than a hard failure", async () => {
-    mocks.anyPrimaryOrFallbackConfigured.mockReturnValue(true);
+    mocks.anyPrimaryConfigured.mockReturnValue(true);
     mocks.searchMpnAcrossProviders.mockResolvedValue({
       product: null,
       sources: [
@@ -78,7 +77,7 @@ describe("GET /products/lookup", () => {
   });
 
   it("maps an unexpected orchestrator failure to a safe public message", async () => {
-    mocks.anyPrimaryOrFallbackConfigured.mockReturnValue(true);
+    mocks.anyPrimaryConfigured.mockReturnValue(true);
     mocks.searchMpnAcrossProviders.mockRejectedValue(new Error("upstream body with sensitive internal detail"));
     const response = await (await app()).inject({ method: "GET", url: "/products/lookup?mpn=STM32F103C8T6" });
     expect(response.statusCode).toBe(503);
@@ -86,7 +85,7 @@ describe("GET /products/lookup", () => {
   });
 
   it("does not expose forbidden fields in its successful response", async () => {
-    mocks.anyPrimaryOrFallbackConfigured.mockReturnValue(true);
+    mocks.anyPrimaryConfigured.mockReturnValue(true);
     mocks.searchMpnAcrossProviders.mockResolvedValue({
       product: { mpn: "X1", manufacturer: "Maker", productName: "Part", specifications: [] },
       sources: [{ provider: "MOUSER", status: "FOUND" }],

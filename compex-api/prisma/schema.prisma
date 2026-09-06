@@ -727,11 +727,10 @@ model ProductSource {
   specifications  Json?
   lifecycleStatus String?  @map("lifecycle_status")
   // Internal-sourcing-only commercial data (seller name, price, stock,
-  // MOQ, lead time, offer URL) for sources that provide it, e.g. Nexar
-  // Supply offers. Deliberately never read by the public product API
+  // MOQ, lead time, offer URL) for sources that provide it. Deliberately
+  // never read by the public product API
   // (products.routes.ts only selects Product with manufacturer/category,
-  // never `sources`) or any customer-facing response -- see
-  // nexar-mapper.ts's InternalOffer type for the shape stored here.
+  // never `sources`) or any customer-facing response.
   internalOffers  Json?    @map("internal_offers")
   dataHash        String?  @map("data_hash")
   lastImportedAt  DateTime @default(now()) @map("last_imported_at")

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { UploadCloud, Loader2, Search } from "lucide-react";
-import { uploadCatalogCsv, listCatalogImportRuns, importFromMouser, importFromElement14, importFromDigiKey, importFromNexar, type CatalogImportRun, type AdminProduct } from "@/lib/api/admin";
+import { uploadCatalogCsv, listCatalogImportRuns, importFromMouser, importFromElement14, importFromDigiKey, type CatalogImportRun, type AdminProduct } from "@/lib/api/admin";
 
 const statusColor: Record<string, string> = {
   COMPLETED: "bg-[#12B76A]/10 text-[#12B76A]",
@@ -18,7 +18,7 @@ export default function AdminCatalogImportPage() {
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const [source, setSource] = useState<"mouser" | "element14" | "digikey" | "nexar">("mouser");
+  const [source, setSource] = useState<"mouser" | "element14" | "digikey">("mouser");
   const [providerMpn, setProviderMpn] = useState("");
   const [providerLoading, setProviderLoading] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
@@ -54,12 +54,12 @@ export default function AdminCatalogImportPage() {
     e.preventDefault();
     const mpn = providerMpn.trim();
     if (!mpn) return;
-    const sourceLabel = source === "mouser" ? "Mouser" : source === "element14" ? "element14" : source === "digikey" ? "DigiKey" : "Nexar";
+    const sourceLabel = source === "mouser" ? "Mouser" : source === "element14" ? "element14" : "DigiKey";
     setProviderLoading(true);
     setProviderError(null);
     setProviderResult(null);
     try {
-      const { run, product } = await (source === "mouser" ? importFromMouser(mpn) : source === "element14" ? importFromElement14(mpn) : source === "digikey" ? importFromDigiKey(mpn) : importFromNexar(mpn));
+      const { run, product } = await (source === "mouser" ? importFromMouser(mpn) : source === "element14" ? importFromElement14(mpn) : importFromDigiKey(mpn));
       if (run.status === "FAILED") {
         const message = Array.isArray(run.errorLog) && run.errorLog[0] && typeof run.errorLog[0] === "object"
           ? (run.errorLog[0] as { message?: string }).message
@@ -91,11 +91,10 @@ export default function AdminCatalogImportPage() {
         <h2 className="font-headline-sm text-[#111c2d] mb-1">Distributor Single-Part Lookup</h2>
         <p className="font-body-sm text-[#44474d] mb-4">Imports one part through the same idempotent pipeline as CSV import. No supplier pricing is imported or shown publicly.</p>
         <form onSubmit={handleProviderLookup} className="flex flex-col sm:flex-row gap-3">
-          <select aria-label="Catalog source" value={source} onChange={(event) => setSource(event.target.value as "mouser" | "element14" | "digikey" | "nexar")} disabled={providerLoading} className="px-3 py-2 bg-white border border-[#E4E7EC] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]">
+          <select aria-label="Catalog source" value={source} onChange={(event) => setSource(event.target.value as "mouser" | "element14" | "digikey")} disabled={providerLoading} className="px-3 py-2 bg-white border border-[#E4E7EC] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]">
             <option value="mouser">Mouser</option>
             <option value="element14">element14</option>
             <option value="digikey">DigiKey</option>
-            <option value="nexar">Nexar</option>
           </select>
           <div className="relative flex-1 max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#44474d]" />
@@ -109,14 +108,14 @@ export default function AdminCatalogImportPage() {
           </div>
           <button type="submit" disabled={providerLoading || !providerMpn.trim()} className="flex items-center gap-2 bg-[#0B1F3A] text-white px-4 py-2 rounded font-label-md text-sm disabled:opacity-50">
             {providerLoading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-            {providerLoading ? "Looking up…" : `Look up on ${source === "mouser" ? "Mouser" : source === "element14" ? "element14" : source === "digikey" ? "DigiKey" : "Nexar"}`}
+            {providerLoading ? "Looking up…" : `Look up on ${source === "mouser" ? "Mouser" : source === "element14" ? "element14" : "DigiKey"}`}
           </button>
         </form>
         {providerError && <p role="alert" className="mt-3 font-body-sm text-[#B42318]">{providerError}</p>}
         {providerResult && (
           <div className="mt-4 rounded-lg border border-[#12B76A]/30 bg-[#12B76A]/5 p-4 flex items-center justify-between">
             <div>
-              <p className="font-label-md text-[#111c2d]">{providerResult.mpn} imported from {source === "mouser" ? "Mouser" : source === "element14" ? "element14" : source === "digikey" ? "DigiKey" : "Nexar"}</p>
+              <p className="font-label-md text-[#111c2d]">{providerResult.mpn} imported from {source === "mouser" ? "Mouser" : source === "element14" ? "element14" : "DigiKey"}</p>
               <p className="font-body-sm text-[#44474d]">{providerResult.manufacturer?.name} · {providerResult.name ?? providerResult.description ?? ""}</p>
             </div>
             <Link href={`/products/${providerResult.mpn}${providerResult.manufacturer?.id ? `?manufacturerId=${encodeURIComponent(providerResult.manufacturer.id)}` : ""}`} target="_blank" className="font-label-sm text-[#1769E0] hover:underline text-sm whitespace-nowrap">View on site →</Link>
