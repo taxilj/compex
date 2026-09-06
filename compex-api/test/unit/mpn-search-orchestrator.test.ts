@@ -172,4 +172,20 @@ describe("public result safeguards", () => {
     expect(mocks.digikeyFetch).not.toHaveBeenCalled();
     expect(mocks.element14Fetch).not.toHaveBeenCalled();
   });
+
+  it("strips internal-looking spec keys from a stale cache entry written before the allowlist existed", async () => {
+    mocks.cacheGet.mockImplementation((namespace: string) =>
+      namespace === "public-mpn-search-product"
+        ? Promise.resolve({
+            value: {
+              mpn: "STALE1", manufacturer: "Maker", productName: "Stale cached part",
+              specifications: [{ name: "Resistance", value: "10k" }, { name: "isCanonical", value: "Y" }, { name: "productTraceability", value: "No" }],
+            },
+          })
+        : Promise.resolve(null),
+    );
+    const result = await searchMpnAcrossProviders("STALE1");
+    const names = result.product?.specifications.map((s) => s.name);
+    expect(names).toEqual(["Resistance"]);
+  });
 });

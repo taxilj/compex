@@ -166,6 +166,14 @@ function isComplianceSpecName(name: string): boolean {
   return /rohs|reach|compliance|conflict mineral/i.test(name);
 }
 
+// Applied to every cache read (see searchMpnAcrossProviders) so a cache entry
+// written before the public-safe spec allowlist existed can never leak an
+// internal-looking key just because it predates this filter.
+function sanitizeCachedProduct(product: PublicProduct | null): PublicProduct | null {
+  if (!product) return null;
+  return { ...product, specifications: product.specifications.filter((spec) => isPublicSafeSpecKey(spec.name)) };
+}
+
 // Deliberately facts-only: never expose sourceUrl, sourceProductId, or
 // internal offers.
 export function mapRawItemToPublicProduct(item: RawCatalogItem): PublicProduct {
@@ -196,7 +204,10 @@ export async function searchMpnAcrossProviders(input: string): Promise<MpnSearch
   const cachedProduct = await cacheGet<PublicProduct | null>(PRODUCT_CACHE_NAMESPACE, mpn);
   if (cachedProduct) {
     const cachedStatus = await cacheGet<ProviderStatusEntry[]>(STATUS_CACHE_NAMESPACE, mpn);
-    return { product: cachedProduct.value, sources: cachedStatus?.value ?? [] };
+    // Re-filter on every cache read, not just at write time: a cache entry
+    // written before the public-safe spec allowlist existed (or by anything
+    // that bypassed mapRawItemToPublicProduct) must never be served verbatim.
+    return { product: sanitizeCachedProduct(cachedProduct.value), sources: cachedStatus?.value ?? [] };
   }
 
   const settled = await Promise.allSettled([
