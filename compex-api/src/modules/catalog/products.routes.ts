@@ -5,6 +5,7 @@ import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { PRODUCT_INCLUDE, searchProducts } from "./product-search.js";
 import { anyPrimaryConfigured, searchMpnAcrossProviders } from "./mpn-search-orchestrator.js";
+import { toPublicProduct } from "./public-dto.js";
 
 const ProductListQuery = z.object({
   q: z.string().max(200).optional(),
@@ -48,10 +49,14 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  // Public catalogue DTOs are mapped through toPublicProduct() (Phase 10
+  // privacy fix) -- never send the raw Prisma row, which carries
+  // source/sourceUrl/sourceProductId/importStatus/dataHash/normalizedMpn and
+  // unfiltered specifications.
   app.get("/", async (req, reply) => {
     const query = ProductListQuery.parse(req.query);
     const result = await searchProducts({ ...query, isActive: true });
-    return reply.send(paginated(result.data, result.total, query.page, query.limit));
+    return reply.send(paginated(result.data.map(toPublicProduct), result.total, query.page, query.limit));
   });
 
   app.get("/:mpn", async (req, reply) => {
@@ -64,6 +69,6 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
       throw Errors.conflict("More than one manufacturer has this MPN. Select the manufacturer before opening the product.");
     }
     const [product] = products;
-    return reply.send(ok(product));
+    return reply.send(ok(toPublicProduct(product)));
   });
 }

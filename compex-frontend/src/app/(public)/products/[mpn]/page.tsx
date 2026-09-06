@@ -12,6 +12,17 @@ const PROVIDER_LABELS: Record<string, string> = {
   ELEMENT14: "element14",
 };
 
+// Defense-in-depth only -- the backend (mpn-search-orchestrator.ts /
+// products.routes.ts) is the authoritative filter and never sends these keys.
+// This just stops an internal-looking key from rendering here if that ever
+// regresses.
+const INTERNAL_SPEC_NAME_PATTERN =
+  /internal|private|admin|provider|supplier|vendor|canonical|traceability|sourcing|margin|moq|sku|stock|cost|price|lead\s*time/i;
+
+function isPublicSafeSpecName(name: string): boolean {
+  return !INTERNAL_SPEC_NAME_PATTERN.test(name);
+}
+
 export default function ProductDetailPage({ params }: { params: Promise<{ mpn: string }> }) {
   const { mpn } = use(params);
   return <ProductDetailContent key={mpn} mpn={mpn} />;
@@ -59,6 +70,8 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
 
   if (notFound || !product) return <NoResult mpn={mpn} sources={sources} />;
 
+  const specifications = product.specifications.filter((s) => isPublicSafeSpecName(s.name));
+
   return (
     <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
       <nav className="flex items-center gap-2 font-label-sm text-[#44474d] text-xs">
@@ -103,9 +116,9 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
                 </span>
               )}
             </div>
-            {product.specifications.length > 0 ? (
+            {specifications.length > 0 ? (
               <table className="w-full text-left"><tbody>
-                {product.specifications.map((specification) => (
+                {specifications.map((specification) => (
                   <tr key={`${specification.name}-${specification.value}`} className="border-b border-[#E4E7EC] last:border-0 hover:bg-[#f0f3ff]/40 transition-colors">
                     <th className="py-3 px-5 font-label-md text-[#44474d] w-1/3 bg-[#f9f9ff] border-r border-[#E4E7EC]/50">{specification.name}</th>
                     <td className="py-3 px-5 font-body-sm text-[#111c2d]">{specification.value}</td>
@@ -118,11 +131,11 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
 
         <div className="w-full lg:w-80 space-y-4">
           <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6 space-y-5 sticky top-24">
-            <h3 className="font-headline-sm text-[#111c2d]">Get Pricing</h3>
+            <h3 className="font-headline-sm text-[#111c2d]">Source This Component</h3>
             <Link href={quoteHref(product.mpn, product.manufacturer)} className="flex items-center justify-center gap-2 w-full bg-[#1769E0] text-white font-label-md py-3 rounded-lg hover:bg-[#1769E0]/90 transition-colors">
               <ShoppingCart size={16} /> Request a Quote
             </Link>
-            <p className="text-xs text-[#44474d] text-center">Pricing available on request. Contact us for volume discounts.</p>
+            <p className="text-xs text-[#44474d] text-center">Compex will source this component and respond with availability and next steps.</p>
           </div>
           <SourcesPanel sources={sources} />
         </div>

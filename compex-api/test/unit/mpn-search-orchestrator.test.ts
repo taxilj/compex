@@ -149,6 +149,17 @@ describe("public result safeguards", () => {
     expect(JSON.stringify(dto)).not.toMatch(/price|stock|moq|leadTime|SUPPLIER-SKU|supplier\.example/i);
   });
 
+  it("filters isCanonical, productTraceability, and other internal-looking spec keys out of the public DTO", () => {
+    const dto = mapRawItemToPublicProduct({
+      mpn: "X2",
+      manufacturer: "Acme",
+      specifications: { Resistance: "10k", Package: "0603", isCanonical: "true", productTraceability: "batch-9", supplierSku: "ABC-1" },
+    });
+    const names = dto.specifications.map((s) => s.name);
+    expect(names).toEqual(expect.arrayContaining(["Resistance", "Package"]));
+    expect(names).not.toEqual(expect.arrayContaining(["isCanonical", "productTraceability", "supplierSku"]));
+  });
+
   it("returns a cached result without calling a provider", async () => {
     mocks.cacheGet.mockImplementation((namespace: string) =>
       namespace === "public-mpn-search-product"

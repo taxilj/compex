@@ -28,8 +28,6 @@ export interface BackendProduct {
   lifecycleStatus: string | null;
   datasheetUrl: string | null;
   images: string[];
-  source: string;
-  sourceUrl: string | null;
   manufacturer: BackendManufacturer | null;
   category: BackendCategory | null;
 }

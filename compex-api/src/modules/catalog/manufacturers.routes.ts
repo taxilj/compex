@@ -3,7 +3,13 @@ import { z } from "zod";
 import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
+import { toPublicManufacturer, toPublicProduct } from "./public-dto.js";
 
+// Public catalogue DTOs are mapped through toPublicManufacturer()/
+// toPublicProduct() (Phase 10 privacy fix) -- never send the raw Prisma row,
+// which carries source/sourceUrl (Manufacturer) and
+// source/sourceUrl/sourceProductId/importStatus/dataHash/normalizedMpn plus
+// unfiltered specifications (Product).
 export async function manufacturersRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async (req, reply) => {
     const q = z.object({ page: z.coerce.number().int().positive().default(1), limit: z.coerce.number().int().positive().max(100).default(100) }).parse(req.query);
@@ -17,7 +23,8 @@ export async function manufacturersRoutes(app: FastifyInstance): Promise<void> {
       }),
       prisma.manufacturer.count(),
     ]);
-    return reply.send(paginated(data, total, q.page, q.limit));
+    const publicData = data.map((manufacturer) => ({ ...toPublicManufacturer(manufacturer), _count: manufacturer._count }));
+    return reply.send(paginated(publicData, total, q.page, q.limit));
   });
 
   app.get("/:slug", async (req, reply) => {
@@ -32,6 +39,9 @@ export async function manufacturersRoutes(app: FastifyInstance): Promise<void> {
       prisma.product.findMany({ where, skip, take: q.limit, orderBy: { mpn: "asc" }, include: { category: true } }),
       prisma.product.count({ where }),
     ]);
-    return reply.send(ok({ manufacturer, products: { data: products, meta: { total, page: q.page, limit: q.limit } } }));
+    return reply.send(ok({
+      manufacturer: toPublicManufacturer(manufacturer),
+      products: { data: products.map((product) => toPublicProduct({ ...product, manufacturer })), meta: { total, page: q.page, limit: q.limit } },
+    }));
   });
 }
