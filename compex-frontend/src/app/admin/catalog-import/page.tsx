@@ -118,7 +118,7 @@ export default function AdminCatalogImportPage() {
               <p className="font-label-md text-[#111c2d]">{providerResult.mpn} imported from {source === "mouser" ? "Mouser" : source === "element14" ? "element14" : "DigiKey"}</p>
               <p className="font-body-sm text-[#44474d]">{providerResult.manufacturer?.name} · {providerResult.name ?? providerResult.description ?? ""}</p>
             </div>
-            <Link href={`/products/${providerResult.mpn}${providerResult.manufacturer?.id ? `?manufacturerId=${encodeURIComponent(providerResult.manufacturer.id)}` : ""}`} target="_blank" className="font-label-sm text-[#1769E0] hover:underline text-sm whitespace-nowrap">View on site →</Link>
+            <Link href={`/products/${encodeURIComponent(providerResult.mpn)}${providerResult.manufacturer?.id ? `?manufacturerId=${encodeURIComponent(providerResult.manufacturer.id)}` : ""}`} target="_blank" className="font-label-sm text-[#1769E0] hover:underline text-sm whitespace-nowrap">View on site →</Link>
           </div>
         )}
       </div>

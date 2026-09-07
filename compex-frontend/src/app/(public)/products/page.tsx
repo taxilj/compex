@@ -142,7 +142,7 @@ function ProductSearchContent() {
                   {products.map((p) => (
                     <tr key={p.id} className="hover:bg-[#f0f3ff]/50 transition-colors">
                       <td className="py-3 px-4">
-                        <Link href={`/products/${p.mpn}${p.manufacturer?.id ? `?manufacturerId=${encodeURIComponent(p.manufacturer.id)}` : ""}`} className="font-mono-label text-[#1769E0] hover:underline font-medium">{p.mpn}</Link>
+                        <Link href={`/products/${encodeURIComponent(p.mpn)}${p.manufacturer?.id ? `?manufacturerId=${encodeURIComponent(p.manufacturer.id)}` : ""}`} className="font-mono-label text-[#1769E0] hover:underline font-medium">{p.mpn}</Link>
                       </td>
                       <td className="py-3 px-4 font-body-sm text-[#111c2d]">{p.manufacturer?.name ?? "—"}</td>
                       <td className="py-3 px-4 font-body-sm text-[#111c2d]">{p.category?.name ?? "—"}</td>

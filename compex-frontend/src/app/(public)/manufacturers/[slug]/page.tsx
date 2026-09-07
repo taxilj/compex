@@ -72,7 +72,7 @@ export default function ManufacturerDetailPage({ params }: { params: Promise<{ s
             {products.map((p) => (
               <Link
                 key={p.id}
-                href={`/products/${p.mpn}`}
+                href={`/products/${encodeURIComponent(p.mpn)}`}
                 className="bg-white border border-[#E4E7EC] rounded-xl p-5 hover:border-[#1769E0] hover:shadow-md transition-all flex gap-4"
               >
                 <div className="w-12 h-12 rounded bg-[#f0f3ff] flex items-center justify-center shrink-0">

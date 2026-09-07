@@ -24,7 +24,13 @@ function isPublicSafeSpecName(name: string): boolean {
 }
 
 export default function ProductDetailPage({ params }: { params: Promise<{ mpn: string }> }) {
-  const { mpn } = use(params);
+  const { mpn: rawMpn } = use(params);
+  // Next.js does not auto-decode a %2F inside a single dynamic-route segment
+  // (it would be ambiguous with an actual path separator), so a real MPN
+  // containing "/" (e.g. Microchip's PIC16F877A-I/P) arrives here still
+  // percent-encoded and would otherwise get double-encoded on the API call
+  // below, turning a valid MPN into an invalid-characters error.
+  const mpn = decodeURIComponent(rawMpn);
   return <ProductDetailContent key={mpn} mpn={mpn} />;
 }
 
