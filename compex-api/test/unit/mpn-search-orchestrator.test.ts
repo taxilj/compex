@@ -113,7 +113,7 @@ describe("three-provider MPN orchestration", () => {
       { provider: "DIGIKEY", status: "NO_MATCH" },
       { provider: "ELEMENT14", status: "NO_MATCH" },
     ]);
-    expect(mocks.cacheSet.mock.calls.find((call) => call[0] === "public-mpn-search-product")?.[2]).toBeNull();
+    expect(mocks.cacheSet.mock.calls.find((call) => call[0] === "public-mpn-search-product")?.[2]).toMatchObject({ product: null });
   });
 
   it("runs exactly the three configured provider fetchers and no hidden fallback", async () => {
@@ -161,29 +161,47 @@ describe("public result safeguards", () => {
   });
 
   it("returns a cached result without calling a provider", async () => {
-    mocks.cacheGet.mockImplementation((namespace: string) =>
-      namespace === "public-mpn-search-product"
-        ? Promise.resolve({ value: { mpn: "CACHED1", manufacturer: "Maker", productName: "Cached", specifications: [] } })
-        : Promise.resolve({ value: [{ provider: "MOUSER", status: "FOUND" }] }),
-    );
+    mocks.cacheGet.mockResolvedValue({
+      value: {
+        product: { mpn: "CACHED1", manufacturer: "Maker", productName: "Cached", specifications: [] },
+        sources: [{ provider: "MOUSER", status: "FOUND" }],
+      },
+    });
     const result = await searchMpnAcrossProviders("CACHED1");
     expect(result.product?.mpn).toBe("CACHED1");
+    expect(result.sources).toEqual([{ provider: "MOUSER", status: "FOUND" }]);
     expect(mocks.mouserFetch).not.toHaveBeenCalled();
     expect(mocks.digikeyFetch).not.toHaveBeenCalled();
     expect(mocks.element14Fetch).not.toHaveBeenCalled();
   });
 
+  it("keeps sources cached alongside the product instead of expiring separately", async () => {
+    mocks.mouserFetch.mockResolvedValue({ items: [item] });
+    mocks.digikeyFetch.mockImplementation(noMatch);
+    mocks.element14Fetch.mockImplementation(noMatch);
+    await searchMpnAcrossProviders("STM32F103C8T6");
+    const call = mocks.cacheSet.mock.calls.find((c) => c[0] === "public-mpn-search-product");
+    expect(call?.[2]).toMatchObject({
+      product: { mpn: "STM32F103C8T6" },
+      sources: [
+        { provider: "MOUSER", status: "FOUND" },
+        { provider: "DIGIKEY", status: "NO_MATCH" },
+        { provider: "ELEMENT14", status: "NO_MATCH" },
+      ],
+    });
+    expect(mocks.cacheSet).toHaveBeenCalledTimes(1);
+  });
+
   it("strips internal-looking spec keys from a stale cache entry written before the allowlist existed", async () => {
-    mocks.cacheGet.mockImplementation((namespace: string) =>
-      namespace === "public-mpn-search-product"
-        ? Promise.resolve({
-            value: {
-              mpn: "STALE1", manufacturer: "Maker", productName: "Stale cached part",
-              specifications: [{ name: "Resistance", value: "10k" }, { name: "isCanonical", value: "Y" }, { name: "productTraceability", value: "No" }],
-            },
-          })
-        : Promise.resolve(null),
-    );
+    mocks.cacheGet.mockResolvedValue({
+      value: {
+        product: {
+          mpn: "STALE1", manufacturer: "Maker", productName: "Stale cached part",
+          specifications: [{ name: "Resistance", value: "10k" }, { name: "isCanonical", value: "Y" }, { name: "productTraceability", value: "No" }],
+        },
+        sources: [],
+      },
+    });
     const result = await searchMpnAcrossProviders("STALE1");
     const names = result.product?.specifications.map((s) => s.name);
     expect(names).toEqual(["Resistance"]);

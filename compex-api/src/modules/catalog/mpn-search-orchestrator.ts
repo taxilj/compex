@@ -45,14 +45,22 @@ export interface MpnSearchResult {
 // failures; this bounds latency too).
 const PRIMARY_TIMEOUT_MS = 4_000;
 
-// Cache TTLs (Phase 7): product facts are long-lived, provider
-// presence/status is short-lived so a transient failure/rate-limit is
-// retried again soon rather than being remembered for a day.
+// Cache TTL (Phase 7): product facts are long-lived. Per-provider `sources`
+// are cached alongside the product, not in a separately-TTL'd entry -- a
+// prior split (10 min for status vs 24h for product) meant that once the
+// short-lived status entry expired, a still-cached product silently reported
+// `sources: []` for the rest of its 24h life, discarding real per-provider
+// FOUND/NO_MATCH/ERROR history the frontend and this audit both need. A
+// provider is never re-queried while the product is cached either way, so
+// there was no retry benefit to the shorter TTL.
 const PRODUCT_CACHE_NAMESPACE = "public-mpn-search-product";
-const STATUS_CACHE_NAMESPACE = "public-mpn-search-status";
 const PRODUCT_CACHE_TTL_SECONDS = 24 * 60 * 60;
-const STATUS_CACHE_TTL_SECONDS = 10 * 60;
 const MAX_MPN_LENGTH = 100;
+
+interface CachedSearchEntry {
+  product: PublicProduct | null;
+  sources: ProviderStatusEntry[];
+}
 
 export function normalizePublicMpn(value: string): string {
   const mpn = value.trim().toUpperCase();
@@ -88,7 +96,13 @@ async function runPrimary(provider: PrimaryProviderName, mpn: string): Promise<P
     const item = items.find((candidate) => candidate.mpn.length > 0);
     return item ? { provider, status: "FOUND", item } : { provider, status: "NO_MATCH" };
   } catch (err) {
-    return { provider, status: classifyThrown(err) };
+    const status = classifyThrown(err);
+    // Server-side only -- the public API never exposes more than `status`.
+    // Without this, a provider stuck on ERROR (wrong/expired key, API shape
+    // change, etc.) is undiagnosable from logs alone.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[mpn-search] ${provider} lookup for ${mpn} -> ${status}: ${message}`);
+    return { provider, status };
   }
 }
 
@@ -201,13 +215,12 @@ export function anyPrimaryConfigured(): boolean {
 export async function searchMpnAcrossProviders(input: string): Promise<MpnSearchResult> {
   const mpn = normalizePublicMpn(input);
 
-  const cachedProduct = await cacheGet<PublicProduct | null>(PRODUCT_CACHE_NAMESPACE, mpn);
-  if (cachedProduct) {
-    const cachedStatus = await cacheGet<ProviderStatusEntry[]>(STATUS_CACHE_NAMESPACE, mpn);
+  const cached = await cacheGet<CachedSearchEntry>(PRODUCT_CACHE_NAMESPACE, mpn);
+  if (cached) {
     // Re-filter on every cache read, not just at write time: a cache entry
     // written before the public-safe spec allowlist existed (or by anything
     // that bypassed mapRawItemToPublicProduct) must never be served verbatim.
-    return { product: sanitizeCachedProduct(cachedProduct.value), sources: cachedStatus?.value ?? [] };
+    return { product: sanitizeCachedProduct(cached.value.product), sources: cached.value.sources };
   }
 
   const settled = await Promise.allSettled([
@@ -237,13 +250,14 @@ export async function searchMpnAcrossProviders(input: string): Promise<MpnSearch
 
   // A definitive answer (something found, or all three sources report
   // NO_MATCH) is safe to cache as product facts. A provider failure must
-  // never poison the cache with a false "not found".
+  // never poison the cache with a false "not found". `sources` is cached
+  // together with `product` so per-provider status stays visible for the
+  // product's whole cache lifetime instead of expiring separately.
   const definitive = foundItems.length > 0 || outcomes.every((o) => o.status === "NO_MATCH");
 
   if (definitive) {
-    await cacheSet(PRODUCT_CACHE_NAMESPACE, mpn, product, PRODUCT_CACHE_TTL_SECONDS);
+    await cacheSet(PRODUCT_CACHE_NAMESPACE, mpn, { product, sources } satisfies CachedSearchEntry, PRODUCT_CACHE_TTL_SECONDS);
   }
-  await cacheSet(STATUS_CACHE_NAMESPACE, mpn, sources, STATUS_CACHE_TTL_SECONDS);
 
   return { product, sources };
 }

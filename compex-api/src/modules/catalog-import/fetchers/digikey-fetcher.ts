@@ -5,10 +5,20 @@ import { normalizeMpn } from "../normalizer.js";
 import { mapDigiKeyProduct, type DigiKeyProduct } from "./digikey-mapper.js";
 
 // DigiKey Product Information V4 — OAuth2 client-credentials grant (no user
-// context needed for catalog lookups) + a single-part detail lookup.
+// context needed for catalog lookups) + a keyword search.
 // Docs: https://developer.digikey.com/products/product-information/productinformation/v4
+//
+// Deliberately uses the keyword-search endpoint, not
+// GET /products/v4/search/{productNumber}/productdetails: that endpoint
+// requires the path segment to resolve to exactly one unambiguous DigiKey
+// product and 404s with "Duplicate Products found ... provide
+// manufacturerId" for any MPN multiple manufacturers share (verified live:
+// ATMEGA328P-PU, 1N4148, LM7805CT all 404 that way despite being in DigiKey's
+// catalog). Keyword search returns every candidate under that keyword so the
+// existing exact-match filter below can pick the real one, same pattern the
+// Mouser/element14 fetchers already use.
 const TOKEN_URL = "https://api.digikey.com/v1/oauth2/token";
-const PRODUCT_DETAILS_URL = "https://api.digikey.com/products/v4/search";
+const KEYWORD_SEARCH_URL = "https://api.digikey.com/products/v4/search/keyword";
 
 interface TokenResponse {
   access_token?: string;
@@ -19,21 +29,24 @@ interface TokenResponse {
 
 // Real V4 shape (nested) — kept separate from digikey-mapper.ts's flatter
 // `DigiKeyProduct` so the mapper (and its unit tests) stay independent of
-// exactly how this fetcher's HTTP layer is shaped.
-interface DigiKeyV4ProductDetails {
-  Product?: {
-    ManufacturerProductNumber?: string;
-    ProductVariations?: Array<{ DigiKeyProductNumber?: string }>;
-    Description?: { ProductDescription?: string; DetailedDescription?: string };
-    Manufacturer?: { Name?: string };
-    DatasheetUrl?: string;
-    PhotoUrl?: string;
-    ProductUrl?: string;
-    Classifications?: { RohsStatus?: string };
-    ProductStatus?: { Status?: string };
-    Category?: { Name?: string };
-    Parameters?: Array<{ ParameterText?: string; ValueText?: string }>;
-  };
+// exactly how this fetcher's HTTP layer is shaped. Shared by both the
+// keyword-search endpoint's `Products` array and a single product record.
+interface DigiKeyV4Product {
+  ManufacturerProductNumber?: string;
+  ProductVariations?: Array<{ DigiKeyProductNumber?: string }>;
+  Description?: { ProductDescription?: string; DetailedDescription?: string };
+  Manufacturer?: { Name?: string };
+  DatasheetUrl?: string;
+  PhotoUrl?: string;
+  ProductUrl?: string;
+  Classifications?: { RohsStatus?: string };
+  ProductStatus?: { Status?: string };
+  Category?: { Name?: string };
+  Parameters?: Array<{ ParameterText?: string; ValueText?: string }>;
+}
+
+interface DigiKeyKeywordSearchResponse {
+  Products?: DigiKeyV4Product[];
 }
 
 // Module-level token cache — a client-credentials token is valid for the
@@ -68,7 +81,7 @@ async function getAccessToken(): Promise<string> {
   return cachedToken.value;
 }
 
-function toDigiKeyProduct(details: DigiKeyV4ProductDetails["Product"]): DigiKeyProduct {
+function toDigiKeyProduct(details: DigiKeyV4Product | undefined): DigiKeyProduct {
   if (!details) return {};
   return {
     ManufacturerPartNumber: details.ManufacturerProductNumber,
@@ -94,20 +107,21 @@ export function createDigiKeyFetcher(mpn: string): CatalogFetcher {
     source: "DIGIKEY",
     async fetch(): Promise<{ items: RawCatalogItem[] }> {
       const token = await getAccessToken();
-      const url = `${PRODUCT_DETAILS_URL}/${encodeURIComponent(mpn)}/productdetails`;
 
-      const res = await fetch(url, {
+      const res = await fetch(KEYWORD_SEARCH_URL, {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "X-DIGIKEY-Client-Id": env.DIGIKEY_CLIENT_ID ?? "",
           "X-DIGIKEY-Locale-Site": "US",
           "X-DIGIKEY-Locale-Language": "en",
           "X-DIGIKEY-Locale-Currency": "USD",
+          "Content-Type": "application/json",
           Accept: "application/json",
         },
+        body: JSON.stringify({ Keywords: mpn, Limit: 10, Offset: 0 }),
       });
 
-      if (res.status === 404) return { items: [] };
       if (res.status === 429) {
         throw Errors.rateLimited();
       }
@@ -115,9 +129,13 @@ export function createDigiKeyFetcher(mpn: string): CatalogFetcher {
         throw Errors.serviceUnavailable(`DigiKey API request failed with status ${res.status}`);
       }
 
-      const body = (await res.json()) as DigiKeyV4ProductDetails;
-      const item = mapDigiKeyProduct(toDigiKeyProduct(body.Product));
-      return { items: item.mpn && normalizeMpn(item.mpn) === normalizeMpn(mpn) ? [item] : [] };
+      const body = (await res.json()) as DigiKeyKeywordSearchResponse;
+      const requestedMpn = normalizeMpn(mpn);
+      const items = (body.Products ?? [])
+        .map((product) => mapDigiKeyProduct(toDigiKeyProduct(product)))
+        .filter((item) => item.mpn.length > 0 && normalizeMpn(item.mpn) === requestedMpn)
+        .slice(0, 1);
+      return { items };
     },
   };
 }
