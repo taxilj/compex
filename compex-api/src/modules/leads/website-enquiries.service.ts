@@ -59,6 +59,32 @@ export function safeNotificationError(error: unknown): string {
   return "Notification delivery failed";
 }
 
+// Diagnostic fields only -- deliberately excludes error.message/.hostname/.address/.port,
+// which can carry SMTP_HOST or other config values on connection-level errors.
+interface EmailErrorDiagnostics {
+  errorName: string;
+  code?: string;
+  command?: string;
+  responseCode?: number;
+  timeoutLikely: boolean;
+}
+
+function sanitizeEmailErrorForLogging(error: unknown): EmailErrorDiagnostics {
+  const details = error as { code?: unknown; command?: unknown; responseCode?: unknown } | undefined;
+  const code = typeof details?.code === "string" ? details.code : undefined;
+  return {
+    errorName: error instanceof Error ? error.name : "UnknownError",
+    code,
+    command: typeof details?.command === "string" ? details.command : undefined,
+    responseCode: typeof details?.responseCode === "number" ? details.responseCode : undefined,
+    // nodemailer's smtp-connection only sets code:'ETIMEDOUT' for its three timeout
+    // paths (connectionTimeout, greetingTimeout, socketTimeout). 'ESOCKET' covers other
+    // socket-level failures (e.g. an immediate reset) that are not timeouts, so it's
+    // deliberately excluded here to keep this flag conservative.
+    timeoutLikely: code === "ETIMEDOUT",
+  };
+}
+
 export async function createWebsiteEnquiry(
   input: WebsiteEnquiryInput,
   idempotencyKey: string | undefined,
@@ -111,6 +137,7 @@ export async function createWebsiteEnquiry(
     throw error;
   }
 
+  const sendStartedAt = Date.now();
   try {
     const delivery = await sendEmail({
       to: env.ENQUIRY_NOTIFICATION_TO,
@@ -136,18 +163,35 @@ export async function createWebsiteEnquiry(
         adminUrl: adminLeadUrl(),
       }),
     });
+    const elapsedMs = Date.now() - sendStartedAt;
     await prisma.lead.update({
       where: { id: lead.id },
       data: { notificationStatus: "SENT", notificationSentAt: new Date(), notificationMessageId: delivery.messageId ?? undefined, notificationError: null },
     });
     await prisma.auditLog.create({ data: { action: "website_enquiry.notification_sent", entityType: "lead", entityId: lead.id } });
+    console.log(JSON.stringify({
+      event: "website_enquiry_notification_sent",
+      referenceNumber: lead.referenceNumber,
+      status: "SENT",
+      elapsedMs,
+      timestamp: new Date().toISOString(),
+    }));
   } catch (error) {
+    const elapsedMs = Date.now() - sendStartedAt;
     await prisma.lead.update({
       where: { id: lead.id },
       data: { notificationStatus: "FAILED", notificationError: safeNotificationError(error) },
     }).catch((updateError) => console.error("[website-enquiry] notification status update failed", updateError));
     await prisma.auditLog.create({ data: { action: "website_enquiry.notification_failed", entityType: "lead", entityId: lead.id } })
       .catch((auditError) => console.error("[website-enquiry] notification audit failed", auditError));
+    console.error(JSON.stringify({
+      event: "website_enquiry_notification_failed",
+      referenceNumber: lead.referenceNumber,
+      status: "FAILED",
+      elapsedMs,
+      timestamp: new Date().toISOString(),
+      ...sanitizeEmailErrorForLogging(error),
+    }));
   }
 
   return { lead, duplicate: false as const };
