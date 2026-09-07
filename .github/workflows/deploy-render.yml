@@ -1,0 +1,35 @@
+name: Deploy compex-api to Render
+
+# Render's GitHub App integration is not reliably delivering push webhooks
+# for this repo (Auto-Deploy is set to "On Commit" in the Render dashboard,
+# but every deploy in the service's history was triggered manually, and
+# Render's own build logs say "It looks like we don't have access to your
+# repo, but we'll try to clone it anyway"). This workflow triggers a deploy
+# through Render's independent Deploy Hook URL instead, so a push to master
+# can never silently sit undeployed again regardless of that integration's
+# state.
+#
+# Setup (one-time, done by a repo admin -- not by this workflow):
+#   1. Render dashboard -> compex-api -> Settings -> Deploy -> Deploy Hook -> reveal/copy the URL.
+#   2. GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret
+#      named RENDER_DEPLOY_HOOK_URL with that value.
+# Until that secret exists, this workflow fails loudly (not silently) so the
+# gap stays visible instead of looking like deploys are handled.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "compex-api/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret is not set. Add it in GitHub repo Settings > Secrets and variables > Actions (value from Render > compex-api > Settings > Deploy Hook)." >&2
+            exit 1
+          fi
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" -o /dev/null
