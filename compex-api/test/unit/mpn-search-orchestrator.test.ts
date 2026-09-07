@@ -192,6 +192,24 @@ describe("public result safeguards", () => {
     expect(mocks.cacheSet).toHaveBeenCalledTimes(1);
   });
 
+  it("adapts a legacy cache entry (raw product, no sources wrapper) written before this shape existed", async () => {
+    mocks.cacheGet.mockResolvedValue({
+      value: { mpn: "LEGACY1", manufacturer: "Maker", productName: "Legacy cached part", specifications: [] },
+    });
+    const result = await searchMpnAcrossProviders("LEGACY1");
+    expect(result.product?.mpn).toBe("LEGACY1");
+    expect(result.sources).toEqual([]);
+    expect(mocks.mouserFetch).not.toHaveBeenCalled();
+  });
+
+  it("adapts a legacy cache entry that cached a definitive no-result as raw null", async () => {
+    mocks.cacheGet.mockResolvedValue({ value: null });
+    const result = await searchMpnAcrossProviders("LEGACYNULL");
+    expect(result.product).toBeNull();
+    expect(result.sources).toEqual([]);
+    expect(mocks.mouserFetch).not.toHaveBeenCalled();
+  });
+
   it("strips internal-looking spec keys from a stale cache entry written before the allowlist existed", async () => {
     mocks.cacheGet.mockResolvedValue({
       value: {

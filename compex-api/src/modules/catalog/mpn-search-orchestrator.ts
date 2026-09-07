@@ -62,6 +62,18 @@ interface CachedSearchEntry {
   sources: ProviderStatusEntry[];
 }
 
+// A cache entry written before this shape existed stored the raw product
+// value directly under this namespace (no `sources` wrapper) -- such
+// entries can still be live in Redis for up to PRODUCT_CACHE_TTL_SECONDS
+// after this code deploys. Reading `.product`/`.sources` off one directly
+// would silently report a real cached product as not-found (or throw on a
+// legacy cached `null`, since `null.product` isn't a property read). Detect
+// the shape instead of assuming it, so an old entry self-heals immediately
+// rather than serving wrong answers until it happens to expire.
+function isCachedSearchEntry(value: unknown): value is CachedSearchEntry {
+  return typeof value === "object" && value !== null && Array.isArray((value as CachedSearchEntry).sources);
+}
+
 export function normalizePublicMpn(value: string): string {
   const mpn = value.trim().toUpperCase();
   if (!mpn) throw Errors.validation("MPN is required");
@@ -215,12 +227,15 @@ export function anyPrimaryConfigured(): boolean {
 export async function searchMpnAcrossProviders(input: string): Promise<MpnSearchResult> {
   const mpn = normalizePublicMpn(input);
 
-  const cached = await cacheGet<CachedSearchEntry>(PRODUCT_CACHE_NAMESPACE, mpn);
+  const cached = await cacheGet<CachedSearchEntry | PublicProduct | null>(PRODUCT_CACHE_NAMESPACE, mpn);
   if (cached) {
+    const entry: CachedSearchEntry = isCachedSearchEntry(cached.value)
+      ? cached.value
+      : { product: cached.value as PublicProduct | null, sources: [] };
     // Re-filter on every cache read, not just at write time: a cache entry
     // written before the public-safe spec allowlist existed (or by anything
     // that bypassed mapRawItemToPublicProduct) must never be served verbatim.
-    return { product: sanitizeCachedProduct(cached.value.product), sources: cached.value.sources };
+    return { product: sanitizeCachedProduct(entry.product), sources: entry.sources };
   }
 
   const settled = await Promise.allSettled([
