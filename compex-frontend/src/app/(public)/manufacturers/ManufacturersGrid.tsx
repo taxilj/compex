@@ -62,9 +62,7 @@ export default function ManufacturersGrid({ fallback }: { fallback: CuratedManuf
           </div>
           <div className="flex flex-wrap gap-2">
             {mfr.categories.map((cat) => (
-              <span key={cat} className="bg-[#f0f3ff] text-[#1769E0] text-xs font-medium px-3 py-1 rounded-full">
-                {cat}
-              </span>
+              <span key={cat} className="tag">{cat}</span>
             ))}
           </div>
         </div>

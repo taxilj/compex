@@ -181,9 +181,7 @@ export default function LoginPage() {
               <h2 className="font-headline-lg text-[#111c2d] mb-1">Customer Registration</h2>
               <p className="font-body-md text-[#44474d]">Create a customer account to manage sourcing requests and quotations.</p>
             </div>
-            <span className="hidden sm:flex items-center gap-1 bg-[#f0f3ff] border border-[#E4E7EC] text-[#44474d] px-3 py-1 rounded-full font-label-sm text-xs">
-              Customer Portal
-            </span>
+            <span className="hidden sm:inline-flex tag">Customer Portal</span>
           </div>
 
           {regSuccess ? (

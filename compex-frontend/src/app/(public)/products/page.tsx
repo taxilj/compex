@@ -3,7 +3,6 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { Search } from "lucide-react";
 import { listProducts, listCategories, type BackendProduct, type CategoryWithChildren } from "@/lib/api/products";
 import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufacturers";
@@ -66,34 +65,20 @@ function ProductSearchContent() {
 
   return (
     <div className="flex flex-col w-full px-4 md:px-8 py-8 gap-8">
-      <section className="overflow-hidden rounded-2xl border border-[#0B1F3A]/10 bg-[#0B1F3A]">
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_280px]">
-          <div className="p-6 md:p-8">
-            <p className="font-label-sm text-[#afc6ff] uppercase tracking-widest mb-2">Component catalogue</p>
-            <h1 className="font-headline-lg text-white mb-3">Product Search</h1>
-            <p className="font-body-md text-[#d6e3ff] max-w-2xl mb-6">Search verified electronic components by MPN, description, or manufacturer.</p>
-            <form onSubmit={submitSearch} className="relative max-w-2xl">
-              <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#44474d]" />
-              <input
-                aria-label="Search products by MPN, description, or manufacturer"
-                className="w-full pl-12 pr-4 py-4 rounded bg-white font-body-md text-[#111c2d] border border-white/20 focus:outline-none focus:ring-2 focus:ring-[#afc6ff] shadow-sm"
-                placeholder="Search by exact MPN or part number..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-              />
-            </form>
-          </div>
-          <div className="relative min-h-48 md:min-h-full">
-            <Image
-              src="/images/products/circuit-board-detail.jpg"
-              alt="Integrated circuits and electronic traces on a circuit board"
-              fill
-              sizes="(max-width: 767px) 100vw, 280px"
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0B1F3A]/35 to-transparent md:bg-none" />
-          </div>
-        </div>
+      <section className="border-b border-[#E4E7EC] pb-8">
+        <p className="font-mono-label text-[#1769E0] uppercase tracking-wider text-xs mb-2">Component catalogue</p>
+        <h1 className="font-headline-lg text-[#0B1F3A] mb-3">Product Search</h1>
+        <p className="font-body-md text-[#44474d] max-w-2xl mb-6">Search verified electronic components by exact MPN, description, or manufacturer.</p>
+        <form onSubmit={submitSearch} className="relative max-w-2xl">
+          <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#75777e]" />
+          <input
+            aria-label="Search products by MPN, description, or manufacturer"
+            className="w-full pl-12 pr-4 py-3.5 rounded border border-[#E4E7EC] font-mono-label text-[#111c2d] focus:outline-none focus:ring-1 focus:ring-[#1769E0] focus:border-[#1769E0]"
+            placeholder="Search by exact MPN or part number..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+        </form>
       </section>
 
       <div className="flex flex-col lg:flex-row gap-6">
