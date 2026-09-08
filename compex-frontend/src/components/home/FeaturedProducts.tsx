@@ -138,10 +138,9 @@ export function FeaturedProducts() {
                   <p className="font-mono-label text-[#111c2d] font-medium break-words">{product.mpn}</p>
                   <p className="font-body-sm text-[#44474d] break-words">{product.manufacturer}</p>
                   <p className="font-body-sm text-[#44474d]/80 line-clamp-2">{product.productName}</p>
-                  {(packageSpec || product.lifecycleStatus) && (
+                  {packageSpec && (
                     <div className="flex flex-wrap gap-1.5 mt-1">
-                      {packageSpec && <span className="tag">{packageSpec}</span>}
-                      {product.lifecycleStatus && <span className="tag">{product.lifecycleStatus}</span>}
+                      <span className="tag">{packageSpec}</span>
                     </div>
                   )}
                   <span className="mt-auto pt-3 font-label-md text-[#1769E0] flex items-center gap-1.5 text-sm">
