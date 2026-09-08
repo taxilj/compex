@@ -97,14 +97,15 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
             </div>
             <div className="flex-1 min-w-0 flex flex-col justify-between">
               <div>
-                <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                  {product.category && <span className="font-label-sm text-[#1769E0] tracking-widest uppercase">{product.category}</span>}
-                  {product.category && <span className="w-1 h-1 rounded-full bg-[#E4E7EC]" />}
-                  <span className="text-xs text-[#44474d] break-words">{product.manufacturer}</span>
-                </div>
-                <h1 className="font-headline-lg text-[#111c2d] mb-1">{product.productName}</h1>
-                <p className="font-mono-label text-[#111c2d] font-medium mb-3 break-words">{product.mpn}</p>
-                <p className="font-body-md text-[#44474d] max-w-2xl">{product.description ?? "No description available."}</p>
+                {product.category && (
+                  <span className="block font-label-sm text-[#1769E0] tracking-widest uppercase mb-1.5">{product.category}</span>
+                )}
+                <h1 className="font-mono text-[28px] sm:text-[32px] md:text-[40px] font-bold tracking-tight leading-[1.15] text-[#0B1F3A] mb-1.5 break-words">{product.mpn}</h1>
+                <p className="text-[15px] font-medium text-[#273143] mb-2 break-words">{product.manufacturer}</p>
+                {product.productName && product.productName !== product.description && (
+                  <p className="font-body-sm font-medium text-[#44474d] mb-1 break-words">{product.productName}</p>
+                )}
+                <p className="font-body-sm text-[#44474d]/80 max-w-2xl break-words">{product.description ?? "No description available."}</p>
               </div>
             </div>
           </div>
