@@ -37,6 +37,7 @@ export function HeroSection() {
             <div className="flex-1 flex items-center px-4 gap-3">
               <Search size={18} className="text-[#75777e] shrink-0" />
               <input
+                id="hero-mpn-search"
                 name="q"
                 aria-label="Search components by exact MPN or part number"
                 className="w-full bg-transparent border-none outline-none py-4 font-mono-label text-[#111c2d] placeholder:text-[#75777e] placeholder:font-body-md"

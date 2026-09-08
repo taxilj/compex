@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Upload, Globe, ShieldCheck, Plane, Truck } from "lucide-react";
 import { HeroSection } from "@/components/home/HeroSection";
+import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { ManufacturerMarquee } from "@/components/home/ManufacturerMarquee";
 import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 
@@ -36,6 +37,8 @@ export default function HomePage() {
   return (
     <div className="flex flex-col w-full">
       <HeroSection />
+
+      <FeaturedProducts />
 
       {/* Categories — real taxonomy, no invented counts */}
       {categories.length > 0 && (
