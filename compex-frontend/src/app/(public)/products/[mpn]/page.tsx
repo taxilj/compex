@@ -95,15 +95,15 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
                 <img src={product.imageUrl} alt={product.productName} className="w-full h-full object-contain" />
               ) : <Package size={64} className="text-[#0B1F3A]/20" />}
             </div>
-            <div className="flex-1 flex flex-col justify-between">
+            <div className="flex-1 min-w-0 flex flex-col justify-between">
               <div>
-                <div className="flex items-center gap-3 mb-2">
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
                   {product.category && <span className="font-label-sm text-[#1769E0] tracking-widest uppercase">{product.category}</span>}
                   {product.category && <span className="w-1 h-1 rounded-full bg-[#E4E7EC]" />}
-                  <span className="font-label-md text-[#44474d]">{product.manufacturer}</span>
+                  <span className="text-xs text-[#44474d] break-words">{product.manufacturer}</span>
                 </div>
                 <h1 className="font-headline-lg text-[#111c2d] mb-1">{product.productName}</h1>
-                <p className="font-mono-label text-[#44474d] mb-3">{product.mpn}</p>
+                <p className="font-mono-label text-[#111c2d] font-medium mb-3 break-words">{product.mpn}</p>
                 <p className="font-body-md text-[#44474d] max-w-2xl">{product.description ?? "No description available."}</p>
               </div>
             </div>
