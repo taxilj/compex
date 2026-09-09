@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Globe2, ShieldCheck, Network } from "lucide-react";
+import { Globe2, ShieldCheck, Network, Radio, Cpu, Layers } from "lucide-react";
 import CTABanner from "@/components/ui/CTABanner";
 
 export const metadata: Metadata = {
@@ -10,19 +10,22 @@ export const metadata: Metadata = {
 
 const channels = [
   {
-    name: "Mouser Electronics",
-    role: "Authorized global distributor",
-    desc: "New, factory-original components sourced direct from manufacturer-authorized stock.",
-  },
-  {
+    icon: Cpu,
     name: "DigiKey",
-    role: "Authorized global distributor",
-    desc: "Broad-line distributor coverage across semiconductors, passives, and interconnect.",
+    role: "Live availability check",
+    desc: "Broad-line distributor coverage across semiconductors, passives, and interconnect. Checked in real time by our exact-MPN search.",
   },
   {
+    icon: Layers,
     name: "element14 / Farnell",
-    role: "Authorized global distributor",
-    desc: "Manufacturer-authorized distribution with engineering-grade documentation.",
+    role: "Live availability check",
+    desc: "Manufacturer-authorized distribution with engineering-grade documentation. Checked in real time by our exact-MPN search.",
+  },
+  {
+    icon: Radio,
+    name: "Mouser Electronics",
+    role: "Supported sourcing channel",
+    desc: "New, factory-original components sourced direct from manufacturer-authorized stock. Available through Compex sourcing workflows when active for your request.",
   },
 ];
 
@@ -72,8 +75,11 @@ export default function SuppliersPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {channels.map((ch) => (
               <div key={ch.name} className="bg-white border border-[#E4E7EC] rounded-xl p-6">
+                <div className="w-10 h-10 rounded-lg bg-[#e8eeff] flex items-center justify-center mb-4">
+                  <ch.icon size={20} className="text-[#1769E0]" />
+                </div>
                 <span className="tag mb-4">{ch.role}</span>
-                <h3 className="font-headline-sm text-[#0B1F3A] mb-2">{ch.name}</h3>
+                <h3 className="font-headline-sm text-[#0B1F3A] mb-2 mt-2">{ch.name}</h3>
                 <p className="font-body-sm text-[#44474d]">{ch.desc}</p>
               </div>
             ))}

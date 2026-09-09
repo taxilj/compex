@@ -22,6 +22,7 @@ const columns = [
     heading: "Catalogue",
     links: [
       { href: "/products", label: "Search Components" },
+      { href: "/categories", label: "Categories" },
       { href: "/manufacturers", label: "Manufacturers" },
       { href: "/resources", label: "Resources" },
     ],
@@ -29,9 +30,9 @@ const columns = [
   {
     heading: "Tools",
     links: [
-      { href: "/tools/bom", label: "BOM Management" },
+      { href: "/tools/bom", label: "BOM Sourcing" },
       { href: "/tools/rfq", label: "Request for Quote" },
-      { href: "/tools/search-multiple", label: "Search Multiple Parts" },
+      { href: "/tools/search-multiple", label: "Search Multiple MPNs" },
       { href: "/tools/calculators", label: "Engineering Calculators" },
     ],
   },

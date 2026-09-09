@@ -21,9 +21,9 @@ const industries = [
 ];
 
 const tools = [
-  { href: "/tools/bom", icon: FileSpreadsheet, title: "BOM Management" },
+  { href: "/tools/bom", icon: FileSpreadsheet, title: "BOM Sourcing" },
   { href: "/tools/rfq", icon: FileText, title: "Request for Quote" },
-  { href: "/tools/search-multiple", icon: ListChecks, title: "Search Multiple Parts" },
+  { href: "/tools/search-multiple", icon: ListChecks, title: "Search Multiple MPNs" },
   { href: "/tools/calculators", icon: Calculator, title: "Engineering Calculators" },
 ];
 
@@ -46,7 +46,7 @@ export default function HomePage() {
           <div className="max-w-[1280px] mx-auto">
             <div className="flex items-baseline justify-between mb-8">
               <h2 className="font-headline-lg text-[#0B1F3A]">Browse by Category</h2>
-              <Link href="/products" className="font-label-md text-[#1769E0] hover:underline whitespace-nowrap">View all →</Link>
+              <Link href="/categories" className="font-label-md text-[#1769E0] hover:underline whitespace-nowrap">View all →</Link>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[#E4E7EC] border border-[#E4E7EC]">
               {categories.slice(0, 8).map((cat) => (
@@ -56,9 +56,7 @@ export default function HomePage() {
                   className="bg-white p-5 hover:bg-[#f0f3ff] transition-colors group"
                 >
                   <h3 className="font-label-md text-[#111c2d] group-hover:text-[#1769E0]">{cat.name}</h3>
-                  {cat.children.length > 0 && (
-                    <p className="font-body-sm text-[#44474d] mt-1">{cat.children.length} subcategories</p>
-                  )}
+                  <p className="font-body-sm text-[#44474d] mt-1">{cat._count.products} product{cat._count.products !== 1 ? "s" : ""}</p>
                 </Link>
               ))}
             </div>

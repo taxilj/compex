@@ -12,23 +12,23 @@ const tools = [
   {
     href: "/tools/bom",
     icon: FileSpreadsheet,
-    title: "BOM Management",
+    title: "BOM Sourcing",
     who: "For engineers with a complete Bill of Materials",
-    desc: "Submit a full BOM for sourcing, or manage parsed BOM uploads inside your customer portal once logged in.",
+    desc: "Submit your bill of materials to prepare a component sourcing request. Logged-in customers can upload and track parsed BOMs in the portal.",
   },
   {
     href: "/tools/rfq",
     icon: FileText,
     title: "Request for Quote",
     who: "For buyers ready to source specific line items",
-    desc: "Build and submit a formal RFQ. Logged-in customers can track RFQ status end to end in the portal.",
+    desc: "Submit component requirements to Compex for sourcing and quotation. Logged-in customers can track RFQ status end to end in the portal.",
   },
   {
     href: "/tools/search-multiple",
     icon: ListChecks,
-    title: "Search Multiple Parts",
+    title: "Search Multiple MPNs",
     who: "For engineers checking availability on a part list",
-    desc: "Paste a list of exact MPNs and get manufacturer, category, package, and datasheet status for each in one pass.",
+    desc: "Check multiple exact manufacturer part numbers against Compex's sourcing network in one pass — manufacturer, category, package, and datasheet status for each.",
   },
   {
     href: "/tools/calculators",
@@ -62,8 +62,11 @@ export default function ToolsPage() {
               href={tool.href}
               className="group bg-white border border-[#E4E7EC] rounded-xl p-8 hover:border-[#1769E0] hover:shadow-md transition-all"
             >
-              <div className="w-12 h-12 rounded-lg bg-[#e8eeff] flex items-center justify-center mb-5">
-                <tool.icon size={22} className="text-[#1769E0]" />
+              <div
+                className="w-14 h-14 rounded-lg bg-[#e8eeff] flex items-center justify-center mb-5"
+                style={{ backgroundImage: "radial-gradient(circle, #c9d9fb 1px, transparent 1px)", backgroundSize: "8px 8px" }}
+              >
+                <tool.icon size={24} className="text-[#1769E0]" />
               </div>
               <h2 className="font-headline-sm text-[#0B1F3A] mb-1.5">{tool.title}</h2>
               <p className="font-mono-label text-[#75777e] mb-3">{tool.who}</p>

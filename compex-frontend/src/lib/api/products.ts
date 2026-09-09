@@ -91,6 +91,7 @@ export function lookupPublicProduct(mpn: string) {
 
 export interface CategoryWithChildren extends BackendCategory {
   children: BackendCategory[];
+  _count: { products: number };
 }
 
 export function listCategories() {
