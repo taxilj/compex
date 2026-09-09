@@ -15,6 +15,7 @@ import {
   Package,
   FolderTree,
   UploadCloud,
+  BarChart3,
 } from "lucide-react";
 
 const navGroups = [
@@ -37,6 +38,7 @@ const navGroups = [
       { href: "/admin/products", label: "Products", icon: Package, disabled: false },
       { href: "/admin/categories", label: "Categories", icon: FolderTree, disabled: false },
       { href: "/admin/catalog-import", label: "Catalog Import", icon: UploadCloud, disabled: false },
+      { href: "/admin/catalog-coverage", label: "Catalog Coverage", icon: BarChart3, disabled: false },
       { href: "/admin/organization", label: "Organization", icon: Building, disabled: false },
       { href: "/admin/settings", label: "Settings", icon: Settings, disabled: false },
     ],

@@ -120,4 +120,69 @@ export async function adminCatalogImportRoutes(app: FastifyInstance): Promise<vo
     ]);
     return reply.send(paginated(data, total, q.page, q.limit));
   });
+
+  // Internal catalog data-quality snapshot — STAFF/ADMIN only (this route's
+  // preHandler hooks above apply here too). Every figure is a live count over
+  // the real Product/Manufacturer/Category/ProductSource/CatalogImportRun
+  // tables; nothing here is invented or cached from a prior redesign.
+  app.get("/coverage", async (_req, reply) => {
+    const [
+      totalProducts,
+      totalManufacturers,
+      totalCategories,
+      productsMissingCategory,
+      productsMissingManufacturer,
+      productsMissingImage,
+      productsMissingDatasheet,
+      manufacturerBreakdown,
+      categoryBreakdown,
+      sourceBreakdown,
+      lastRun,
+      recentFailedRuns,
+    ] = await prisma.$transaction([
+      prisma.product.count(),
+      prisma.manufacturer.count(),
+      prisma.category.count(),
+      prisma.product.count({ where: { categoryId: null } }),
+      prisma.product.count({ where: { manufacturerId: null } }),
+      prisma.product.count({ where: { images: { isEmpty: true } } }),
+      prisma.product.count({ where: { datasheetUrl: null } }),
+      prisma.manufacturer.findMany({
+        select: { id: true, name: true, _count: { select: { products: true } } },
+        orderBy: { name: "asc" },
+      }),
+      prisma.category.findMany({
+        select: { id: true, name: true, _count: { select: { products: true } } },
+        orderBy: { name: "asc" },
+      }),
+      prisma.productSource.groupBy({ by: ["source"], _count: true, orderBy: { source: "asc" } }),
+      prisma.catalogImportRun.findFirst({
+        orderBy: { startedAt: "desc" },
+        select: { source: true, status: true, startedAt: true, completedAt: true, itemsProcessed: true, itemsCreated: true, itemsUpdated: true, itemsFailed: true },
+      }),
+      prisma.catalogImportRun.findMany({
+        where: { OR: [{ status: "FAILED" }, { itemsFailed: { gt: 0 } }] },
+        orderBy: { startedAt: "desc" },
+        take: 10,
+        select: { source: true, status: true, startedAt: true, itemsFailed: true, errorLog: true },
+      }),
+    ]);
+
+    return reply.send(ok({
+      totals: { products: totalProducts, manufacturers: totalManufacturers, categories: totalCategories },
+      dataQuality: {
+        productsMissingCategory,
+        productsMissingManufacturer,
+        productsMissingImage,
+        productsWithImage: totalProducts - productsMissingImage,
+        productsMissingDatasheet,
+        productsWithDatasheet: totalProducts - productsMissingDatasheet,
+      },
+      byManufacturer: manufacturerBreakdown.map((m) => ({ id: m.id, name: m.name, productCount: m._count.products })),
+      byCategory: categoryBreakdown.map((c) => ({ id: c.id, name: c.name, productCount: c._count.products })),
+      productSourceCoverage: sourceBreakdown.map((s) => ({ source: s.source, count: s._count })),
+      lastImportRun: lastRun,
+      recentImportErrors: recentFailedRuns,
+    }));
+  });
 }

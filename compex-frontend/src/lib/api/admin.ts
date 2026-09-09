@@ -328,6 +328,27 @@ export function listCatalogImportRuns(params?: { page?: number; limit?: number }
   return apiFetchPaginated<CatalogImportRun>(`/admin/catalog-import/runs${qs ? `?${qs}` : ""}`);
 }
 
+export interface CatalogCoverage {
+  totals: { products: number; manufacturers: number; categories: number };
+  dataQuality: {
+    productsMissingCategory: number;
+    productsMissingManufacturer: number;
+    productsMissingImage: number;
+    productsWithImage: number;
+    productsMissingDatasheet: number;
+    productsWithDatasheet: number;
+  };
+  byManufacturer: Array<{ id: string; name: string; productCount: number }>;
+  byCategory: Array<{ id: string; name: string; productCount: number }>;
+  productSourceCoverage: Array<{ source: string; count: number }>;
+  lastImportRun: Pick<CatalogImportRun, "source" | "status" | "startedAt" | "completedAt" | "itemsProcessed" | "itemsCreated" | "itemsUpdated" | "itemsFailed"> | null;
+  recentImportErrors: Array<Pick<CatalogImportRun, "source" | "status" | "startedAt" | "itemsFailed" | "errorLog">>;
+}
+
+export function getCatalogCoverage() {
+  return apiFetch<CatalogCoverage>("/admin/catalog-import/coverage");
+}
+
 export interface AdminQuotation {
   id: string;
   quotationNumber: string;
