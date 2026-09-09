@@ -55,7 +55,7 @@ export default function IndustriesPage() {
         <div className="max-w-[1280px] mx-auto text-center">
           <h2 className="font-headline-lg text-[#0B1F3A] mb-4">Sourcing for Your Sector</h2>
           <p className="font-body-lg text-[#44474d] mb-8 max-w-2xl mx-auto">
-            Have a specific component requirement? Our team handles sourcing across hundreds of manufacturers and distributors globally.
+            Have a specific component requirement? Our team sources across a verified network of authorized manufacturers and distributors.
           </p>
           <Link
             href="/request-quote"

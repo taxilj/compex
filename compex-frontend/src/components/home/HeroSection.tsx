@@ -68,7 +68,7 @@ export function HeroSection() {
             </button>
           </form>
 
-          <p className="font-body-sm text-[#44474d]/70 mt-3">Search by exact manufacturer part number.</p>
+          <p className="font-body-sm text-[#44474d] mt-3">Search by exact manufacturer part number.</p>
 
           <div className="flex flex-wrap gap-2 mt-8">
             {categoryCues.map((cue) =>

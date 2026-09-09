@@ -13,6 +13,7 @@ const columns = [
     heading: "Sourcing",
     links: [
       { href: "/sourcing", label: "How Sourcing Works" },
+      { href: "/suppliers", label: "Sourcing Network" },
       { href: "/services", label: "Services" },
       { href: "/industries", label: "Industries We Serve" },
     ],
@@ -23,6 +24,15 @@ const columns = [
       { href: "/products", label: "Search Components" },
       { href: "/manufacturers", label: "Manufacturers" },
       { href: "/resources", label: "Resources" },
+    ],
+  },
+  {
+    heading: "Tools",
+    links: [
+      { href: "/tools/bom", label: "BOM Management" },
+      { href: "/tools/rfq", label: "Request for Quote" },
+      { href: "/tools/search-multiple", label: "Search Multiple Parts" },
+      { href: "/tools/calculators", label: "Engineering Calculators" },
     ],
   },
   {
@@ -39,7 +49,7 @@ export default function PublicFooter() {
   return (
     <footer className="w-full bg-[#0B1F3A] text-[#afc6ff] py-14 mt-16">
       <div className="max-w-[1440px] mx-auto px-4 md:px-8">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-x-8 gap-y-10 pb-10 border-b border-white/10">
+        <div className="grid grid-cols-2 md:grid-cols-7 gap-x-8 gap-y-10 pb-10 border-b border-white/10">
           <div className="col-span-2 md:col-span-2 space-y-3">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded bg-[#1769E0] flex items-center justify-center">

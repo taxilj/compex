@@ -61,15 +61,43 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
   }, [mpn]);
 
   if (loading) {
-    return <div className="max-w-[1280px] mx-auto px-6 py-12 font-body-md text-[#44474d]">Looking up product...</div>;
+    return (
+      <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
+        <BreadcrumbShell current={mpn} />
+        <div className="flex flex-col lg:flex-row gap-8" aria-busy="true" aria-label="Looking up product">
+          <div className="flex-1 space-y-8">
+            <div className="bg-white rounded-xl p-8 border border-[#E4E7EC] shadow-sm flex flex-col md:flex-row gap-8">
+              <div className="w-full md:w-56 h-56 shrink-0 bg-[#f0f3ff] rounded-lg animate-pulse" />
+              <div className="flex-1 min-w-0 space-y-3 py-1">
+                <div className="h-3 w-24 bg-[#f0f3ff] rounded animate-pulse" />
+                <div className="h-9 w-64 bg-[#f0f3ff] rounded animate-pulse" />
+                <div className="h-4 w-40 bg-[#f0f3ff] rounded animate-pulse" />
+                <div className="h-4 w-full max-w-md bg-[#f0f3ff] rounded animate-pulse" />
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6 space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-9 w-full bg-[#f0f3ff] rounded animate-pulse" />
+              ))}
+            </div>
+          </div>
+          <div className="w-full lg:w-80">
+            <div className="h-40 bg-[#f0f3ff] rounded-xl animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="max-w-[1280px] mx-auto px-6 py-12 text-center">
-        <h1 className="font-headline-lg text-[#111c2d] mb-3">Product lookup unavailable</h1>
-        <p className="font-body-md text-[#44474d] mb-6">{error}</p>
-        <Link href="/products" className="text-[#1769E0] hover:underline font-label-md">Back to catalogue</Link>
+      <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
+        <BreadcrumbShell current={mpn} />
+        <div className="border border-[#F04438]/30 bg-[#F04438]/5 rounded-xl px-6 py-10 text-center" role="alert">
+          <h1 className="font-headline-lg text-[#111c2d] mb-3">Product lookup unavailable</h1>
+          <p className="font-body-md text-[#B42318] mb-6">{error}</p>
+          <Link href="/products" className="text-[#1769E0] hover:underline font-label-md">Back to catalogue</Link>
+        </div>
       </div>
     );
   }
@@ -80,11 +108,7 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
 
   return (
     <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
-      <nav className="flex items-center gap-2 font-label-sm text-[#44474d] text-xs">
-        <Link href="/" className="hover:text-[#1769E0]">Home</Link><span>/</span>
-        <Link href="/products" className="hover:text-[#1769E0]">Products</Link><span>/</span>
-        <span className="text-[#111c2d]">{product.mpn}</span>
-      </nav>
+      <BreadcrumbShell current={product.mpn} />
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-1 space-y-8">
@@ -118,7 +142,7 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
                   <FileText size={16} /> Download Datasheet (PDF)
                 </a>
               ) : (
-                <span className="flex items-center gap-2 text-[#44474d]/60 font-label-md text-sm">
+                <span className="flex items-center gap-2 text-[#44474d] font-label-md text-sm">
                   <FileText size={16} /> Datasheet unavailable
                 </span>
               )}
@@ -184,17 +208,30 @@ function SourcesPanel({ sources }: { sources: ProviderStatusEntry[] }) {
 function NoResult({ mpn, sources }: { mpn: string; sources: ProviderStatusEntry[] }) {
   const unavailable = sources.some((s) => s.status === "ERROR" || s.status === "TIMEOUT" || s.status === "RATE_LIMITED");
   return (
-    <div className="max-w-[1280px] mx-auto px-6 py-12 text-center">
-      <h1 className="font-headline-lg text-[#111c2d] mb-3">Product not found</h1>
-      <p className="font-body-md text-[#44474d] mb-6">We couldn&apos;t find an exact product match for MPN &ldquo;{mpn}&rdquo;.</p>
-      {unavailable && (
-        <p className="text-xs text-[#8a6d3b] bg-[#fdf6e3] inline-block rounded px-3 py-2 mb-6">Some sources are temporarily unavailable. This is not confirmed as a non-existent part.</p>
-      )}
-      <div className="flex flex-wrap justify-center gap-4">
-        <Link href={quoteHref(mpn)} className="bg-[#1769E0] text-white px-5 py-3 rounded-lg font-label-md hover:bg-[#1257b8]">Request a Quote</Link>
-        <Link href="/products" className="text-[#1769E0] hover:underline font-label-md py-3">Back to catalogue</Link>
+    <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
+      <BreadcrumbShell current={mpn} />
+      <div className="text-center py-6 border border-dashed border-[#E4E7EC] rounded-xl">
+        <h1 className="font-headline-lg text-[#111c2d] mb-3">Product not found</h1>
+        <p className="font-body-md text-[#44474d] mb-6">We couldn&apos;t find an exact product match for MPN &ldquo;{mpn}&rdquo;.</p>
+        {unavailable && (
+          <p className="text-xs text-[#8a6d3b] bg-[#fdf6e3] inline-block rounded px-3 py-2 mb-6">Some sources are temporarily unavailable. This is not confirmed as a non-existent part.</p>
+        )}
+        <div className="flex flex-wrap justify-center gap-4">
+          <Link href={quoteHref(mpn)} className="bg-[#1769E0] text-white px-5 py-3 rounded-lg font-label-md hover:bg-[#1257b8]">Request a Quote</Link>
+          <Link href="/products" className="text-[#1769E0] hover:underline font-label-md py-3">Back to catalogue</Link>
+        </div>
       </div>
     </div>
+  );
+}
+
+function BreadcrumbShell({ current }: { current: string }) {
+  return (
+    <nav className="flex items-center gap-2 font-label-sm text-[#44474d] text-xs" aria-label="Breadcrumb">
+      <Link href="/" className="hover:text-[#1769E0]">Home</Link><span>/</span>
+      <Link href="/products" className="hover:text-[#1769E0]">Products</Link><span>/</span>
+      <span className="text-[#111c2d] font-mono">{current}</span>
+    </nav>
   );
 }
 

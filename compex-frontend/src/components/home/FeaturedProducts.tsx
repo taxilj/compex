@@ -54,14 +54,10 @@ function writeCache(products: PublicProduct[]): void {
 }
 
 export function FeaturedProducts() {
-  const [products, setProducts] = useState<PublicProduct[] | null>(null);
+  const [products, setProducts] = useState<PublicProduct[] | null>(() => readCache());
 
   useEffect(() => {
-    const cached = readCache();
-    if (cached) {
-      setProducts(cached);
-      return;
-    }
+    if (products !== null) return;
 
     let cancelled = false;
     Promise.all(
@@ -79,7 +75,7 @@ export function FeaturedProducts() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [products]);
 
   const focusSearch = () => {
     const input = document.getElementById("hero-mpn-search") as HTMLInputElement | null;
@@ -135,8 +131,8 @@ export function FeaturedProducts() {
                   {product.category && (
                     <span className="font-label-sm text-[#1769E0] uppercase tracking-wider text-[10px] truncate">{product.category}</span>
                   )}
-                  <p className="font-mono-label text-[#111c2d] font-medium break-words">{product.mpn}</p>
-                  <p className="font-body-sm text-[#44474d] break-words">{product.manufacturer}</p>
+                  <p className="font-mono text-[17px] font-bold text-[#0B1F3A] leading-tight break-words">{product.mpn}</p>
+                  <p className="font-label-md text-[#273143] break-words">{product.manufacturer}</p>
                   <p className="font-body-sm text-[#44474d]/80 line-clamp-2">{product.productName}</p>
                   {packageSpec && (
                     <div className="flex flex-wrap gap-1.5 mt-1">

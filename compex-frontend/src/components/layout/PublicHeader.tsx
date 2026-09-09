@@ -7,7 +7,10 @@ import { Menu, X, Search, ChevronDown } from "lucide-react";
 import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 
 const navLinks = [
+  { href: "/products", label: "Products" },
   { href: "/manufacturers", label: "Manufacturers" },
+  { href: "/suppliers", label: "Suppliers" },
+  { href: "/tools", label: "Tools" },
   { href: "/sourcing", label: "How Sourcing Works" },
   { href: "/industries", label: "Industries" },
 ];
@@ -91,7 +94,7 @@ export default function PublicHeader() {
         </form>
 
         {/* Secondary nav */}
-        <nav className="hidden lg:flex items-center gap-6 shrink-0">
+        <nav className="hidden xl:flex items-center gap-5 shrink-0">
           {navLinks.map((link) => (
             <Link key={link.href} href={link.href} className="font-label-md text-[#44474d] hover:text-[#1769E0] whitespace-nowrap">
               {link.label}
@@ -110,7 +113,7 @@ export default function PublicHeader() {
           >
             Request a Quote
           </Link>
-          <button className="lg:hidden p-1 text-[#44474d]" onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu">
+          <button className="xl:hidden p-1 text-[#44474d]" onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu">
             {mobileOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
@@ -118,7 +121,7 @@ export default function PublicHeader() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden border-t border-[#E4E7EC] bg-white">
+        <div className="xl:hidden border-t border-[#E4E7EC] bg-white">
           <div className="max-w-[1440px] mx-auto px-4 py-4 flex flex-col gap-4">
             <form onSubmit={submitSearch} className="flex items-center gap-2 border border-[#E4E7EC] rounded px-3 py-2">
               <Search size={16} className="text-[#75777e] shrink-0" />
@@ -131,9 +134,6 @@ export default function PublicHeader() {
               />
             </form>
             <nav className="flex flex-col gap-1">
-              <Link href="/products" className="font-label-md text-[#44474d] hover:text-[#1769E0] py-2" onClick={() => setMobileOpen(false)}>
-                All Products
-              </Link>
               {navLinks.map((link) => (
                 <Link key={link.href} href={link.href} className="font-label-md text-[#44474d] hover:text-[#1769E0] py-2" onClick={() => setMobileOpen(false)}>
                   {link.label}
