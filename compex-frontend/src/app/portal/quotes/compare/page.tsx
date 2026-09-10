@@ -27,7 +27,10 @@ export default function QuoteComparePage() {
   useEffect(() => {
     listCustomerQuotes()
       .then((res) => setQuotes(res.data.filter((q) => q.status === "SENT" || q.status === "VIEWED")))
-      .catch(() => setError("Failed to load quotations."))
+      .catch((err) => {
+        console.error("Failed to load quotations:", err);
+        setError("Failed to load quotations.");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -39,7 +42,8 @@ export default function QuoteComparePage() {
     try {
       const updated = await acceptQuote(id);
       setQuotes((prev) => prev.map((q) => (q.id === id ? updated : q)).filter((q) => q.status === "SENT" || q.status === "VIEWED"));
-    } catch {
+    } catch (err) {
+      console.error(`Failed to accept quote ${id}:`, err);
       setAcceptError("The quotation could not be accepted. Refresh and try again.");
     } finally {
       setAcceptingIds((prev) => {

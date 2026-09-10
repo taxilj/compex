@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, notFound } from "next/navigation";
 import Link from "next/link";
 import { getRfq, type BackendRfq, type BackendRfqItem } from "@/lib/api/rfqs";
@@ -35,13 +35,31 @@ function isComplete(item: BackendRfqItem): boolean {
   return Boolean(item.manufacturer) && Boolean(item.description);
 }
 
+type DocumentsState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; documents: RfqDocument[] };
+
 export default function RFQBOMPage() {
   const params = useParams<{ id: string }>();
   const [rfq, setRfq] = useState<(BackendRfq & { items: BackendRfqItem[] }) | null>(null);
-  const [documents, setDocuments] = useState<RfqDocument[]>([]);
+  const [documentsState, setDocumentsState] = useState<DocumentsState>({ status: "loading" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFoundErr, setNotFoundErr] = useState(false);
+
+  const loadDocuments = useCallback(() => {
+    if (!params.id) return;
+    setDocumentsState({ status: "loading" });
+    listRfqDocuments(params.id)
+      .then((documents) => setDocumentsState({ status: "ready", documents }))
+      .catch((err) => {
+        // A failed document fetch must never be mistaken for "no file
+        // uploaded" — that's a false claim about the RFQ's actual state.
+        console.error(`Failed to load documents for RFQ ${params.id}:`, err);
+        setDocumentsState({ status: "error" });
+      });
+  }, [params.id]);
 
   useEffect(() => {
     if (!params.id) return;
@@ -50,16 +68,18 @@ export default function RFQBOMPage() {
         setRfq(rfqData);
         // Missing/failed document metadata shouldn't fail the whole page —
         // the RFQ itself already loaded successfully.
-        listRfqDocuments(params.id)
-          .then(setDocuments)
-          .catch(() => setDocuments([]));
+        loadDocuments();
       })
       .catch((err) => {
-        if (err instanceof ApiError && err.statusCode === 404) setNotFoundErr(true);
-        else setError("Failed to load this RFQ's BOM. Please try again.");
+        if (err instanceof ApiError && err.statusCode === 404) {
+          setNotFoundErr(true);
+        } else {
+          console.error(`Failed to load RFQ ${params.id}:`, err);
+          setError("Failed to load this RFQ's BOM. Please try again.");
+        }
       })
       .finally(() => setLoading(false));
-  }, [params.id]);
+  }, [params.id, loadDocuments]);
 
   if (loading) {
     return (
@@ -84,7 +104,7 @@ export default function RFQBOMPage() {
 
   const completeCount = rfq.items.filter(isComplete).length;
   const missingCount = rfq.items.length - completeCount;
-  const latestDoc = documents[0] ?? null;
+  const latestDoc = documentsState.status === "ready" ? (documentsState.documents[0] ?? null) : null;
 
   return (
     <div className="max-w-[1280px] mx-auto space-y-6">
@@ -107,38 +127,58 @@ export default function RFQBOMPage() {
         {/* File info panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg border border-[#E4E7EC] p-5">
-            {latestDoc ? (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded bg-[#f0f3ff] flex items-center justify-center shrink-0">
-                    <FileSpreadsheet size={22} className="text-[#1769E0]" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-label-md text-[#111c2d] truncate">{latestDoc.fileName}</p>
-                    <p className="font-body-sm text-[#44474d] text-xs">
-                      {latestDoc.createdAt.split("T")[0]} · {formatBytes(latestDoc.fileSizeBytes)}
-                    </p>
-                  </div>
-                </div>
-                <div className="border-t border-[#E4E7EC] pt-4">
-                  {(() => {
-                    const cfg = DOC_STATUS_CONFIG[latestDoc.processingStatus];
-                    const Icon = cfg.icon;
-                    return (
-                      <span className={`flex items-center gap-1.5 font-label-sm text-sm ${cfg.className}`}>
-                        <Icon size={14} /> {cfg.label}
-                      </span>
-                    );
-                  })()}
-                  {latestDoc.processingStatus === "FAILED" && latestDoc.processingError && (
-                    <p className="font-body-sm text-[#F04438] text-xs mt-2">{latestDoc.processingError}</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <p className="font-body-sm text-[#44474d]">
-                No BOM file uploaded — items on this RFQ were added manually.
+            {documentsState.status === "loading" && (
+              <p className="font-body-sm text-[#44474d] flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" /> Loading document info…
               </p>
+            )}
+            {documentsState.status === "error" && (
+              <div className="space-y-2">
+                <p className="font-body-sm text-[#F04438] flex items-center gap-1.5">
+                  <XCircle size={14} /> Unable to load BOM document information
+                </p>
+                <button
+                  onClick={loadDocuments}
+                  className="font-label-sm text-[#1769E0] hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {documentsState.status === "ready" && (
+              latestDoc ? (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded bg-[#f0f3ff] flex items-center justify-center shrink-0">
+                      <FileSpreadsheet size={22} className="text-[#1769E0]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-label-md text-[#111c2d] truncate">{latestDoc.fileName}</p>
+                      <p className="font-body-sm text-[#44474d] text-xs">
+                        {latestDoc.createdAt.split("T")[0]} · {formatBytes(latestDoc.fileSizeBytes)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="border-t border-[#E4E7EC] pt-4">
+                    {(() => {
+                      const cfg = DOC_STATUS_CONFIG[latestDoc.processingStatus];
+                      const Icon = cfg.icon;
+                      return (
+                        <span className={`flex items-center gap-1.5 font-label-sm text-sm ${cfg.className}`}>
+                          <Icon size={14} /> {cfg.label}
+                        </span>
+                      );
+                    })()}
+                    {latestDoc.processingStatus === "FAILED" && latestDoc.processingError && (
+                      <p className="font-body-sm text-[#F04438] text-xs mt-2">{latestDoc.processingError}</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="font-body-sm text-[#44474d]">
+                  No BOM file uploaded — items on this RFQ were added manually.
+                </p>
+              )
             )}
             <div className="space-y-2.5 border-t border-[#E4E7EC] pt-4 mt-4">
               <div className="flex justify-between font-body-sm">
