@@ -13,9 +13,12 @@ export function proxy(request: NextRequest) {
   // NOTE: "/admin/customers" is a real, API-backed, tested feature (see
   // admin.customers.routes.ts and the AdminSidebar "Management" nav group) —
   // it must not be redirected alongside the genuinely unbuilt mock pages below.
+  // "/admin/products" was previously listed here too, but it is also real and
+  // API-backed (lib/api/admin.ts: listAdminProducts/createProduct/updateProduct) —
+  // that was a bug hiding working functionality, not an unbuilt page.
   const { pathname } = request.nextUrl;
   const unsupportedAdminRoutes = [
-    "/admin/invoices", "/admin/orders", "/admin/products",
+    "/admin/invoices", "/admin/orders",
     "/admin/purchase-orders", "/admin/reports", "/admin/shipments",
   ];
   const unsupportedPortalPrefixes = [
@@ -25,9 +28,6 @@ export function proxy(request: NextRequest) {
   if (unsupportedAdminRoutes.includes(pathname)) return NextResponse.redirect(new URL("/admin", request.url));
   if (unsupportedPortalPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return NextResponse.redirect(new URL("/portal", request.url));
-  }
-  if (pathname === "/portal/quotes/compare" || /^\/portal\/rfqs\/[^/]+\/bom$/.test(pathname)) {
-    return NextResponse.redirect(new URL(pathname === "/portal/quotes/compare" ? "/portal/quotes" : "/portal/rfqs", request.url));
   }
   return NextResponse.next();
 }

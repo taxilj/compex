@@ -105,6 +105,32 @@ it("keeps internal sourcing states private and rejects skipped transitions", asy
   expect(customerView.json().data).not.toHaveProperty("sourcingStatus");
 });
 
+it("lists an RFQ's documents (empty when none uploaded)", async () => {
+  const rfqRes = await app.inject({ method: "POST", url: "/api/v1/rfqs", headers: { authorization: `Bearer ${token}` }, payload: {} });
+  const rfqId = rfqRes.json().data.id as string;
+
+  const res = await app.inject({
+    method: "GET",
+    url: `/api/v1/rfqs/${rfqId}/documents`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  expect(res.statusCode).toBe(200);
+  expect(res.json().data).toEqual([]);
+});
+
+it("404s listing documents for another customer's RFQ", async () => {
+  const rfqRes = await app.inject({ method: "POST", url: "/api/v1/rfqs", headers: { authorization: `Bearer ${token}` }, payload: {} });
+  const rfqId = rfqRes.json().data.id as string;
+
+  const { accessToken: otherToken } = await registerAndLogin(app, "other-rfq-docs@test.com", "OtherDocs");
+  const res = await app.inject({
+    method: "GET",
+    url: `/api/v1/rfqs/${rfqId}/documents`,
+    headers: { authorization: `Bearer ${otherToken}` },
+  });
+  expect(res.statusCode).toBe(404);
+});
+
 // 11. Invalid RFQ data rejected
 it("rejects invalid priority value", async () => {
   const res = await app.inject({

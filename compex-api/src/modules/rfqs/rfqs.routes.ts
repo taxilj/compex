@@ -92,4 +92,12 @@ export async function rfqsRoutes(app: FastifyInstance): Promise<void> {
     const result = await bomUploadHandler(req, id, customerId, userId);
     return reply.status(202).send(ok(result));
   });
+
+  app.get("/:id/documents", async (req, reply) => {
+    const { customerId } = req.user!;
+    if (!customerId) throw Errors.forbidden();
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const documents = await rfqsService.listRfqDocuments(id, customerId);
+    return reply.send(ok(documents));
+  });
 }

@@ -311,3 +311,21 @@ export async function deleteItem(rfqId: string, itemId: string, customerId: stri
 
   await prisma.rfqItem.delete({ where: { id: itemId } });
 }
+
+export async function listRfqDocuments(rfqId: string, customerId: string) {
+  await assertOwnership(rfqId, customerId);
+
+  return prisma.document.findMany({
+    where: { rfqId },
+    select: {
+      id: true,
+      fileName: true,
+      documentType: true,
+      processingStatus: true,
+      processingError: true,
+      fileSizeBytes: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
