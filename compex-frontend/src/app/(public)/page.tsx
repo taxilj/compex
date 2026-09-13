@@ -1,12 +1,9 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, FileSpreadsheet, FileText, ListChecks, Calculator } from "lucide-react";
 import { HeroSection } from "@/components/home/HeroSection";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
+import { CategorySection } from "@/components/home/CategorySection";
 import { ManufacturerMarquee } from "@/components/home/ManufacturerMarquee";
-import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 
 const howItWorks = [
   { step: "01", title: "Submit your requirement", desc: "Search an exact MPN, or upload your Bill of Materials for multiple line items." },
@@ -28,41 +25,13 @@ const tools = [
 ];
 
 export default function HomePage() {
-  const [categories, setCategories] = useState<CategoryWithChildren[]>([]);
-
-  useEffect(() => {
-    listCategories().then(setCategories).catch(() => {});
-  }, []);
-
   return (
     <div className="flex flex-col w-full">
       <HeroSection />
 
       <FeaturedProducts />
 
-      {/* Categories — real taxonomy, no invented counts */}
-      {categories.length > 0 && (
-        <section className="py-16 px-4 md:px-8 border-b border-[#E4E7EC]">
-          <div className="max-w-[1280px] mx-auto">
-            <div className="flex items-baseline justify-between mb-8">
-              <h2 className="font-headline-lg text-[#0B1F3A]">Browse by Category</h2>
-              <Link href="/categories" className="font-label-md text-[#1769E0] hover:underline whitespace-nowrap">View all →</Link>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[#E4E7EC] border border-[#E4E7EC]">
-              {categories.slice(0, 8).map((cat) => (
-                <Link
-                  key={cat.id}
-                  href={`/products?categoryId=${encodeURIComponent(cat.id)}`}
-                  className="bg-white p-5 hover:bg-[#f0f3ff] transition-colors group"
-                >
-                  <h3 className="font-label-md text-[#111c2d] group-hover:text-[#1769E0]">{cat.name}</h3>
-                  <p className="font-body-sm text-[#44474d] mt-1">{cat._count.products} product{cat._count.products !== 1 ? "s" : ""}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+      <CategorySection />
 
       {/* Manufacturers — real catalogue data, hides itself when empty */}
       <ManufacturerMarquee />
