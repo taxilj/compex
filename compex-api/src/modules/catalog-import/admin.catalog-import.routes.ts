@@ -49,10 +49,21 @@ export async function adminCatalogImportRoutes(app: FastifyInstance): Promise<vo
     // Small admin-curated files only — runs inline rather than through a new
     // BullMQ job type. If import volume grows, move this behind the worker
     // infrastructure already used for BOM processing (bom-processor.ts).
-    await runImport(fetcher, run.id);
-
-    const result = await prisma.catalogImportRun.findUnique({ where: { id: run.id } });
-    return reply.status(201).send(ok(result));
+    try {
+      await runImport(fetcher, run.id);
+      const result = await prisma.catalogImportRun.findUnique({ where: { id: run.id } });
+      return reply.status(201).send(ok(result));
+    } catch (err) {
+      // runImport already persisted status=FAILED + errorLog (a safe,
+      // customer-facing message for a rejected/malformed workbook — never
+      // the raw parser error) — surface that instead of a bare 500, same
+      // response shape as the /mouser, /element14, /digikey routes below
+      // (though those don't log; this one does, since a rejected file and
+      // a genuine backend failure here must not be equally invisible).
+      req.log.error({ err, runId: run.id }, "catalog CSV/XLSX import failed");
+      const failed = await prisma.catalogImportRun.findUnique({ where: { id: run.id } });
+      return reply.status(422).send(ok(failed));
+    }
   });
 
   // Single-MPN lookup against a live source (Phase 2, step 8) — reuses the

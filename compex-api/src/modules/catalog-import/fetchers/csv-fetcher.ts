@@ -1,9 +1,6 @@
-import * as XLSX from "xlsx";
 import { parse } from "csv-parse/sync";
+import { readFirstSheetSafely } from "../../../lib/xlsx-safe.js";
 import type { CatalogFetcher, RawCatalogItem } from "../types.js";
-
-// Same safety options as bom-processor.ts: no formula evaluation, no macros.
-const XLSX_READ_OPTS: XLSX.ParsingOptions = { cellFormula: false, cellHTML: false, cellDates: true, password: "" };
 
 const HEADER_MAP: Record<string, keyof RawCatalogItem> = {
   mpn: "mpn",
@@ -56,11 +53,7 @@ export function createCsvFetcher(buffer: Buffer, ext: ".csv" | ".xlsx"): Catalog
       const rows: Record<string, unknown>[] =
         ext === ".csv"
           ? (parse(buffer, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[])
-          : (() => {
-              const wb = XLSX.read(buffer, XLSX_READ_OPTS);
-              const ws = wb.Sheets[wb.SheetNames[0]];
-              return XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
-            })();
+          : readFirstSheetSafely(buffer);
       return { items: rows.map(mapRow) };
     },
   };

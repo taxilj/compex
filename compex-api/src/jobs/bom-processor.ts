@@ -1,20 +1,12 @@
 ﻿import { Worker } from "bullmq";
 import IORedis from "ioredis";
-import * as XLSX from "xlsx";
 import { parse } from "csv-parse/sync";
 import { prisma } from "../lib/prisma.js";
 import { getStorage } from "../modules/documents/documents.service.js";
 import { env } from "../config/env.js";
 import { Decimal } from "@prisma/client/runtime/library";
 import { nextRfqItemLineNumber } from "../modules/rfqs/rfq-line-number.js";
-
-// XLSX safety: disable formula evaluation, no macro execution
-const XLSX_READ_OPTS: XLSX.ParsingOptions = {
-  cellFormula: false,
-  cellHTML: false,
-  cellDates: true,
-  password: "",
-};
+import { readFirstSheetSafely } from "../lib/xlsx-safe.js";
 
 interface BomRow {
   mpn?: string;
@@ -60,9 +52,7 @@ function parseRows(buffer: Buffer, ext: string): BomRow[] {
     });
   }
 
-  const wb = XLSX.read(buffer, XLSX_READ_OPTS);
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+  const raw = readFirstSheetSafely(buffer);
   return raw.map((row) => {
     const normalized: BomRow = {};
     for (const [k, v] of Object.entries(row)) {
