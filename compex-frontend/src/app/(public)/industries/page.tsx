@@ -1,38 +1,13 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { Factory, Cpu, Zap, Shield, Heart, Radio, Train, Wifi, Car } from "lucide-react";
 import Link from "next/link";
 import CTABanner from "@/components/ui/CTABanner";
+import { industries } from "./industries-data";
 
 export const metadata: Metadata = {
   title: "Electronic Component Sourcing by Industry | Compex Solution",
   description: "Compex Solution sources electronic components for industrial automation, automotive, medical, telecom, defense, and more industries across India.",
 };
-
-// Real, owner-provided photography only (compex-frontend/public/images) --
-// no per-industry stock photos exist, so the same small set is reused
-// across cards rather than inventing or sourcing new imagery.
-const industryImages = [
-  "/images/hero/pcb-electronic-components.jpg",
-  "/images/products/circuit-board-detail.jpg",
-  "/images/services/warehouse-operations.jpg",
-  "/images/hero/electronics-components-hero-transparent.png",
-];
-
-const industries = [
-  { icon: Car, name: "Automotive Electronics", desc: "Sourcing ICs, sensors, and power components for automotive-grade applications." },
-  { icon: Factory, name: "Industrial Automation", desc: "PLCs, drives, motion controllers, and embedded modules for manufacturing lines." },
-  { icon: Zap, name: "Power & Energy", desc: "Power semiconductors, MOSFETs, IGBTs, and magnetic components for energy systems." },
-  { icon: Shield, name: "Defense & Aerospace", desc: "High-reliability components with full traceability for mission-critical applications." },
-  { icon: Heart, name: "Medical Devices", desc: "Precision ICs, sensors, and passive components for medical equipment." },
-  { icon: Cpu, name: "Consumer Electronics", desc: "Microcontrollers, display drivers, and connectivity modules at volume." },
-  { icon: Radio, name: "Telecom & Networking", desc: "RF components, transceivers, and switching ICs for communication infrastructure." },
-  { icon: Train, name: "Railway & Infrastructure", desc: "Ruggedized components for rail signaling, control, and power systems." },
-  { icon: Wifi, name: "IoT & Embedded Systems", desc: "Wireless modules, microcontrollers, and sensors for connected product development." },
-].map((industry, index) => ({
-  ...industry,
-  image: industryImages[index % industryImages.length],
-}));
 
 export default function IndustriesPage() {
   return (
@@ -53,11 +28,11 @@ export default function IndustriesPage() {
         <div className="max-w-[1280px] mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {industries.map((ind, index) => (
-              <div key={ind.name} className="bg-white border border-[#E4E7EC] rounded-xl overflow-hidden hover:border-[#1769E0] hover:shadow-md transition-all group">
+              <div key={ind.slug} className="bg-white border border-[#E4E7EC] rounded-xl overflow-hidden hover:border-[#1769E0] hover:shadow-md transition-all group">
                 <div className="relative w-full aspect-[16/10] bg-[#f0f3ff]">
                   <Image
                     src={ind.image}
-                    alt={`${ind.name} electronic components`}
+                    alt={ind.imageAlt}
                     fill
                     sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                     loading={index < 3 ? "eager" : "lazy"}
