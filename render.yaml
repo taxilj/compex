@@ -16,6 +16,8 @@ services:
         value: 0.0.0.0
       - key: EMAIL_PROVIDER
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
       - key: ENQUIRY_NOTIFICATION_TO
         value: sales@compexsolution.com
       - key: STORAGE_PROVIDER

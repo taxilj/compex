@@ -60,27 +60,34 @@ export function safeNotificationError(error: unknown): string {
 }
 
 // Diagnostic fields only -- deliberately excludes error.message/.hostname/.address/.port,
-// which can carry SMTP_HOST or other config values on connection-level errors.
+// which can carry config values or provider response text on connection-level errors.
+// `command`/`responseCode` are retained from the old nodemailer/SMTP transport for
+// backward-compatible log shape; `statusCode` is the Resend HTTP transport's
+// equivalent (see EmailProviderError in lib/email.ts).
 interface EmailErrorDiagnostics {
   errorName: string;
   code?: string;
   command?: string;
   responseCode?: number;
+  statusCode?: number;
   timeoutLikely: boolean;
 }
 
 function sanitizeEmailErrorForLogging(error: unknown): EmailErrorDiagnostics {
-  const details = error as { code?: unknown; command?: unknown; responseCode?: unknown } | undefined;
+  const details = error as { code?: unknown; command?: unknown; responseCode?: unknown; statusCode?: unknown } | undefined;
   const code = typeof details?.code === "string" ? details.code : undefined;
+  const errorName = error instanceof Error ? error.name : "UnknownError";
   return {
-    errorName: error instanceof Error ? error.name : "UnknownError",
+    errorName,
     code,
     command: typeof details?.command === "string" ? details.command : undefined,
     responseCode: typeof details?.responseCode === "number" ? details.responseCode : undefined,
-    // nodemailer's smtp-connection only sets code:'ETIMEDOUT' for its three timeout
-    // paths (connectionTimeout, greetingTimeout, socketTimeout). 'ESOCKET' covers other
-    // socket-level failures (e.g. an immediate reset) that are not timeouts, so it's
-    // deliberately excluded here to keep this flag conservative.
+    statusCode: typeof details?.statusCode === "number" ? details.statusCode : undefined,
+    // nodemailer's smtp-connection only set code:'ETIMEDOUT' for its three timeout
+    // paths (connectionTimeout, greetingTimeout, socketTimeout); the Resend HTTPS
+    // transport instead throws an EmailProviderError with code:'ETIMEDOUT' (fetch
+    // AbortError) for the same case -- both are covered here. 'ESOCKET' and generic
+    // network error names are deliberately excluded to keep this flag conservative.
     timeoutLikely: code === "ETIMEDOUT",
   };
 }

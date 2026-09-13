@@ -218,6 +218,41 @@ describe("website enquiry intake", () => {
     logSpy.mockRestore();
   });
 
+  it("logs the Resend HTTP status/error code on notification failure, with no API key or response body leakage", async () => {
+    // Mirrors the shape EmailProviderError (src/lib/email.ts) throws for a
+    // non-2xx Resend response -- statusCode/code only, no raw response body.
+    const resendError = Object.assign(new Error("Resend API rejected the request (status 429)"), {
+      name: "EmailProviderError",
+      code: "rate_limit_exceeded",
+      statusCode: 429,
+    });
+    mocks.sendEmail.mockRejectedValue(resendError);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await createWebsiteEnquiry(WebsiteEnquirySchema.parse(contact), undefined, {});
+
+    const logged = errorSpy.mock.calls.map((call) => call[0] as string).find((line) => line.includes("website_enquiry_notification_failed"));
+    expect(logged).toBeDefined();
+    const event = JSON.parse(logged!);
+
+    expect(event).toMatchObject({
+      event: "website_enquiry_notification_failed",
+      referenceNumber: "ENQ-2026-000001",
+      status: "FAILED",
+      errorName: "EmailProviderError",
+      code: "rate_limit_exceeded",
+      statusCode: 429,
+    });
+
+    const serialized = logged!.toLowerCase();
+    expect(serialized).not.toContain("asha@example.com");
+    expect(serialized).not.toContain("re_"); // no API key prefix ever ends up in this log line
+    expect(event).not.toHaveProperty("message");
+    expect(event).not.toHaveProperty("to");
+
+    errorSpy.mockRestore();
+  });
+
   it("returns an existing enquiry for a repeated idempotency key without another email", async () => {
     mocks.findUnique.mockResolvedValue(record());
     const result = await createWebsiteEnquiry(WebsiteEnquirySchema.parse(contact), "a2cb8e55-f56a-4aac-b199-0ed3e9d7adc1", {});

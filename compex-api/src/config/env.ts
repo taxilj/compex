@@ -21,13 +21,12 @@ const schema = z.object({
   // `test` is deliberately usable only with NODE_ENV=test. It stores mail in
   // the isolated test database so browser QA can follow a normal email link
   // without exposing verification tokens in application logs.
-  EMAIL_PROVIDER: z.enum(["log", "smtp", "test"]).default("log"),
+  EMAIL_PROVIDER: z.enum(["log", "resend", "test"]).default("log"),
   EMAIL_FROM: z.string().default("noreply@compexsolution.com"),
   ENQUIRY_NOTIFICATION_TO: z.string().email().default("sales@compexsolution.com"),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().optional(),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
+  // Resend API key (https://resend.com/api-keys). Required when
+  // EMAIL_PROVIDER=resend; never logged.
+  RESEND_API_KEY: z.string().optional(),
   // Mouser Search API key (https://www.mouser.com/api-hub/). Optional at
   // boot — only required when an admin actually triggers a Mouser import.
   MOUSER_API_KEY: z.string().optional(),
@@ -45,16 +44,14 @@ const schema = z.object({
       if (!value[key]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is required when STORAGE_PROVIDER=s3` });
     }
   }
-  if (value.EMAIL_PROVIDER === "smtp") {
-    for (const key of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"] as const) {
-      if (!value[key]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is required when EMAIL_PROVIDER=smtp` });
-    }
+  if (value.EMAIL_PROVIDER === "resend" && !value.RESEND_API_KEY) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["RESEND_API_KEY"], message: "RESEND_API_KEY is required when EMAIL_PROVIDER=resend" });
   }
   if (value.EMAIL_PROVIDER === "test" && value.NODE_ENV !== "test") {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["EMAIL_PROVIDER"], message: "EMAIL_PROVIDER=test requires NODE_ENV=test" });
   }
-  if (value.NODE_ENV === "production" && value.EMAIL_PROVIDER !== "smtp") {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["EMAIL_PROVIDER"], message: "Production requires EMAIL_PROVIDER=smtp" });
+  if (value.NODE_ENV === "production" && value.EMAIL_PROVIDER !== "resend") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["EMAIL_PROVIDER"], message: "Production requires EMAIL_PROVIDER=resend" });
   }
   if (value.NODE_ENV === "production" && value.STORAGE_PROVIDER !== "s3") {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["STORAGE_PROVIDER"], message: "Production requires persistent S3-compatible storage" });

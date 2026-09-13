@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { prisma } from "./prisma.js";
 
@@ -12,21 +11,93 @@ interface EmailOptions {
   testActionUrl?: string;
 }
 
-function getTransport() {
-  return nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT ?? 587,
-    secure: (env.SMTP_PORT ?? 587) === 465,
-    auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
-    // Defense-in-depth: nodemailer's own defaults (2 min connection/socket,
-    // 30s greeting) are far longer than any caller should ever wait on an
-    // in-request email send. Callers on the HTTP request path (see
-    // auth.service.ts) additionally wrap sendEmail() in their own explicit
-    // timeout -- this just keeps the socket itself from lingering past that.
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 10_000,
-  });
+const RESEND_API_URL = "https://api.resend.com/emails";
+// Defense-in-depth, same rationale as the old nodemailer connection/socket
+// timeouts this replaces: bounds how long a single send can hang the caller
+// regardless of any outer timeout (see auth.service.ts's withTimeout()).
+const RESEND_TIMEOUT_MS = 10_000;
+
+// Thrown for any non-2xx response or network-level failure talking to the
+// Resend API. `.message` is deliberately generic and never carries the raw
+// Resend response body -- that body can echo back request fields (recipient,
+// subject) and it must stay safe to pass to a plain `console.error(err)`
+// call site elsewhere in the codebase. `.code` and `.statusCode` carry the
+// safe, non-content diagnostic details instead.
+export class EmailProviderError extends Error {
+  code?: string;
+  statusCode?: number;
+
+  constructor(message: string, opts: { code?: string; statusCode?: number; cause?: unknown } = {}) {
+    super(message, opts.cause !== undefined ? { cause: opts.cause } : undefined);
+    this.name = "EmailProviderError";
+    this.code = opts.code;
+    this.statusCode = opts.statusCode;
+  }
+}
+
+async function sendViaResend(opts: EmailOptions): Promise<{ messageId?: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RESEND_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        // Never logged: kept only in this request's Authorization header.
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `"Compex Solution" <${env.EMAIL_FROM}>`,
+        to: [opts.to],
+        ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+        subject: opts.subject,
+        html: opts.html,
+        ...(opts.attachments?.length
+          ? {
+              attachments: opts.attachments.map((attachment) => ({
+                filename: attachment.filename,
+                content: attachment.content.toString("base64"),
+                content_type: attachment.contentType,
+              })),
+            }
+          : {}),
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new EmailProviderError("Resend API request timed out", { code: "ETIMEDOUT" });
+    }
+    throw new EmailProviderError("Resend API request failed", {
+      code: error instanceof Error ? error.name : "NetworkError",
+      cause: error,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    // Resend's JSON error body is `{ name, message }`. `name` is a stable
+    // error-type identifier (e.g. "validation_error", "rate_limit_exceeded")
+    // safe to log; the free-text `message` is intentionally never attached
+    // to the thrown error -- see EmailProviderError above.
+    let errorCode: string | undefined;
+    try {
+      const body = (await response.json()) as { name?: unknown };
+      errorCode = typeof body?.name === "string" ? body.name : undefined;
+    } catch {
+      // Non-JSON error body -- fall through with no code.
+    }
+    throw new EmailProviderError(`Resend API rejected the request (status ${response.status})`, {
+      code: errorCode,
+      statusCode: response.status,
+    });
+  }
+
+  const data = (await response.json()) as { id?: string };
+  return { messageId: data.id };
 }
 
 export async function sendEmail(opts: EmailOptions): Promise<{ messageId?: string }> {
@@ -49,19 +120,11 @@ export async function sendEmail(opts: EmailOptions): Promise<{ messageId?: strin
     return { messageId: "test-email" };
   }
 
-  if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) {
+  if (!env.RESEND_API_KEY) {
     throw new Error("Email provider is not configured");
   }
 
-  const result = await getTransport().sendMail({
-    from: `"Compex Solution" <${env.EMAIL_FROM}>`,
-    to: opts.to,
-    replyTo: opts.replyTo,
-    subject: opts.subject,
-    html: opts.html,
-    attachments: opts.attachments,
-  });
-  return { messageId: result.messageId };
+  return sendViaResend(opts);
 }
 
 function escapeHtml(value?: string | null): string {
