@@ -1,4 +1,12 @@
 import Link from "next/link";
+import Image from "next/image";
+import { Phone, Mail } from "lucide-react";
+import {
+  COMPANY_PHONE,
+  COMPANY_PHONE_TEL_HREF,
+  COMPANY_EMAIL,
+  COMPANY_EMAIL_MAILTO_HREF,
+} from "@/lib/constants/contact";
 
 const columns = [
   {
@@ -51,16 +59,29 @@ export default function PublicFooter() {
     <footer className="w-full bg-[#0B1F3A] text-[#afc6ff] py-14 mt-16">
       <div className="max-w-[1440px] mx-auto px-4 md:px-8">
         <div className="grid grid-cols-2 md:grid-cols-7 gap-x-8 gap-y-10 pb-10 border-b border-white/10">
-          <div className="col-span-2 md:col-span-2 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded bg-[#1769E0] flex items-center justify-center">
-                <span className="text-white font-bold text-xs">CX</span>
-              </div>
-              <h4 className="font-headline-sm text-white">Compex Solution</h4>
-            </div>
+          <div className="col-span-2 md:col-span-2 space-y-4">
+            <Link href="/" className="flex items-center gap-2.5 w-fit">
+              <Image
+                src="/compex-logo.jpeg"
+                alt="Compex Solution"
+                width={140}
+                height={96}
+                className="h-10 w-auto rounded-sm bg-white p-0.5"
+              />
+            </Link>
             <p className="font-body-sm max-w-xs">
               Industrial electronic component sourcing. Search a part, submit your requirement, and Compex sources it for you.
             </p>
+            <div className="space-y-2">
+              <a href={COMPANY_PHONE_TEL_HREF} className="flex items-center gap-2 font-body-sm hover:text-white transition-colors w-fit">
+                <Phone size={14} className="shrink-0" />
+                {COMPANY_PHONE}
+              </a>
+              <a href={COMPANY_EMAIL_MAILTO_HREF} className="flex items-center gap-2 font-body-sm hover:text-white transition-colors w-fit">
+                <Mail size={14} className="shrink-0" />
+                {COMPANY_EMAIL}
+              </a>
+            </div>
           </div>
           {columns.map((col) => (
             <nav key={col.heading} className="space-y-3">

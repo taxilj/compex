@@ -7,12 +7,6 @@ import { lookupPublicProduct, type PublicProduct, type ProviderStatusEntry } fro
 import { ApiError } from "@/lib/api/client";
 import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
-const PROVIDER_LABELS: Record<string, string> = {
-  MOUSER: "Mouser",
-  DIGIKEY: "DigiKey",
-  ELEMENT14: "element14",
-};
-
 // Defense-in-depth only -- the backend (mpn-search-orchestrator.ts /
 // products.routes.ts) is the authoritative filter and never sends these keys.
 // This just stops an internal-looking key from rendering here if that ever
@@ -22,6 +16,17 @@ const INTERNAL_SPEC_NAME_PATTERN =
 
 function isPublicSafeSpecName(name: string): boolean {
   return !INTERNAL_SPEC_NAME_PATTERN.test(name);
+}
+
+const PACKAGE_SPEC_NAME_PATTERN = /package|case|footprint/i;
+
+// The API has no dedicated "package" field -- it's one of the free-form
+// specifications a provider returns. Surface it prominently in the hero
+// (matches how buyers actually shop by package), honest "Not available"
+// when no provider reported one.
+function findPackage(specifications: PublicProduct["specifications"]): string | null {
+  const match = specifications.find((s) => PACKAGE_SPEC_NAME_PATTERN.test(s.name));
+  return match ? match.value : null;
 }
 
 export default function ProductDetailPage({ params }: { params: Promise<{ mpn: string }> }) {
@@ -106,6 +111,7 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
   if (notFound || !product) return <NoResult mpn={mpn} sources={sources} />;
 
   const specifications = product.specifications.filter((s) => isPublicSafeSpecName(s.name));
+  const packageValue = findPackage(specifications);
 
   return (
     <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
@@ -113,6 +119,7 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-1 space-y-8">
+          {/* Title, MPN, manufacturer, package */}
           <div className="bg-white rounded-xl p-8 border border-[#E4E7EC] shadow-sm flex flex-col md:flex-row gap-8">
             <div className="w-full md:w-56 h-56 shrink-0 bg-[#f0f3ff] border border-[#E4E7EC] rounded-lg flex items-center justify-center overflow-hidden">
               <ImageWithFallback
@@ -128,27 +135,27 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
                   <span className="block font-label-sm text-[#1769E0] tracking-widest uppercase mb-1.5">{product.category}</span>
                 )}
                 <h1 className="font-mono text-[28px] sm:text-[32px] md:text-[40px] font-bold tracking-tight leading-[1.15] text-[#0B1F3A] mb-1.5 break-words">{product.mpn}</h1>
-                <p className="text-[15px] font-medium text-[#273143] mb-2 break-words">{product.manufacturer}</p>
                 {product.productName && product.productName !== product.description && (
-                  <p className="font-body-sm font-medium text-[#44474d] mb-1 break-words">{product.productName}</p>
+                  <p className="font-body-sm font-medium text-[#44474d] mb-3 break-words">{product.productName}</p>
                 )}
-                <p className="font-body-sm text-[#44474d]/80 max-w-2xl break-words">{product.description ?? "No description available."}</p>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-2 max-w-sm">
+                  <div>
+                    <dt className="font-label-sm text-[#75777e] uppercase tracking-wider text-xs">Manufacturer</dt>
+                    <dd className="font-body-sm text-[#111c2d] font-medium break-words">{product.manufacturer}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-label-sm text-[#75777e] uppercase tracking-wider text-xs">Package</dt>
+                    <dd className="font-body-sm text-[#111c2d] font-medium break-words">{packageValue ?? "Not available"}</dd>
+                  </div>
+                </dl>
               </div>
             </div>
           </div>
 
+          {/* Technical specifications */}
           <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#E4E7EC] flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-[#E4E7EC]">
               <h2 className="font-headline-sm text-[#111c2d]">Technical Specifications</h2>
-              {product.datasheetUrl ? (
-                <a href={product.datasheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[#1769E0] hover:underline font-label-md text-sm">
-                  <FileText size={16} /> Download Datasheet (PDF)
-                </a>
-              ) : (
-                <span className="flex items-center gap-2 text-[#44474d] font-label-md text-sm">
-                  <FileText size={16} /> Datasheet unavailable
-                </span>
-              )}
             </div>
             {specifications.length > 0 ? (
               <table className="w-full text-left"><tbody>
@@ -161,6 +168,26 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
               </tbody></table>
             ) : <p className="px-6 py-6 font-body-sm text-[#44474d]">No specifications available for this product.</p>}
           </div>
+
+          {/* Datasheet / documents */}
+          <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm px-6 py-4 flex items-center justify-between">
+            <h2 className="font-headline-sm text-[#111c2d]">Documents</h2>
+            {product.datasheetUrl ? (
+              <a href={product.datasheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[#1769E0] hover:underline font-label-md text-sm">
+                <FileText size={16} /> Download Datasheet (PDF)
+              </a>
+            ) : (
+              <span className="flex items-center gap-2 text-[#44474d] font-label-md text-sm">
+                <FileText size={16} /> Datasheet unavailable
+              </span>
+            )}
+          </div>
+
+          {/* Description */}
+          <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6">
+            <h2 className="font-headline-sm text-[#111c2d] mb-3">Description</h2>
+            <p className="font-body-sm text-[#44474d] max-w-2xl break-words">{product.description ?? "No description available."}</p>
+          </div>
         </div>
 
         <div className="w-full lg:w-80 space-y-4">
@@ -171,39 +198,8 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
             </Link>
             <p className="text-xs text-[#44474d] text-center">Compex will source this component and respond with availability and next steps.</p>
           </div>
-          <SourcesPanel sources={sources} />
         </div>
       </div>
-    </div>
-  );
-}
-
-// Provider/source presence only -- never commercial data (Phase 10). A
-// provider that errored/timed out/was rate-limited is shown as a small
-// non-blocking notice, never a scary full-page error, since other sources
-// may still have found the part.
-function SourcesPanel({ sources }: { sources: ProviderStatusEntry[] }) {
-  if (sources.length === 0) return null;
-  const found = sources.filter((s) => s.status === "FOUND");
-  const unavailable = sources.filter((s) => s.status === "ERROR" || s.status === "TIMEOUT" || s.status === "RATE_LIMITED");
-
-  return (
-    <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6 space-y-3">
-      <h3 className="font-headline-sm text-[#111c2d] text-sm">Sources found</h3>
-      {found.length > 0 ? (
-        <ul className="space-y-1.5">
-          {found.map((s) => (
-            <li key={s.provider} className="flex items-center gap-2 font-body-sm text-[#111c2d]">
-              <span className="text-[#12805c]">✓</span> {PROVIDER_LABELS[s.provider] ?? s.provider}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="font-body-sm text-[#44474d]">No sources reported this part directly.</p>
-      )}
-      {unavailable.length > 0 && (
-        <p className="text-xs text-[#8a6d3b] bg-[#fdf6e3] rounded px-3 py-2">Some sources are temporarily unavailable.</p>
-      )}
     </div>
   );
 }

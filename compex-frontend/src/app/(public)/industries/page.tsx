@@ -1,4 +1,5 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
+import Image from "next/image";
 import { Factory, Cpu, Zap, Shield, Heart, Radio, Train, Wifi, Car } from "lucide-react";
 import Link from "next/link";
 import CTABanner from "@/components/ui/CTABanner";
@@ -7,6 +8,16 @@ export const metadata: Metadata = {
   title: "Electronic Component Sourcing by Industry | Compex Solution",
   description: "Compex Solution sources electronic components for industrial automation, automotive, medical, telecom, defense, and more industries across India.",
 };
+
+// Real, owner-provided photography only (compex-frontend/public/images) --
+// no per-industry stock photos exist, so the same small set is reused
+// across cards rather than inventing or sourcing new imagery.
+const industryImages = [
+  "/images/hero/pcb-electronic-components.jpg",
+  "/images/products/circuit-board-detail.jpg",
+  "/images/services/warehouse-operations.jpg",
+  "/images/hero/electronics-components-hero-transparent.png",
+];
 
 const industries = [
   { icon: Car, name: "Automotive Electronics", desc: "Sourcing ICs, sensors, and power components for automotive-grade applications." },
@@ -18,7 +29,10 @@ const industries = [
   { icon: Radio, name: "Telecom & Networking", desc: "RF components, transceivers, and switching ICs for communication infrastructure." },
   { icon: Train, name: "Railway & Infrastructure", desc: "Ruggedized components for rail signaling, control, and power systems." },
   { icon: Wifi, name: "IoT & Embedded Systems", desc: "Wireless modules, microcontrollers, and sensors for connected product development." },
-];
+].map((industry, index) => ({
+  ...industry,
+  image: industryImages[index % industryImages.length],
+}));
 
 export default function IndustriesPage() {
   return (
@@ -38,13 +52,26 @@ export default function IndustriesPage() {
       <section className="py-20 px-4 md:px-8">
         <div className="max-w-[1280px] mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {industries.map((ind) => (
-              <div key={ind.name} className="bg-white border border-[#E4E7EC] rounded-xl p-6 hover:border-[#1769E0] hover:shadow-md transition-all group">
-                <div className="w-12 h-12 rounded-lg bg-[#e8eeff] flex items-center justify-center mb-4">
-                  <ind.icon size={24} className="text-[#1769E0]" />
+            {industries.map((ind, index) => (
+              <div key={ind.name} className="bg-white border border-[#E4E7EC] rounded-xl overflow-hidden hover:border-[#1769E0] hover:shadow-md transition-all group">
+                <div className="relative w-full aspect-[16/10] bg-[#f0f3ff]">
+                  <Image
+                    src={ind.image}
+                    alt={`${ind.name} electronic components`}
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                    loading={index < 3 ? "eager" : "lazy"}
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F3A]/60 via-transparent to-transparent" />
+                  <div className="absolute bottom-3 left-3 w-11 h-11 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                    <ind.icon size={22} className="text-[#1769E0]" />
+                  </div>
                 </div>
-                <h2 className="font-headline-sm text-[#0B1F3A] mb-2 group-hover:text-[#1769E0] transition-colors">{ind.name}</h2>
-                <p className="font-body-md text-[#44474d]">{ind.desc}</p>
+                <div className="p-6">
+                  <h2 className="font-headline-sm text-[#0B1F3A] mb-2 group-hover:text-[#1769E0] transition-colors">{ind.name}</h2>
+                  <p className="font-body-md text-[#44474d]">{ind.desc}</p>
+                </div>
               </div>
             ))}
           </div>
