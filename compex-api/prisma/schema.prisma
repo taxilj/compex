@@ -254,6 +254,11 @@ model Document {
   id               String                   @id @default(uuid()) @db.Uuid
   customerId       String?                  @map("customer_id") @db.Uuid
   rfqId            String?                  @map("rfq_id") @db.Uuid
+  // Public website-enquiry (Lead) owner -- mutually exclusive with
+  // customer/rfq. Keeps anonymous BOM-enquiry uploads isolated from
+  // authenticated portal documents while reusing the same storage/parsing
+  // pipeline and the same safe-metadata-only API shape.
+  leadId           String?                  @map("lead_id") @db.Uuid
   documentType     DocumentType             @map("document_type")
   fileName         String                   @map("file_name")
   storageKey       String                   @map("storage_key")
@@ -267,7 +272,9 @@ model Document {
 
   customer Customer? @relation(fields: [customerId], references: [id])
   rfq      Rfq?      @relation(fields: [rfqId], references: [id])
+  lead     Lead?     @relation(fields: [leadId], references: [id])
 
+  @@index([leadId])
   @@map("documents")
 }
 
@@ -466,6 +473,7 @@ model Lead {
   assignedTo User?      @relation("LeadAssignee", fields: [assignedToId], references: [id])
   items      LeadItem[]
   followUps  FollowUp[]
+  documents  Document[]
 
   @@map("leads")
 }

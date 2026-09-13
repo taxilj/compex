@@ -2,6 +2,7 @@
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  HeadBucketCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -55,5 +56,13 @@ export class S3StorageProvider implements StorageProvider {
     await this.client.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     );
+  }
+
+  // Non-destructive connectivity check: confirms the configured bucket is
+  // reachable with the configured credentials, without reading, writing, or
+  // deleting any object. Used only to answer "is durable storage genuinely
+  // available right now", never on the upload path itself.
+  async headBucket(): Promise<void> {
+    await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
   }
 }

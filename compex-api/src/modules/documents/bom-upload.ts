@@ -4,37 +4,16 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { Errors } from "../../lib/errors.js";
 import { audit } from "../../lib/audit.js";
-import { getStorage } from "./documents.service.js";
-import { Queue } from "bullmq";
-import { env } from "../../config/env.js";
-import IORedis from "ioredis";
+import { getStorage, getBomQueue } from "./documents.service.js";
 
-const ALLOWED_MIMES = new Set([
+export const ALLOWED_MIMES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "text/csv",
   "application/csv",
   "text/plain",
 ]);
-const ALLOWED_EXTS = new Set([".xlsx", ".csv"]);
-const MAX_BYTES = 10 * 1024 * 1024;
-
-let bomQueue: Queue | null = null;
-
-function getQueue(): Queue {
-  if (!bomQueue) {
-    // Producer connection: bounded retries/timeout so a request fails fast
-    // with a clear error instead of hanging forever when Redis is
-    // unreachable. (Workers legitimately use maxRetriesPerRequest: null for
-    // blocking commands — this is the producer side only.)
-    const connection = new IORedis(env.REDIS_URL, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 5000,
-      retryStrategy: () => null,
-    });
-    bomQueue = new Queue("bom-processing", { connection });
-  }
-  return bomQueue;
-}
+export const ALLOWED_EXTS = new Set([".xlsx", ".csv"]);
+export const MAX_BYTES = 10 * 1024 * 1024;
 
 export async function bomUploadHandler(
   req: FastifyRequest,
@@ -93,10 +72,10 @@ export async function bomUploadHandler(
 
   // Enqueue async processing job. The file is already stored and the
   // Document row already created above, so a queue failure here must not
-  // hang the HTTP request indefinitely (see getQueue): fail fast with a
+  // hang the HTTP request indefinitely (see getBomQueue): fail fast with a
   // clear 503 instead, so the customer isn't left on an infinite spinner.
   try {
-    const queue = getQueue();
+    const queue = getBomQueue();
     await queue.add("parse-bom", { documentId: doc.id, rfqId, customerId });
   } catch (err) {
     throw Errors.serviceUnavailable(
