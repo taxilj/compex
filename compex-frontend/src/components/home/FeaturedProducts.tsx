@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Package, ArrowRight } from "lucide-react";
 import { lookupPublicProduct, type PublicProduct } from "@/lib/api/products";
+import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
 // Representative, pre-verified MPNs spanning common component families.
 // Each is resolved through the same exact-MPN lookup used by /products/[mpn]
@@ -120,12 +121,12 @@ export function FeaturedProducts() {
                 className="group flex flex-col border border-[#E4E7EC] rounded bg-white hover:border-[#1769E0] transition-colors"
               >
                 <div className="aspect-square w-full bg-[#f0f3ff] border-b border-[#E4E7EC] flex items-center justify-center overflow-hidden">
-                  {product.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={product.imageUrl} alt={product.productName} className="w-full h-full object-contain p-4" />
-                  ) : (
-                    <Package size={32} className="text-[#0B1F3A]/20" />
-                  )}
+                  <ImageWithFallback
+                    src={product.imageUrl}
+                    alt={product.productName}
+                    className="w-full h-full object-contain p-4"
+                    fallback={<Package size={32} className="text-[#0B1F3A]/20" />}
+                  />
                 </div>
                 <div className="flex-1 flex flex-col gap-1.5 p-4">
                   {product.category && (

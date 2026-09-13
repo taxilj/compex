@@ -6,6 +6,7 @@ import { getManufacturer } from "@/lib/api/manufacturers";
 import { listProducts, type BackendManufacturer, type BackendProduct } from "@/lib/api/products";
 import { ApiError } from "@/lib/api/client";
 import { Package, Search } from "lucide-react";
+import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
 export default function ManufacturerDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -156,12 +157,12 @@ export default function ManufacturerDetailPage({ params }: { params: Promise<{ s
                 className="group bg-white border border-[#E4E7EC] rounded flex flex-col hover:border-[#1769E0] transition-colors"
               >
                 <div className="aspect-square w-full bg-[#f0f3ff] border-b border-[#E4E7EC] flex items-center justify-center overflow-hidden">
-                  {p.images[0] ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.images[0]} alt={p.name ?? p.mpn} className="w-full h-full object-contain p-4" />
-                  ) : (
-                    <Package size={28} className="text-[#0B1F3A]/20" />
-                  )}
+                  <ImageWithFallback
+                    src={p.images[0]}
+                    alt={p.name ?? p.mpn}
+                    className="w-full h-full object-contain p-4"
+                    fallback={<Package size={28} className="text-[#0B1F3A]/20" />}
+                  />
                 </div>
                 <div className="flex-1 flex flex-col gap-1.5 p-4">
                   {p.category && (

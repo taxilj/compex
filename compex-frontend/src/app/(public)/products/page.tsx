@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Search, Package } from "lucide-react";
 import { listProducts, listCategories, type BackendProduct, type CategoryWithChildren } from "@/lib/api/products";
 import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufacturers";
+import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
 const PAGE_SIZE = 24;
 
@@ -210,12 +211,12 @@ function ProductCard({ product }: { product: BackendProduct }) {
     <div className="group bg-white border border-[#E4E7EC] rounded flex flex-col hover:border-[#1769E0] transition-colors">
       <Link href={detailHref} className="flex flex-col flex-1 min-w-0">
         <div className="aspect-square w-full bg-[#f0f3ff] border-b border-[#E4E7EC] flex items-center justify-center overflow-hidden">
-          {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={image} alt={product.name ?? product.mpn} className="w-full h-full object-contain p-4" />
-          ) : (
-            <Package size={32} className="text-[#0B1F3A]/20" />
-          )}
+          <ImageWithFallback
+            src={image}
+            alt={product.name ?? product.mpn}
+            className="w-full h-full object-contain p-4"
+            fallback={<Package size={32} className="text-[#0B1F3A]/20" />}
+          />
         </div>
         <div className="flex-1 flex flex-col gap-1.5 p-4">
           {product.category && (

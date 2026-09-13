@@ -5,6 +5,7 @@ import Link from "next/link";
 import { FileText, ShoppingCart, Package } from "lucide-react";
 import { lookupPublicProduct, type PublicProduct, type ProviderStatusEntry } from "@/lib/api/products";
 import { ApiError } from "@/lib/api/client";
+import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
 const PROVIDER_LABELS: Record<string, string> = {
   MOUSER: "Mouser",
@@ -114,10 +115,12 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
         <div className="flex-1 space-y-8">
           <div className="bg-white rounded-xl p-8 border border-[#E4E7EC] shadow-sm flex flex-col md:flex-row gap-8">
             <div className="w-full md:w-56 h-56 shrink-0 bg-[#f0f3ff] border border-[#E4E7EC] rounded-lg flex items-center justify-center overflow-hidden">
-              {product.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={product.imageUrl} alt={product.productName} className="w-full h-full object-contain" />
-              ) : <Package size={64} className="text-[#0B1F3A]/20" />}
+              <ImageWithFallback
+                src={product.imageUrl}
+                alt={product.productName}
+                className="w-full h-full object-contain"
+                fallback={<Package size={64} className="text-[#0B1F3A]/20" />}
+              />
             </div>
             <div className="flex-1 min-w-0 flex flex-col justify-between">
               <div>

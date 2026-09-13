@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufacturers";
 import { listProducts } from "@/lib/api/products";
+import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
 export default function ManufacturersGrid() {
   const [manufacturers, setManufacturers] = useState<ManufacturerListItem[] | null>(null);
@@ -124,12 +125,12 @@ export default function ManufacturersGrid() {
               >
                 <div className="flex items-center gap-4 mb-3">
                   <div className="w-14 h-14 rounded-lg bg-[#f0f3ff] border border-[#E4E7EC] flex items-center justify-center shrink-0 overflow-hidden">
-                    {image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={image} alt="" className="w-full h-full object-contain p-1.5" />
-                    ) : (
-                      <span className="font-bold text-[#0B1F3A] text-sm">{mfr.name.slice(0, 2).toUpperCase()}</span>
-                    )}
+                    <ImageWithFallback
+                      src={image}
+                      alt=""
+                      className="w-full h-full object-contain p-1.5"
+                      fallback={<span className="font-bold text-[#0B1F3A] text-sm">{mfr.name.slice(0, 2).toUpperCase()}</span>}
+                    />
                   </div>
                   <h2 className="font-headline-sm text-[#0B1F3A]">{mfr.name}</h2>
                 </div>
