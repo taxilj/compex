@@ -91,3 +91,24 @@ export async function cacheDelete(namespace: string, key: string): Promise<void>
     // best-effort
   }
 }
+
+// Shared, cross-instance counter (e.g. a rolling-window budget guard) --
+// distinct from the cacheGet/cacheSet namespace above since a counter is
+// never a cached copy of something else, it IS the data. Same
+// fail-open-on-Redis-error philosophy as the rest of this file: a counter
+// that can't be read/written must never itself take down a request that
+// would otherwise succeed, so a Redis outage returns 0 (i.e. "budget not yet
+// known to be exceeded") rather than throwing.
+export async function incrementCounter(namespace: string, key: string, ttlSeconds: number, by = 1): Promise<number> {
+  const redis = getClient();
+  if (!redis) return 0;
+  try {
+    const fullKey = `compex:counter:${namespace}:${key}`;
+    const count = await redis.incrby(fullKey, by);
+    if (count === by) await redis.expire(fullKey, ttlSeconds);
+    return count;
+  } catch (err) {
+    console.error(`[cache] increment failed for ${namespace}:${key}:`, err instanceof Error ? err.message : err);
+    return 0;
+  }
+}

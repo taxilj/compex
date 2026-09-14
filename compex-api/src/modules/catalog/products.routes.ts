@@ -6,6 +6,8 @@ import { prisma } from "../../lib/prisma.js";
 import { PRODUCT_INCLUDE, searchProducts } from "./product-search.js";
 import { anyPrimaryConfigured, searchMpnAcrossProviders } from "./mpn-search-orchestrator.js";
 import { toPublicProduct } from "./public-dto.js";
+import { resolveUnknownMpn } from "./product-on-demand.js";
+import { normalizeMpn } from "../catalog-import/normalizer.js";
 
 const ProductListQuery = z.object({
   q: z.string().max(200).optional(),
@@ -62,7 +64,11 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/:mpn", async (req, reply) => {
     const { mpn } = z.object({ mpn: z.string().min(1).max(100) }).parse(req.params);
     const { manufacturerId } = ProductDetailQuery.parse(req.query);
-    const where = { mpn: { equals: mpn, mode: "insensitive" as const }, isActive: true, ...(manufacturerId ? { manufacturerId } : {}) };
+    // Match on normalizedMpn (the same key upsertProduct() persists and
+    // matches by) rather than raw mpn -- a raw case-insensitive match misses
+    // a product stored under a differently-punctuated MPN spelling (e.g.
+    // "ABC-123" vs "ABC 123"), which would otherwise defeat this fast path.
+    const where = { normalizedMpn: normalizeMpn(mpn), isActive: true, ...(manufacturerId ? { manufacturerId } : {}) };
     const products = await prisma.product.findMany({ where, include: PRODUCT_INCLUDE, take: manufacturerId ? 1 : 2 });
     if (products.length === 0) throw Errors.notFound("Product");
     if (products.length > 1) {
@@ -70,5 +76,22 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
     }
     const [product] = products;
     return reply.send(ok(toPublicProduct(product)));
+  });
+
+  // Database-first product detail (GET /:mpn above) is the fast path for
+  // every already-catalogued product. This is the controlled fallback for a
+  // genuine cache/database miss only -- the frontend calls it after a 404
+  // from GET /:mpn, never unconditionally. It fans out to the same
+  // catalog-import pipeline used by the STAFF/ADMIN single-MPN routes
+  // (bounded per-provider timeout, one failure never blocks the others,
+  // concurrent requests for the same MPN are deduplicated) and persists any
+  // real match into the actual Product/ProductSource tables, so the next
+  // visitor for this MPN hits the fast database path instead of triggering
+  // another live lookup.
+  app.post("/:mpn/resolve", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const { mpn } = z.object({ mpn: z.string().min(1).max(100) }).parse(req.params);
+    const { manufacturerId } = ProductDetailQuery.parse(req.query);
+    const result = await resolveUnknownMpn(mpn, manufacturerId);
+    return reply.send(ok(result));
   });
 }

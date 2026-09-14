@@ -2,15 +2,16 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FileText, ShoppingCart, Package } from "lucide-react";
-import { lookupPublicProduct, type PublicProduct, type ProviderStatusEntry } from "@/lib/api/products";
+import { getProduct, resolveProduct, type BackendProduct, type OnDemandProviderEntry } from "@/lib/api/products";
 import { ApiError } from "@/lib/api/client";
 import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
-// Defense-in-depth only -- the backend (mpn-search-orchestrator.ts /
-// products.routes.ts) is the authoritative filter and never sends these keys.
-// This just stops an internal-looking key from rendering here if that ever
-// regresses.
+// Defense-in-depth only -- the backend (public-dto.ts's
+// filterPublicSpecifications) is the authoritative filter and never sends
+// these keys. This just stops an internal-looking key from rendering here if
+// that ever regresses.
 const INTERNAL_SPEC_NAME_PATTERN =
   /internal|private|admin|provider|supplier|vendor|canonical|traceability|sourcing|margin|moq|sku|stock|cost|price|lead\s*time/i;
 
@@ -18,16 +19,13 @@ function isPublicSafeSpecName(name: string): boolean {
   return !INTERNAL_SPEC_NAME_PATTERN.test(name);
 }
 
-const PACKAGE_SPEC_NAME_PATTERN = /package|case|footprint/i;
-
-// The API has no dedicated "package" field -- it's one of the free-form
-// specifications a provider returns. Surface it prominently in the hero
-// (matches how buyers actually shop by package), honest "Not available"
-// when no provider reported one.
-function findPackage(specifications: PublicProduct["specifications"]): string | null {
-  const match = specifications.find((s) => PACKAGE_SPEC_NAME_PATTERN.test(s.name));
-  return match ? match.value : null;
+function specEntries(specifications: BackendProduct["specifications"]): Array<{ name: string; value: string }> {
+  return Object.entries(specifications ?? {})
+    .filter(([name]) => isPublicSafeSpecName(name))
+    .map(([name, value]) => ({ name, value: String(value) }));
 }
+
+type LoadPhase = "checking-catalog" | "checking-sources" | "done";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ mpn: string }> }) {
   const { mpn: rawMpn } = use(params);
@@ -37,36 +35,71 @@ export default function ProductDetailPage({ params }: { params: Promise<{ mpn: s
   // percent-encoded and would otherwise get double-encoded on the API call
   // below, turning a valid MPN into an invalid-characters error.
   const mpn = decodeURIComponent(rawMpn);
-  return <ProductDetailContent key={mpn} mpn={mpn} />;
+  const searchParams = useSearchParams();
+  const manufacturerId = searchParams.get("manufacturerId") ?? undefined;
+  return <ProductDetailContent key={`${mpn}::${manufacturerId ?? ""}`} mpn={mpn} manufacturerId={manufacturerId} />;
 }
 
-function ProductDetailContent({ mpn }: { mpn: string }) {
-  const [product, setProduct] = useState<PublicProduct | null>(null);
-  const [sources, setSources] = useState<ProviderStatusEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+function ProductDetailContent({ mpn, manufacturerId }: { mpn: string; manufacturerId?: string }) {
+  const [product, setProduct] = useState<BackendProduct | null>(null);
+  const [sources, setSources] = useState<OnDemandProviderEntry[]>([]);
+  const [phase, setPhase] = useState<LoadPhase>("checking-catalog");
   const [notFound, setNotFound] = useState(false);
+  const [ambiguous, setAmbiguous] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    lookupPublicProduct(mpn)
+    // Database-first: a product already in the local catalog renders from
+    // one fast Prisma query, with no wait on any external provider.
+    getProduct(mpn, manufacturerId)
       .then((result) => {
         if (cancelled) return;
-        setProduct(result.product);
-        setSources(result.sources);
-        if (!result.product) setNotFound(true);
+        setProduct(result);
+        setPhase("done");
       })
-      .catch((requestError) => {
+      .catch(async (requestError: unknown) => {
         if (cancelled) return;
-        setError(requestError instanceof ApiError ? requestError.message : "We could not look up this product right now.");
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
+
+        if (requestError instanceof ApiError && requestError.statusCode === 409) {
+          // Multiple manufacturers share this MPN and the URL carried no
+          // manufacturerId to disambiguate -- a real, honest state, not a
+          // "not found".
+          setAmbiguous(true);
+          setPhase("done");
+          return;
+        }
+
+        if (!(requestError instanceof ApiError) || requestError.statusCode !== 404) {
+          setError(requestError instanceof ApiError ? requestError.message : "We could not look up this product right now.");
+          setPhase("done");
+          return;
+        }
+
+        // Genuine catalog miss -- controlled, bounded, on-demand lookup
+        // across the configured providers. This is the only path that ever
+        // waits on an external call, and only for an MPN this database does
+        // not yet have.
+        setPhase("checking-sources");
+        try {
+          const resolved = await resolveProduct(mpn, manufacturerId);
+          if (cancelled) return;
+          setProduct(resolved.product);
+          setSources(resolved.sources);
+          if (!resolved.product) setNotFound(true);
+        } catch (resolveError) {
+          if (cancelled) return;
+          setError(resolveError instanceof ApiError ? resolveError.message : "We could not look up this product right now.");
+        } finally {
+          if (!cancelled) setPhase("done");
+        }
+      });
 
     return () => { cancelled = true; };
-  }, [mpn]);
+  }, [mpn, manufacturerId]);
 
-  if (loading) {
+  if (phase !== "done") {
     return (
       <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
         <BreadcrumbShell current={mpn} />
@@ -91,6 +124,22 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
             <div className="h-40 bg-[#f0f3ff] rounded-xl animate-pulse" />
           </div>
         </div>
+        {phase === "checking-sources" && (
+          <p className="text-center font-body-sm text-[#44474d]">Not yet in our catalogue — checking supplier sources…</p>
+        )}
+      </div>
+    );
+  }
+
+  if (ambiguous) {
+    return (
+      <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
+        <BreadcrumbShell current={mpn} />
+        <div className="text-center py-6 border border-dashed border-[#E4E7EC] rounded-xl">
+          <h1 className="font-headline-lg text-[#111c2d] mb-3">Multiple manufacturers found</h1>
+          <p className="font-body-md text-[#44474d] mb-6">More than one manufacturer offers a part numbered &ldquo;{mpn}&rdquo;. Select one from the catalogue to view its details.</p>
+          <Link href={`/products?q=${encodeURIComponent(mpn)}`} className="bg-[#1769E0] text-white px-5 py-3 rounded-lg font-label-md hover:bg-[#1257b8]">View matches in catalogue</Link>
+        </div>
       </div>
     );
   }
@@ -110,8 +159,8 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
 
   if (notFound || !product) return <NoResult mpn={mpn} sources={sources} />;
 
-  const specifications = product.specifications.filter((s) => isPublicSafeSpecName(s.name));
-  const packageValue = findPackage(specifications);
+  const specifications = specEntries(product.specifications);
+  const imageUrl = product.images[0];
 
   return (
     <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
@@ -123,29 +172,29 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
           <div className="bg-white rounded-xl p-8 border border-[#E4E7EC] shadow-sm flex flex-col md:flex-row gap-8">
             <div className="w-full md:w-56 h-56 shrink-0 bg-[#f0f3ff] border border-[#E4E7EC] rounded-lg flex items-center justify-center overflow-hidden">
               <ImageWithFallback
-                src={product.imageUrl}
-                alt={product.productName}
+                src={imageUrl}
+                alt={product.name ?? product.mpn}
                 className="w-full h-full object-contain"
                 fallback={<Package size={64} className="text-[#0B1F3A]/20" />}
               />
             </div>
             <div className="flex-1 min-w-0 flex flex-col justify-between">
               <div>
-                {product.category && (
-                  <span className="block font-label-sm text-[#1769E0] tracking-widest uppercase mb-1.5">{product.category}</span>
+                {product.category?.name && (
+                  <span className="block font-label-sm text-[#1769E0] tracking-widest uppercase mb-1.5">{product.category.name}</span>
                 )}
                 <h1 className="font-mono text-[28px] sm:text-[32px] md:text-[40px] font-bold tracking-tight leading-[1.15] text-[#0B1F3A] mb-1.5 break-words">{product.mpn}</h1>
-                {product.productName && product.productName !== product.description && (
-                  <p className="font-body-sm font-medium text-[#44474d] mb-3 break-words">{product.productName}</p>
+                {product.name && product.name !== product.description && (
+                  <p className="font-body-sm font-medium text-[#44474d] mb-3 break-words">{product.name}</p>
                 )}
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-2 max-w-sm">
                   <div>
                     <dt className="font-label-sm text-[#75777e] uppercase tracking-wider text-xs">Manufacturer</dt>
-                    <dd className="font-body-sm text-[#111c2d] font-medium break-words">{product.manufacturer}</dd>
+                    <dd className="font-body-sm text-[#111c2d] font-medium break-words">{product.manufacturer?.name ?? "Not available"}</dd>
                   </div>
                   <div>
                     <dt className="font-label-sm text-[#75777e] uppercase tracking-wider text-xs">Package</dt>
-                    <dd className="font-body-sm text-[#111c2d] font-medium break-words">{packageValue ?? "Not available"}</dd>
+                    <dd className="font-body-sm text-[#111c2d] font-medium break-words">{product.packageType ?? "Not available"}</dd>
                   </div>
                 </dl>
               </div>
@@ -193,7 +242,7 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
         <div className="w-full lg:w-80 space-y-4">
           <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6 space-y-5 sticky top-24">
             <h3 className="font-headline-sm text-[#111c2d]">Source This Component</h3>
-            <Link href={quoteHref(product.mpn, product.manufacturer)} className="flex items-center justify-center gap-2 w-full bg-[#1769E0] text-white font-label-md py-3 rounded-lg hover:bg-[#1769E0]/90 transition-colors">
+            <Link href={quoteHref(product.mpn, product.manufacturer?.name)} className="flex items-center justify-center gap-2 w-full bg-[#1769E0] text-white font-label-md py-3 rounded-lg hover:bg-[#1769E0]/90 transition-colors">
               <ShoppingCart size={16} /> Request a Quote
             </Link>
             <p className="text-xs text-[#44474d] text-center">Compex will source this component and respond with availability and next steps.</p>
@@ -204,7 +253,7 @@ function ProductDetailContent({ mpn }: { mpn: string }) {
   );
 }
 
-function NoResult({ mpn, sources }: { mpn: string; sources: ProviderStatusEntry[] }) {
+function NoResult({ mpn, sources }: { mpn: string; sources: OnDemandProviderEntry[] }) {
   const unavailable = sources.some((s) => s.status === "ERROR" || s.status === "TIMEOUT" || s.status === "RATE_LIMITED");
   return (
     <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">

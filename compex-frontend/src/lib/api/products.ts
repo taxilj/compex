@@ -89,6 +89,26 @@ export function lookupPublicProduct(mpn: string) {
   return apiFetchPublic<MpnSearchResult>(`/api/products/lookup${buildQuery({ mpn })}`);
 }
 
+export interface OnDemandProviderEntry {
+  provider: ProviderName;
+  status: ProviderResultStatus;
+}
+
+export interface OnDemandResolveResult {
+  product: BackendProduct | null;
+  sources: OnDemandProviderEntry[];
+}
+
+// Controlled on-demand lookup for an MPN that a database-first getProduct()
+// call just reported as not found. Only call this after a real 404 from
+// getProduct() -- never unconditionally -- since it can trigger live
+// provider calls and writes to the shared catalog.
+export function resolveProduct(mpn: string, manufacturerId?: string) {
+  return apiFetch<OnDemandResolveResult>(`/products/${encodeURIComponent(mpn)}/resolve${buildQuery({ manufacturerId })}`, {
+    method: "POST",
+  });
+}
+
 export interface CategoryWithChildren extends BackendCategory {
   children: BackendCategory[];
   _count: { products: number };
