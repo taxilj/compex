@@ -121,6 +121,21 @@ describe("HeaderSearch", () => {
     expect(screen.queryByText("STM32F103C8T6")).not.toBeInTheDocument();
   });
 
+  it("shows an honest API-error state with a Retry action that re-issues the search", async () => {
+    vi.mocked(listProducts).mockRejectedValueOnce(new Error("network error"));
+
+    render(<HeaderSearch />);
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "STM32" } });
+
+    expect(await screen.findByText("Search failed. Please try again.")).toBeInTheDocument();
+
+    vi.mocked(listProducts).mockResolvedValueOnce({ data: [product()], total: 1, page: 1, limit: 8 });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("STM32F103C8T6")).toBeInTheDocument();
+    expect(screen.queryByText("Search failed. Please try again.")).not.toBeInTheDocument();
+  });
+
   it("navigates to the highlighted result on Enter", async () => {
     vi.mocked(listProducts).mockResolvedValue({ data: [product()], total: 1, page: 1, limit: 8 });
 

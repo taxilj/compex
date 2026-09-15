@@ -31,6 +31,7 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const requestIdRef = useRef(0);
+  const [retryToken, setRetryToken] = useState(0);
 
   // Single debounced-fetch effect, mirroring the existing debounced search
   // on the manufacturer detail page: all state changes happen inside the
@@ -78,7 +79,7 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, retryToken]);
 
   useClickOutside(containerRef, () => setOpen(false), open);
 
@@ -168,7 +169,16 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
             </p>
           )}
           {!loading && error && (
-            <p className="px-4 py-3 font-body-sm text-[#F04438]" role="alert">{error}</p>
+            <div className="px-4 py-3 space-y-2">
+              <p className="font-body-sm text-[#F04438]" role="alert">{error}</p>
+              <button
+                type="button"
+                onClick={() => setRetryToken((t) => t + 1)}
+                className="font-label-sm text-[#1769E0] hover:underline"
+              >
+                Retry
+              </button>
+            </div>
           )}
           {!loading && !error && results.length === 0 && (
             <div className="px-4 py-4 space-y-2">

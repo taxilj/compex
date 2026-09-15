@@ -7,8 +7,12 @@ import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufact
 import { listProducts } from "@/lib/api/products";
 import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
+const PAGE_SIZE = 100; // matches the backend's per-page cap; pages are fetched in a loop below until every manufacturer is loaded, never a fixed top-N truncation
+
 export default function ManufacturersGrid() {
   const [manufacturers, setManufacturers] = useState<ManufacturerListItem[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
   const [query, setQuery] = useState("");
   const [letter, setLetter] = useState<string | null>(null);
   // One real product image per manufacturer, reused as a card thumbnail when no
@@ -18,10 +22,32 @@ export default function ManufacturersGrid() {
   const [sampleImages, setSampleImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    listManufacturers({ limit: 100 })
-      .then((r) => setManufacturers(r.data))
-      .catch(() => setManufacturers([]));
-  }, []);
+    let cancelled = false;
+
+    // Load every manufacturer, not a single capped page -- the owner
+    // explicitly flagged a truncated/top-N manufacturer list as a defect.
+    async function loadAll() {
+      const all: ManufacturerListItem[] = [];
+      let page = 1;
+      for (;;) {
+        const res = await listManufacturers({ page, limit: PAGE_SIZE });
+        all.push(...res.data);
+        if (all.length >= res.total || res.data.length === 0) break;
+        page += 1;
+      }
+      return all;
+    }
+
+    loadAll()
+      .then((all) => { if (!cancelled) setManufacturers(all); })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load manufacturers:", err);
+        setLoadError(true);
+      });
+
+    return () => { cancelled = true; };
+  }, [retryToken]);
 
   useEffect(() => {
     listProducts({ limit: 100 })
@@ -51,6 +77,28 @@ export default function ManufacturersGrid() {
       return matchesQuery && matchesLetter;
     });
   }, [manufacturers, query, letter]);
+
+  if (loadError) {
+    return (
+      <div className="text-center py-16 border border-dashed border-[#F04438]/40 rounded-xl">
+        <p className="font-headline-sm text-[#0B1F3A] mb-2" role="alert">Couldn&apos;t load manufacturers</p>
+        <p className="font-body-sm text-[#44474d] mb-6 max-w-md mx-auto">
+          We couldn&apos;t reach the manufacturer catalogue right now. This is not confirmed as an empty list.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoadError(false);
+            setManufacturers(null);
+            setRetryToken((t) => t + 1);
+          }}
+          className="inline-flex items-center gap-2 bg-[#1769E0] text-white px-6 py-3 rounded font-label-md hover:bg-[#1257b8] transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (manufacturers === null) {
     return (

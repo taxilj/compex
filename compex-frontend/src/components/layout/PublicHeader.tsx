@@ -247,7 +247,7 @@ export default function PublicHeader() {
                   </Link>
                   {cat.children.length > 0 && (
                     <ul className="space-y-0.5 pl-2 border-l border-[#E4E7EC]">
-                      {cat.children.slice(0, 6).map((child) => (
+                      {cat.children.map((child) => (
                         <li key={child.id}>
                           <Link
                             href={`/products?categoryId=${encodeURIComponent(child.id)}`}
