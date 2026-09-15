@@ -68,6 +68,19 @@ describe("admin category CRUD", () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  it("returns the complete public category tree, including nested real subcategories", async () => {
+    const root = await prisma.category.create({ data: { name: "Public hierarchy root" } });
+    const child = await prisma.category.create({ data: { name: "Public hierarchy child", parentId: root.id } });
+    const grandchild = await prisma.category.create({ data: { name: "Public hierarchy grandchild", parentId: child.id } });
+
+    const res = await app.inject({ method: "GET", url: "/api/v1/categories" });
+    expect(res.statusCode).toBe(200);
+    const tree = res.json().data as Array<{ id: string; children: Array<{ id: string; children: Array<{ id: string }> }> }>;
+    const publicRoot = tree.find((category) => category.id === root.id);
+    expect(publicRoot?.children[0].id).toBe(child.id);
+    expect(publicRoot?.children[0].children[0].id).toBe(grandchild.id);
+  });
 });
 
 describe("admin product CRUD", () => {

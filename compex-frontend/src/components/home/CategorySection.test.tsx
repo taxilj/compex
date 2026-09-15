@@ -82,6 +82,20 @@ describe("CategorySection", () => {
     expect(screen.getAllByRole("link", { name: /products$/ })).toHaveLength(4);
   });
 
+  it("renders every real category beyond six without an arbitrary cap", async () => {
+    vi.mocked(listCategories).mockResolvedValue(
+      Array.from({ length: 9 }, (_, index) => makeCategory({
+        id: `category-${index}`,
+        name: `Category ${index}`,
+      })),
+    );
+
+    render(<CategorySection />);
+
+    expect(await screen.findByText("Category 8")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /products$/ })).toHaveLength(9);
+  });
+
   it("shows an honest error state with a Retry action on API failure", async () => {
     vi.mocked(listCategories).mockRejectedValue(new Error("network error"));
 

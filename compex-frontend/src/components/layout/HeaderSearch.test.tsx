@@ -149,4 +149,24 @@ describe("HeaderSearch", () => {
 
     expect(pushMock).toHaveBeenCalledWith("/products/STM32F103C8T6?manufacturerId=mfr-1");
   });
+
+  it("submits an exact MPN to its product-detail route without requiring arrow-key selection", async () => {
+    vi.mocked(listProducts).mockResolvedValue({ data: [product()], total: 1, page: 1, limit: 8 });
+    render(<HeaderSearch />);
+
+    const input = screen.getByRole("combobox");
+    fireEvent.change(input, { target: { value: "stm32f103c8t6" } });
+    await screen.findByText("STM32F103C8T6");
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(pushMock).toHaveBeenCalledWith("/products/STM32F103C8T6?manufacturerId=mfr-1");
+  });
+
+  it("submits a general keyword through the products search route from the Search button", () => {
+    render(<HeaderSearch />);
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "ceramic capacitor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(pushMock).toHaveBeenCalledWith("/products?q=ceramic%20capacitor");
+  });
 });

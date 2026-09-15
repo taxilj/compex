@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Cpu, Zap, Cable, CircuitBoard, BatteryCharging, Radio, Package, ArrowRight } from "lucide-react";
+import { Cpu, Zap, Cable, CircuitBoard, BatteryCharging, Radio, Package, ArrowRight, AlertCircle } from "lucide-react";
 import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 import CTABanner from "@/components/ui/CTABanner";
 
@@ -31,10 +31,22 @@ function categoryIcon(name: string) {
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryWithChildren[] | null>(null);
+  const [error, setError] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
-    listCategories().then(setCategories).catch(() => setCategories([]));
-  }, []);
+    let active = true;
+    listCategories()
+      .then((data) => { if (active) setCategories(data); })
+      .catch(() => { if (active) setError(true); });
+    return () => { active = false; };
+  }, [retryToken]);
+
+  function retryCategories() {
+    setCategories(null);
+    setError(false);
+    setRetryToken((value) => value + 1);
+  }
 
   return (
     <div>
@@ -64,7 +76,15 @@ export default function CategoriesPage() {
             </div>
           )}
 
-          {categories !== null && categories.length === 0 && (
+          {error && (
+            <div className="text-center py-16 border border-dashed border-[#F04438]/30 rounded-xl">
+              <p className="flex items-center justify-center gap-2 font-headline-sm text-[#B42318] mb-2" role="alert"><AlertCircle size={18} /> Categories are temporarily unavailable</p>
+              <p className="font-body-sm text-[#44474d] mb-6">Please retry rather than relying on an incomplete category list.</p>
+              <button type="button" onClick={retryCategories} className="inline-flex items-center bg-[#1769E0] text-white px-6 py-3 rounded font-label-md hover:bg-[#1257b8]">Retry</button>
+            </div>
+          )}
+
+          {!error && categories !== null && categories.length === 0 && (
             <div className="text-center py-16 border border-dashed border-[#E4E7EC] rounded-xl">
               <p className="font-headline-sm text-[#0B1F3A] mb-2">No categories in the catalogue yet</p>
               <p className="font-body-sm text-[#44474d] mb-6 max-w-md mx-auto">
@@ -76,7 +96,7 @@ export default function CategoriesPage() {
             </div>
           )}
 
-          {categories !== null && categories.length > 0 && (
+          {!error && categories !== null && categories.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {categories.map((cat) => {
                 const Icon = categoryIcon(cat.name);
@@ -98,7 +118,7 @@ export default function CategoriesPage() {
                       <p className="font-body-sm text-[#44474d] mb-5 flex-1">{blurb}</p>
                       {cat.children.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mb-4">
-                          {cat.children.slice(0, 4).map((child) => (
+                          {cat.children.map((child) => (
                             <span key={child.id} className="tag">{child.name}</span>
                           ))}
                         </div>

@@ -7,18 +7,20 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Upload, Search } from "lucide-react";
 import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 
-// Static fallback labels — used only when the real category taxonomy hasn't
-// loaded (or is empty). These are existing COMPEX category concepts, not
-// invented data; no counts or numbers are attached to them.
-const FALLBACK_CATEGORIES = ["Semiconductors", "Connectors", "Integrated Circuits", "Passives", "Sensors", "Power"];
-
 export function HeroSection() {
   const router = useRouter();
   const [mpn, setMpn] = useState("");
-  const [categories, setCategories] = useState<CategoryWithChildren[]>([]);
+  const [categories, setCategories] = useState<CategoryWithChildren[] | null>(null);
+  const [categoriesError, setCategoriesError] = useState(false);
 
   useEffect(() => {
-    listCategories().then(setCategories).catch(() => {});
+    let active = true;
+    listCategories().then((data) => {
+      if (active) setCategories(data);
+    }).catch(() => {
+      if (active) setCategoriesError(true);
+    });
+    return () => { active = false; };
   }, []);
 
   const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
@@ -26,11 +28,6 @@ export function HeroSection() {
     const normalized = mpn.trim().toUpperCase();
     if (normalized) router.push(`/products/${encodeURIComponent(normalized)}`);
   };
-
-  const categoryCues =
-    categories.length > 0
-      ? categories.slice(0, 6).map((cat) => ({ label: cat.name, href: `/products?categoryId=${encodeURIComponent(cat.id)}` }))
-      : FALLBACK_CATEGORIES.map((label) => ({ label, href: undefined as string | undefined }));
 
   return (
     <section className="w-full border-b border-[#E4E7EC] bg-[#F7F9FC]">
@@ -70,19 +67,20 @@ export function HeroSection() {
 
           <p className="font-body-sm text-[#44474d] mt-3">Search by exact manufacturer part number.</p>
 
-          <div className="flex flex-wrap gap-2 mt-8">
-            {categoryCues.map((cue) =>
-              cue.href ? (
-                <Link key={cue.label} href={cue.href} className="tag hover:border-[#1769E0] hover:text-[#1769E0]">
-                  {cue.label}
+          {categories && categories.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-8">
+              {categories.map((category) => (
+                <Link key={category.id} href={`/products?categoryId=${encodeURIComponent(category.id)}`} className="tag hover:border-[#1769E0] hover:text-[#1769E0]">
+                  {category.name}
                 </Link>
-              ) : (
-                <span key={cue.label} className="tag">
-                  {cue.label}
-                </span>
-              ),
-            )}
-          </div>
+              ))}
+            </div>
+          )}
+          {categoriesError && (
+            <p className="mt-6 font-body-sm text-[#44474d]">
+              Category shortcuts are temporarily unavailable. <Link href="/categories" className="text-[#1769E0] hover:underline">Browse all categories</Link>
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-3 mt-8">
             <Link href="/request-quote" className="bg-[#1769E0] text-white px-6 py-3 rounded font-label-md hover:bg-[#1257b8] transition-colors flex items-center gap-2">

@@ -110,7 +110,7 @@ export function resolveProduct(mpn: string, manufacturerId?: string) {
 }
 
 export interface CategoryWithChildren extends BackendCategory {
-  children: BackendCategory[];
+  children: CategoryWithChildren[];
   _count: { products: number };
 }
 

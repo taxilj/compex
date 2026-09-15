@@ -5,8 +5,6 @@ import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 
-const MAX_SHOWN = 8;
-
 export function CategorySection() {
   const [categories, setCategories] = useState<CategoryWithChildren[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,8 +40,6 @@ export function CategorySection() {
   // catalogue genuinely has no categories -- never invent placeholder cards.
   if (!loading && !error && categories.length === 0) return null;
 
-  const shown = categories.slice(0, MAX_SHOWN);
-
   return (
     <section className="py-16 px-4 md:px-8 border-b border-[#E4E7EC]">
       <div className="max-w-[1280px] mx-auto">
@@ -69,7 +65,7 @@ export function CategorySection() {
           </div>
         )}
 
-        {!loading && !error && shown.length > 0 && (
+        {!loading && !error && categories.length > 0 && (
           // auto-fit + minmax fills the row with however many cards actually
           // exist instead of reserving a fixed column count -- 2 categories
           // stretch to fill the width instead of leaving empty grey tracks.
@@ -77,7 +73,7 @@ export function CategorySection() {
             className="grid gap-px bg-[#E4E7EC] border border-[#E4E7EC]"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
           >
-            {shown.map((cat) => (
+            {categories.map((cat) => (
               <Link
                 key={cat.id}
                 href={`/products?categoryId=${encodeURIComponent(cat.id)}`}

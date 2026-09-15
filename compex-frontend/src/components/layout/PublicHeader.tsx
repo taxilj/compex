@@ -52,6 +52,52 @@ function DropdownEmpty({ text }: { text: string }) {
   return <p className="font-body-sm text-[#44474d] px-2 py-3">{text}</p>;
 }
 
+function CategoryTree({ categories, onSelect, depth = 0 }: { categories: CategoryWithChildren[]; onSelect: () => void; depth?: number }) {
+  if (categories.length === 0) return null;
+  return (
+    <ul className={depth === 0 ? "space-y-1" : "mt-1 space-y-1 border-l border-[#E4E7EC] pl-3"}>
+      {categories.map((category) => (
+        <li key={category.id}>
+          <Link
+            href={`/products?categoryId=${encodeURIComponent(category.id)}`}
+            onClick={onSelect}
+            className="block py-0.5 font-body-sm text-[#44474d] hover:text-[#1769E0]"
+          >
+            {category.name}
+          </Link>
+          <CategoryTree categories={category.children} onSelect={onSelect} depth={depth + 1} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function MobileCategoryTree({ categories, onSelect }: { categories: CategoryWithChildren[]; onSelect: () => void }) {
+  return (
+    <ul className="space-y-1">
+      {categories.map((category) => (
+        <li key={category.id}>
+          {category.children.length === 0 ? (
+            <Link href={`/products?categoryId=${encodeURIComponent(category.id)}`} className="block py-2 font-body-sm text-[#111c2d] hover:text-[#1769E0]" onClick={onSelect}>
+              {category.name}
+            </Link>
+          ) : (
+            <details className="group rounded border border-[#E4E7EC] px-3 py-2">
+              <summary className="cursor-pointer list-none font-label-md text-[#111c2d] marker:content-none">
+                <span className="flex items-center justify-between gap-3">{category.name}<ChevronDown size={16} className="transition-transform group-open:rotate-180" /></span>
+              </summary>
+              <div className="mt-2 border-t border-[#E4E7EC] pt-2">
+                <Link href={`/products?categoryId=${encodeURIComponent(category.id)}`} className="font-label-sm text-[#1769E0] hover:underline" onClick={onSelect}>View all {category.name}</Link>
+                <div className="mt-1"><MobileCategoryTree categories={category.children} onSelect={onSelect} /></div>
+              </div>
+            </details>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function NavDropdown({
   label,
   isOpen,
@@ -227,7 +273,7 @@ export default function PublicHeader() {
           isOpen={openMenu === "categories"}
           onToggle={() => toggleMenu("categories")}
           onClose={closeMenu}
-          panelClassName="w-[560px] max-w-[90vw] max-h-[70vh] overflow-y-auto p-4"
+          panelClassName="w-[min(760px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto p-4"
         >
           {categoriesLoading && <DropdownLoading />}
           {!categoriesLoading && categoriesError && <DropdownError onRetry={retryCategories} />}
@@ -235,7 +281,7 @@ export default function PublicHeader() {
             <DropdownEmpty text="No categories found." />
           )}
           {!categoriesLoading && !categoriesError && categories.length > 0 && (
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-6 gap-y-4">
               {categories.map((cat) => (
                 <div key={cat.id}>
                   <Link
@@ -245,21 +291,7 @@ export default function PublicHeader() {
                   >
                     {cat.name}
                   </Link>
-                  {cat.children.length > 0 && (
-                    <ul className="space-y-0.5 pl-2 border-l border-[#E4E7EC]">
-                      {cat.children.map((child) => (
-                        <li key={child.id}>
-                          <Link
-                            href={`/products?categoryId=${encodeURIComponent(child.id)}`}
-                            onClick={closeMenu}
-                            className="font-body-sm text-[#44474d] hover:text-[#1769E0] block py-0.5"
-                          >
-                            {child.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  <CategoryTree categories={cat.children} onSelect={closeMenu} />
                 </div>
               ))}
             </div>
@@ -388,20 +420,8 @@ export default function PublicHeader() {
               {!categoriesLoading && !categoriesError && categories.length === 0 && (
                 <DropdownEmpty text="No categories found." />
               )}
-              {!categoriesLoading && !categoriesError && categories.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {categories.map((cat) => (
-                    <Link
-                      key={cat.id}
-                      href={`/products?categoryId=${encodeURIComponent(cat.id)}`}
-                      className="tag"
-                      onClick={() => setMobileOpen(false)}
-                    >
-                      {cat.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
+              {!categoriesLoading && !categoriesError && categories.length > 0 && <MobileCategoryTree categories={categories} onSelect={() => setMobileOpen(false)} />}
+              {!categoriesLoading && !categoriesError && categories.length > 0 && <Link href="/categories" className="mt-3 inline-block font-label-sm text-[#1769E0] hover:underline" onClick={() => setMobileOpen(false)}>View all categories →</Link>}
             </div>
 
             <div className="pt-3 border-t border-[#E4E7EC]">

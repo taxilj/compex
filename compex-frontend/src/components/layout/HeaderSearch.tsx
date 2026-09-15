@@ -21,6 +21,13 @@ function productHref(product: BackendProduct): string {
   return `/products/${encodeURIComponent(product.mpn)}${params}`;
 }
 
+function looksLikePartNumber(value: string): boolean {
+  // A known exact result always wins. This fallback preserves the existing
+  // direct-MPN path for a fast Enter before autocomplete resolves, while
+  // ordinary keyword searches continue to the products results page.
+  return /^(?=.*\d)[A-Z0-9][A-Z0-9._/-]*$/i.test(value);
+}
+
 export default function HeaderSearch({ className, onNavigate }: HeaderSearchProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -94,6 +101,12 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
       setOpen(false);
       return;
     }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (activeIndex >= 0 && results[activeIndex]) goToProduct(results[activeIndex]);
+      else submitSearch();
+      return;
+    }
     if (!open || results.length === 0) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -101,27 +114,33 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIndex((i) => (i <= 0 ? results.length - 1 : i - 1));
-    } else if (event.key === "Enter" && activeIndex >= 0) {
-      event.preventDefault();
+    }
+  }
+
+  function submitSearch() {
+    if (activeIndex >= 0 && results[activeIndex]) {
       goToProduct(results[activeIndex]);
+      return;
+    }
+    const term = query.trim();
+    if (!term) return;
+    const exact = results.find((product) => product.mpn.toUpperCase() === term.toUpperCase());
+    if (exact) {
+      goToProduct(exact);
+      return;
+    }
+    setOpen(false);
+    onNavigate?.();
+    if (looksLikePartNumber(term)) {
+      router.push(`/products/${encodeURIComponent(term.toUpperCase())}`);
+    } else {
+      router.push(`/products?q=${encodeURIComponent(term)}`);
     }
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (activeIndex >= 0 && results[activeIndex]) {
-      goToProduct(results[activeIndex]);
-      return;
-    }
-    // Fallback for a user who types the exact MPN and hits Enter before any
-    // live results have a chance to load -- exact-match jump, same as the
-    // header's original submit-to-navigate behavior.
-    const normalized = query.trim().toUpperCase();
-    if (normalized) {
-      setOpen(false);
-      onNavigate?.();
-      router.push(`/products/${encodeURIComponent(normalized)}`);
-    }
+    submitSearch();
   }
 
   const trimmedQuery = query.trim();
@@ -146,7 +165,7 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
           aria-controls="header-search-results"
           aria-activedescendant={activeIndex >= 0 ? `header-search-option-${activeIndex}` : undefined}
           className="w-full bg-transparent border-none outline-none font-mono-label text-[#111c2d] placeholder:text-[#75777e] placeholder:font-body-sm"
-          placeholder="Search exact MPN…"
+          placeholder="Enter keyword or part number"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -155,6 +174,9 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
         />
+        <button type="submit" aria-label="Search" className="rounded p-1 text-[#0B1F3A] hover:bg-[#f0f3ff] focus:outline-none focus:ring-2 focus:ring-[#1769E0]">
+          <Search size={16} aria-hidden="true" />
+        </button>
       </form>
 
       {showDropdown && (
