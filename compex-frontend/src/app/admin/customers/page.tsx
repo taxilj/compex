@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUpRight, Loader2, Plus, Search, X } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { createCustomer, getCustomer, listCustomers, listUsers, updateCustomer, type AdminCustomer, type AdminCustomerInput, type AdminUser } from "@/lib/api/admin";
@@ -13,6 +13,8 @@ const blankForm: AdminCustomerInput = {
   website: "", fax: "", primaryContact: "", contactEmail: "", authorisedPerson: "", paymentTerms: "", region: "",
   industrySegment: "", internalAccountNumber: "", shippingAccount: "", bankDetails: "", remarks: "",
 };
+
+const PAGE_SIZE = 50;
 
 function formFor(customer: AdminCustomer): AdminCustomerInput {
   const c = customer.company;
@@ -36,6 +38,8 @@ export default function AdminCustomersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [retryKey, setRetryKey] = useState(0);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AdminCustomer | null>(null);
   const [form, setForm] = useState<AdminCustomerInput>(blankForm);
@@ -43,25 +47,23 @@ export default function AdminCustomersPage() {
 
   useEffect(() => {
     let active = true;
-    void listCustomers({ limit: 100 })
+    void listCustomers({ q: search.trim() || undefined, page, limit: PAGE_SIZE })
       .then((result) => {
         if (!active) return;
         setCustomers(result.data);
         setTotal(result.total);
+        setError(null);
       })
       .catch(() => { if (active) setError("Failed to load customers."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [page, retryKey, search]);
 
   useEffect(() => {
-    listUsers({ role: "STAFF", limit: 100 }).then((r) => setStaff(r.data)).catch(() => {});
+    let active = true;
+    listUsers({ role: "STAFF", limit: 100 }).then((r) => { if (active) setStaff(r.data); }).catch(() => {});
+    return () => { active = false; };
   }, []);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return q ? customers.filter((customer) => [customer.accountNumber, customer.company.name, customer.user.firstName, customer.user.lastName, customer.user.email, customer.company.gstin ?? ""].some((value) => value.toLowerCase().includes(q))) : customers;
-  }, [customers, search]);
 
   function startCreate() { setEditing(null); setForm(blankForm); setOpen(true); }
   function close() { setOpen(false); setEditing(null); setForm(blankForm); }
@@ -88,10 +90,16 @@ export default function AdminCustomersPage() {
         const v = input[key];
         if (typeof v === "string" && v.trim() === "") (input as unknown as Record<string, unknown>)[key] = undefined;
       }
-      const saved = editing ? await updateCustomer(editing.id, input) : await createCustomer(input);
-      setCustomers((current) => editing ? current.map((customer) => customer.id === saved.id ? saved : customer) : [saved, ...current]);
-      setTotal((current) => editing ? current : current + 1);
+      const original = editing ? formFor(editing) : null;
+      const changed = original
+        ? Object.fromEntries(Object.entries(input).filter(([key, value]) => value !== (original as unknown as Record<string, unknown>)[key])) as Partial<AdminCustomerInput>
+        : input;
+      if (editing) await updateCustomer(editing.id, changed);
+      else await createCustomer(input);
       close();
+      setLoading(true);
+      setPage(1);
+      setRetryKey((current) => current + 1);
     } catch (exception) {
       setError(exception instanceof ApiError ? exception.message : "Unable to save customer.");
     } finally {
@@ -101,9 +109,10 @@ export default function AdminCustomersPage() {
 
   return <div className="space-y-6">
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h1 className="font-headline-lg text-[#111c2d]">Customer Management</h1><p className="font-body-md text-[#44474d]">{loading ? "Loading…" : `${total} live customer records`}</p></div><button onClick={startCreate} className="inline-flex items-center justify-center gap-2 rounded bg-[#0B1F3A] px-4 py-2 font-label-md text-white hover:bg-[#0B1F3A]/90"><Plus size={16} /> Add customer</button></div>
-    <div className="rounded-lg bg-[#e8eeff] p-5"><div className="relative max-w-md"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#44474d]" /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search customers" placeholder="Search company, contact, email, GSTIN…" className="w-full rounded border border-[#E4E7EC] bg-white py-2.5 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]" /></div></div>
-    {error && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
-    <div className="overflow-hidden rounded-xl border border-[#E4E7EC] bg-white shadow-sm">{loading ? <div className="flex items-center justify-center py-16 text-[#44474d]"><Loader2 className="mr-2 animate-spin" size={20} /> Loading customers…</div> : <div className="overflow-x-auto"><table className="w-full text-left whitespace-nowrap"><thead><tr className="border-b border-[#E4E7EC] bg-[#f0f3ff]">{["Company", "Primary contact", "Account", "RFQs", "Quotes", "Status", ""].map((label) => <th key={label} className="px-5 py-3.5 text-xs font-label-sm uppercase tracking-wider text-[#44474d]">{label}</th>)}</tr></thead><tbody className="divide-y divide-[#E4E7EC]">{filtered.length === 0 ? <tr><td colSpan={7} className="py-12 text-center text-[#667085]">No customers found.</td></tr> : filtered.map((customer) => <tr key={customer.id} className="hover:bg-[#f0f3ff]/40"><td className="px-5 py-4"><p className="font-label-md text-sm text-[#111c2d]">{customer.company.name}</p><p className="text-xs text-[#667085]">{customer.company.city ?? "No city"}</p></td><td className="px-5 py-4"><p className="text-sm text-[#111c2d]">{customer.user.firstName} {customer.user.lastName}</p><p className="text-xs text-[#667085]">{customer.user.email}</p></td><td className="px-5 py-4 font-mono text-xs text-[#111c2d]">{customer.accountNumber}</td><td className="px-5 py-4 text-right">{customer._count.rfqs}</td><td className="px-5 py-4 text-right">{customer._count.quotations}</td><td className="px-5 py-4"><span className={`rounded-full px-2 py-1 text-xs ${customer.user.status === "ACTIVE" ? "bg-[#12B76A]/10 text-[#087443]" : "bg-[#F79009]/10 text-[#9A6700]"}`}>{customer.user.status === "ACTIVE" ? "Active" : "Invitation pending"}</span></td><td className="px-5 py-4"><button onClick={() => void startEdit(customer.id)} className="inline-flex items-center gap-1 text-xs font-label-sm text-[#1769E0] hover:underline">View / edit <ArrowUpRight size={12} /></button></td></tr>)}</tbody></table></div>}</div>
+    <div className="rounded-lg bg-[#e8eeff] p-5"><div className="relative max-w-md"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#44474d]" /><input value={search} onChange={(event) => { setLoading(true); setSearch(event.target.value); setPage(1); }} aria-label="Search customers" placeholder="Search company, contact, email, GSTIN…" className="w-full rounded border border-[#E4E7EC] bg-white py-2.5 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]" /></div></div>
+    {error && <div role="alert" className="flex items-center justify-between gap-3 rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]"><span>{error}</span><button onClick={() => { setLoading(true); setRetryKey((current) => current + 1); }} className="rounded border border-current px-3 py-1 text-sm font-label-md">Retry</button></div>}
+    <div className="overflow-hidden rounded-xl border border-[#E4E7EC] bg-white shadow-sm">{loading ? <div className="flex items-center justify-center py-16 text-[#44474d]"><Loader2 className="mr-2 animate-spin" size={20} /> Loading customers…</div> : <div className="overflow-x-auto"><table className="w-full text-left whitespace-nowrap"><thead><tr className="border-b border-[#E4E7EC] bg-[#f0f3ff]">{["Company", "Primary contact", "Account", "RFQs", "Quotes", "Status", ""].map((label) => <th key={label} className="px-5 py-3.5 text-xs font-label-sm uppercase tracking-wider text-[#44474d]">{label}</th>)}</tr></thead><tbody className="divide-y divide-[#E4E7EC]">{customers.length === 0 ? <tr><td colSpan={7} className="py-12 text-center text-[#667085]">No customers found.</td></tr> : customers.map((customer) => <tr key={customer.id} className="hover:bg-[#f0f3ff]/40"><td className="px-5 py-4"><p className="font-label-md text-sm text-[#111c2d]">{customer.company.name}</p><p className="text-xs text-[#667085]">{customer.company.city ?? "No city"}</p></td><td className="px-5 py-4"><p className="text-sm text-[#111c2d]">{customer.user.firstName} {customer.user.lastName}</p><p className="text-xs text-[#667085]">{customer.user.email}</p></td><td className="px-5 py-4 font-mono text-xs text-[#111c2d]">{customer.accountNumber}</td><td className="px-5 py-4 text-right">{customer._count.rfqs}</td><td className="px-5 py-4 text-right">{customer._count.quotations}</td><td className="px-5 py-4"><span className={`rounded-full px-2 py-1 text-xs ${customer.user.status === "ACTIVE" ? "bg-[#12B76A]/10 text-[#087443]" : "bg-[#F79009]/10 text-[#9A6700]"}`}>{customer.user.status === "ACTIVE" ? "Active" : "Invitation pending"}</span></td><td className="px-5 py-4"><button onClick={() => void startEdit(customer.id)} className="inline-flex items-center gap-1 text-xs font-label-sm text-[#1769E0] hover:underline">View / edit <ArrowUpRight size={12} /></button></td></tr>)}</tbody></table></div>}</div>
+    {!loading && total > 0 && <div className="flex flex-col gap-3 text-sm text-[#44474d] sm:flex-row sm:items-center sm:justify-between"><span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}</span><div className="flex gap-2"><button onClick={() => { setLoading(true); setPage((current) => Math.max(1, current - 1)); }} disabled={page === 1} className="rounded border border-[#E4E7EC] px-3 py-2 disabled:opacity-50">Previous</button><button onClick={() => { setLoading(true); setPage((current) => current + 1); }} disabled={page * PAGE_SIZE >= total} className="rounded border border-[#E4E7EC] px-3 py-2 disabled:opacity-50">Next</button></div></div>}
     {open && <CustomerDialog customer={editing} form={form} saving={saving} staff={staff} onChange={setForm} onClose={close} onSubmit={submit} />}
   </div>;
 }

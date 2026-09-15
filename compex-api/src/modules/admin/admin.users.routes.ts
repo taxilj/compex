@@ -109,6 +109,11 @@ export async function adminUsersRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/", async (req, reply) => {
     const body = CreateUserBody.parse(req.body);
+    // A STAFF caller can invite STAFF/CUSTOMER accounts but not ADMIN --
+    // creating an ADMIN is a privilege grant and must itself come from an
+    // existing ADMIN, the same boundary PATCH already enforces by omitting
+    // role entirely from UpdateUserBody.
+    if (body.role === "ADMIN" && req.user!.role !== "ADMIN") throw Errors.forbidden();
     await validateUserRefs(body);
     const existing = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
     if (existing) throw Errors.conflict("An account with this email already exists");

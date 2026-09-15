@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, Plus, Trash2, Lock, Check, X } from "lucide-react";
-import { listSettingCategories, listSettings, createSetting, updateSetting, deleteSetting, type Setting } from "@/lib/api/admin";
+import { listSettingCategories, listSettings, createSetting, updateSetting, deleteSetting, deactivateSetting, activateSetting, type Setting } from "@/lib/api/admin";
 
 function formatCategoryLabel(category: string): string {
   return category.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
@@ -34,7 +34,7 @@ export default function AdminSettingsPage() {
   const loadValues = useCallback((category: string) => {
     setLoadingValues(true);
     setError(null);
-    listSettings(category)
+    listSettings(category, { includeInactive: true })
       .then(setValues)
       .catch(() => setError("Failed to load values for this category."))
       .finally(() => setLoadingValues(false));
@@ -77,6 +77,20 @@ export default function AdminSettingsPage() {
       flashSaved();
     } catch {
       setError("Failed to save. This value may be read-only.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggleActive(s: Setting) {
+    setSaving(true);
+    setError(null);
+    try {
+      await (s.isActive ? deactivateSetting(s.id) : activateSetting(s.id));
+      if (activeCategory) loadValues(activeCategory);
+      flashSaved();
+    } catch {
+      setError(s.isActive ? "Failed to deactivate value." : "Failed to reactivate value.");
     } finally {
       setSaving(false);
     }
@@ -171,24 +185,36 @@ export default function AdminSettingsPage() {
                       </div>
                     ) : (
                       <>
-                        <span className="font-body-sm text-[#111c2d] text-sm">{s.value}</span>
-                        {s.isEditable ? (
-                          <div className="flex items-center gap-1">
+                        <span className="flex items-center gap-2 font-body-sm text-[#111c2d] text-sm">
+                          {s.value}
+                          {!s.isActive && <span className="font-label-sm text-xs text-[#9A6700] bg-[#F79009]/10 px-1.5 py-0.5 rounded-full">Inactive</span>}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {s.isEditable && (
                             <button
                               onClick={() => { setEditingId(s.id); setEditingValue(s.value); }}
                               className="px-2.5 py-1 font-label-sm text-xs text-[#1769E0] hover:bg-[#f0f3ff] rounded"
                             >
                               Edit
                             </button>
+                          )}
+                          <button
+                            onClick={() => handleToggleActive(s)}
+                            disabled={saving}
+                            className="px-2.5 py-1 font-label-sm text-xs text-[#44474d] hover:bg-[#f0f3ff] rounded"
+                          >
+                            {s.isActive ? "Deactivate" : "Activate"}
+                          </button>
+                          {s.isEditable ? (
                             <button onClick={() => handleDelete(s.id)} disabled={saving} className="p-1.5 text-[#F04438] hover:bg-[#FEF3F2] rounded" aria-label="Delete">
                               <Trash2 size={14} />
                             </button>
-                          </div>
-                        ) : (
-                          <span className="flex items-center gap-1 font-label-sm text-xs text-[#44474d]">
-                            <Lock size={12} /> Read-only
-                          </span>
-                        )}
+                          ) : (
+                            <span className="flex items-center gap-1 font-label-sm text-xs text-[#44474d]" title="System value: cannot be renamed or deleted">
+                              <Lock size={12} />
+                            </span>
+                          )}
+                        </div>
                       </>
                     )}
                   </li>

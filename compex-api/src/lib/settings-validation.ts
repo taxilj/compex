@@ -5,10 +5,15 @@ import { Errors } from "./errors.js";
 // LOV entry for the given Settings category -- the server-side half of
 // "every dropdown loads from Settings" (the client-side half is the
 // SettingsSelect component, which only ever offers active values in the
-// first place). Empty/undefined is always allowed since these fields are
-// optional; this only rejects a value that does not match a configured
-// option, so a form can never silently drift a Settings-backed field into
-// arbitrary free text.
+// first place). Only an OMITTED field (undefined) or an explicit null (used
+// to clear an FK-style field) is allowed through; this only rejects a value
+// that does not match a configured option, so a form can never silently
+// drift a Settings-backed field into arbitrary free text.
+//
+// An explicit empty string is deliberately NOT treated as "no value" --
+// unlike undefined, "" is still written by Prisma, and no category has an
+// empty-string Setting row, so letting it through here would silently clear
+// a Settings-backed field to a value that matches nothing in Settings.
 //
 // A value that used to be active and was since deactivated is intentionally
 // NOT accepted here (assigning a retired option to a *new* record would
@@ -16,7 +21,7 @@ import { Errors } from "./errors.js";
 // stored it are completely unaffected, since reads never re-validate
 // against Settings, only writes do.
 export async function assertValidSettingValue(category: string, value: string | null | undefined): Promise<void> {
-  if (value === null || value === undefined || value === "") return;
+  if (value === null || value === undefined) return;
   const exists = await prisma.setting.findFirst({ where: { category, value, isActive: true }, select: { id: true } });
   if (!exists) {
     throw Errors.validation(`"${value}" is not a configured, active value for "${category}". Add or reactivate it in Settings first.`);

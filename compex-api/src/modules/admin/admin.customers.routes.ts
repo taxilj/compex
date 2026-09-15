@@ -96,7 +96,16 @@ function newAccountNumber(): string {
 // log bank details or full private payloads), even though this endpoint and
 // the AuditLog it writes to are both admin-only.
 function toAuditValue(customer: CustomerRecord) {
-  const { bankDetails: _bankDetails, ...companySafe } = customer.company;
+  // These values are operationally necessary in the admin response, but audit
+  // history has a much wider retention/reader surface. Never persist account
+  // or credit data there.
+  const {
+    bankDetails: _bankDetails,
+    creditLimit: _creditLimit,
+    internalAccountNumber: _internalAccountNumber,
+    shippingAccount: _shippingAccount,
+    ...companySafe
+  } = customer.company;
   return { id: customer.id, accountNumber: customer.accountNumber, user: customer.user, company: companySafe };
 }
 
@@ -155,7 +164,10 @@ async function validateCustomerRefs(body: Partial<CustomerBodyShape>): Promise<v
   ];
   for (const [field, id] of userRefs) {
     if (!id) continue;
-    const exists = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+    const exists = await prisma.user.findFirst({
+      where: { id, role: { in: ["STAFF", "ADMIN"] } },
+      select: { id: true },
+    });
     if (!exists) throw Errors.validation(`${field} does not reference an existing user`);
   }
 }
@@ -173,6 +185,7 @@ export async function adminCustomersRoutes(app: FastifyInstance): Promise<void> 
         { user: { firstName: { contains: query.q, mode: "insensitive" as const } } },
         { user: { lastName: { contains: query.q, mode: "insensitive" as const } } },
         { company: { name: { contains: query.q, mode: "insensitive" as const } } },
+        { company: { gstin: { contains: query.q, mode: "insensitive" as const } } },
       ],
     } : {};
     const skip = (query.page - 1) * query.limit;

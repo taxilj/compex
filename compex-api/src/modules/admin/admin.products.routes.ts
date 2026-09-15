@@ -47,6 +47,12 @@ async function validateProductRefs(body: Partial<z.infer<typeof ProductBody>>): 
     { category: "UOM", value: body.uom },
     { category: "PRODUCT_GROUP", value: body.productGroup },
   ]);
+  const [manufacturer, category] = await Promise.all([
+    body.manufacturerId ? prisma.manufacturer.findUnique({ where: { id: body.manufacturerId }, select: { id: true } }) : undefined,
+    body.categoryId ? prisma.category.findUnique({ where: { id: body.categoryId }, select: { id: true } }) : undefined,
+  ]);
+  if (body.manufacturerId && !manufacturer) throw Errors.validation("manufacturerId does not reference an existing manufacturer");
+  if (body.categoryId && !category) throw Errors.validation("categoryId does not reference an existing category");
 }
 
 const ProductListQuery = z.object({
