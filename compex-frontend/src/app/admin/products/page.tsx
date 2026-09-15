@@ -13,6 +13,8 @@ import {
   type Manufacturer,
   type AdminCategory,
 } from "@/lib/api/admin";
+import { Field } from "@/components/admin/Field";
+import { SettingsSelect } from "@/components/admin/SettingsSelect";
 
 const importStatusBadge: Record<string, string> = {
   MANUAL: "bg-[#44474d]/10 text-[#44474d]",
@@ -74,6 +76,15 @@ export default function AdminProductsPage() {
       packageType: p.packageType ?? "",
       lifecycleStatus: p.lifecycleStatus ?? "",
       datasheetUrl: p.datasheetUrl ?? "",
+      productCode: p.productCode ?? "",
+      spq: p.spq ?? undefined,
+      packaging: p.packaging ?? "",
+      uom: p.uom ?? "",
+      hsCode: p.hsCode ?? "",
+      hsDescription: p.hsDescription ?? "",
+      productGroup: p.productGroup ?? "",
+      eccn: p.eccn ?? "",
+      availableStock: p.availableStock ?? undefined,
     });
     setFormError(null);
     setShowModal(true);
@@ -218,6 +229,17 @@ export default function AdminProductsPage() {
                 <Field label="Lifecycle Status" value={form.lifecycleStatus ?? ""} onChange={(v) => setForm({ ...form, lifecycleStatus: v })} />
               </div>
               <Field label="Datasheet URL" value={form.datasheetUrl ?? ""} onChange={(v) => setForm({ ...form, datasheetUrl: v })} />
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Product code" value={form.productCode ?? ""} onChange={(v) => setForm({ ...form, productCode: v })} />
+                <Field label="SPQ" value={form.spq != null ? String(form.spq) : ""} onChange={(v) => setForm({ ...form, spq: v === "" ? undefined : Number(v) })} />
+                <Field label="Available stock" value={form.availableStock != null ? String(form.availableStock) : ""} onChange={(v) => setForm({ ...form, availableStock: v === "" ? undefined : Number(v) })} />
+                <SettingsSelect category="PACKAGING" label="Packaging" value={form.packaging ?? ""} onChange={(v) => setForm({ ...form, packaging: v })} />
+                <SettingsSelect category="UOM" label="UOM" value={form.uom ?? ""} onChange={(v) => setForm({ ...form, uom: v })} />
+                <SettingsSelect category="PRODUCT_GROUP" label="Product group" value={form.productGroup ?? ""} onChange={(v) => setForm({ ...form, productGroup: v })} />
+                <Field label="ECCN" value={form.eccn ?? ""} onChange={(v) => setForm({ ...form, eccn: v })} />
+                <SettingsSelect category="HSN_CODE" label="HS code" value={form.hsCode ?? ""} onChange={(v) => setForm({ ...form, hsCode: v })} />
+                <SettingsSelect category="SUB_CATEGORY_HS_DESC" label="HS description" value={form.hsDescription ?? ""} onChange={(v) => setForm({ ...form, hsDescription: v })} />
+              </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={handleClose} className="px-4 py-2 rounded border border-[#E4E7EC] font-label-md text-sm">Cancel</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 rounded bg-[#0B1F3A] text-white font-label-md text-sm disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
@@ -225,19 +247,6 @@ export default function AdminProductsPage() {
             </form>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, value, onChange, required, disabled, textarea }: { label: string; value: string; onChange: (v: string) => void; required?: boolean; disabled?: boolean; textarea?: boolean }) {
-  return (
-    <div>
-      <label className="block font-label-md text-[#44474d] mb-1.5 text-sm">{label}</label>
-      {textarea ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} required={required} disabled={disabled} rows={3} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm disabled:bg-[#f9f9ff]" />
-      ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} required={required} disabled={disabled} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm disabled:bg-[#f9f9ff]" />
       )}
     </div>
   );

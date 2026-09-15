@@ -144,38 +144,105 @@ enum FollowUpStatus {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id           String     @id @default(uuid()) @db.Uuid
-  email        String     @unique
-  passwordHash String     @map("password_hash")
-  role         UserRole   @default(CUSTOMER)
-  status       UserStatus @default(PENDING_VERIFICATION)
-  firstName    String     @map("first_name")
-  lastName     String     @map("last_name")
-  phone        String?
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id             String     @id @default(uuid()) @db.Uuid
+  email          String     @unique
+  passwordHash   String     @map("password_hash")
+  role           UserRole   @default(CUSTOMER)
+  status         UserStatus @default(PENDING_VERIFICATION)
+  firstName      String     @map("first_name")
+  lastName       String     @map("last_name")
+  phone          String?
+  // Owner's User Master fields (Master value.xlsx) -- additive, admin-only
+  // profile detail on top of the existing auth identity above. "Position"/
+  // "Department" are Settings-driven LOV values (category strings, validated
+  // against the Setting table at the API layer); organization is a real FK
+  // to the existing Organization model.
+  screenName     String?    @map("screen_name")
+  organizationId String?    @map("organization_id") @db.Uuid
+  position       String?
+  department     String?
+  mobile         String?
+  address        String?
+  skype          String?
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
 
-  customer          Customer?
-  refreshTokens     RefreshToken[]
-  emailVerification EmailVerification?
-  accountSetupToken AccountSetupToken?
-  assignedLeads     Lead[]             @relation("LeadAssignee")
-  createdQuotations Quotation[]        @relation("QuotationCreator")
+  customer                 Customer?
+  organization             Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  refreshTokens            RefreshToken[]
+  emailVerification        EmailVerification?
+  accountSetupToken        AccountSetupToken?
+  assignedLeads            Lead[]             @relation("LeadAssignee")
+  createdQuotations        Quotation[]        @relation("QuotationCreator")
+  salesForCompanies        Company[]          @relation("CompanySalesPerson")
+  coordinatingForCompanies Company[]          @relation("CompanySalesCoordinator")
+  sourcingForCompanies     Company[]          @relation("CompanySourcingOwner")
 
+  @@index([organizationId])
   @@map("users")
 }
 
 model Company {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  gstin     String?
-  city      String?
-  address   String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                        String   @id @default(uuid()) @db.Uuid
+  name                      String
+  gstin                     String?
+  city                      String?
+  address                   String?
+  // Owner's Customer Master fields (Master value.xlsx) -- additive. Bill-to/
+  // ship-to are kept distinct from the pre-existing generic `address` above
+  // (never repurposed/renamed). String LOV fields (customerType,
+  // relationshipType, paymentTerms, region, industrySegment) are
+  // Settings-driven and validated against the Setting table at the API
+  // layer, same pattern as User.position/department above. `contacts` is
+  // the owner's flat "contact list" sub-table, stored as JSON rather than a
+  // separate paginated child entity/table -- it is small, always loaded
+  // with its parent, and never queried independently.
+  shortName                 String?  @map("short_name")
+  billToAddress             String?  @map("bill_to_address")
+  shipToAddress             String?  @map("ship_to_address")
+  // Additional ship-to locations beyond the single primary shipToAddress
+  // above (owner's "Multiple Location" note) -- an array of plain address
+  // strings, same lightweight JSON approach as `contacts` below.
+  additionalShipToAddresses Json?    @map("additional_ship_to_addresses")
+  state                     String?
+  country                   String?
+  // "Customer", "Vendor", or "Both" -- the owner's own explicit field,
+  // distinct from which operational tables (Customer/Vendor) actually
+  // reference this Company.
+  relationshipType          String?  @map("relationship_type")
+  customerType              String?  @map("customer_type")
+  website                   String?
+  fax                       String?
+  primaryContact            String?  @map("primary_contact")
+  contactEmail              String?  @map("contact_email")
+  authorisedPerson          String?  @map("authorised_person")
+  paymentTerms              String?  @map("payment_terms")
+  creditLimit               Decimal? @map("credit_limit") @db.Decimal(18, 2)
+  region                    String?
+  salesPersonId             String?  @map("sales_person_id") @db.Uuid
+  salesCoordinatorId        String?  @map("sales_coordinator_id") @db.Uuid
+  sourcingOwnerId           String?  @map("sourcing_owner_id") @db.Uuid
+  internalAccountNumber     String?  @map("internal_account_number")
+  shippingAccount           String?  @map("shipping_account")
+  bankDetails               String?  @map("bank_details")
+  industrySegment           String?  @map("industry_segment")
+  remarks                   String?
+  contacts                  Json?
+  // Deactivate-don't-delete for the Customer master record itself, same
+  // pattern as Setting.isActive -- lets an admin retire a customer/vendor
+  // company record without breaking its FK history (RFQs, quotations).
+  isActive                  Boolean  @default(true) @map("is_active")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
 
-  customers Customer[]
+  customers        Customer[]
+  salesPerson      User?      @relation("CompanySalesPerson", fields: [salesPersonId], references: [id], onDelete: SetNull)
+  salesCoordinator User?      @relation("CompanySalesCoordinator", fields: [salesCoordinatorId], references: [id], onDelete: SetNull)
+  sourcingOwner    User?      @relation("CompanySourcingOwner", fields: [sourcingOwnerId], references: [id], onDelete: SetNull)
 
+  @@index([salesPersonId])
+  @@index([salesCoordinatorId])
+  @@index([sourcingOwnerId])
   @@map("companies")
 }
 
@@ -198,19 +265,19 @@ model Customer {
 }
 
 model Rfq {
-  id               String      @id @default(uuid()) @db.Uuid
-  rfqNumber        String      @unique @map("rfq_number")
-  customerId       String      @map("customer_id") @db.Uuid
-  status           RFQStatus   @default(DRAFT)
+  id               String          @id @default(uuid()) @db.Uuid
+  rfqNumber        String          @unique @map("rfq_number")
+  customerId       String          @map("customer_id") @db.Uuid
+  status           RFQStatus       @default(DRAFT)
   sourcingStatus   SourcingStatus? @map("sourcing_status")
-  priority         RFQPriority @default(MEDIUM)
-  deliveryLocation String?     @map("delivery_location")
-  requiredDate     DateTime?   @map("required_date") @db.Date
-  additionalNotes  String?     @map("additional_notes")
-  internalNotes    String?     @map("internal_notes")
-  submittedAt      DateTime?   @map("submitted_at")
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
+  priority         RFQPriority     @default(MEDIUM)
+  deliveryLocation String?         @map("delivery_location")
+  requiredDate     DateTime?       @map("required_date") @db.Date
+  additionalNotes  String?         @map("additional_notes")
+  internalNotes    String?         @map("internal_notes")
+  submittedAt      DateTime?       @map("submitted_at")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
 
   customer   Customer    @relation(fields: [customerId], references: [id])
   items      RfqItem[]
@@ -354,17 +421,25 @@ model AuditLog {
 // ─── P0-A: Vendor & Manufacturer ─────────────────────────────────────────────
 
 model Manufacturer {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String
-  slug        String   @unique
-  logoUrl     String?  @map("logo_url")
-  website     String?
-  description String?
-  country     String?
-  source      String   @default("MANUAL")
-  sourceUrl   String?  @map("source_url")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  slug              String   @unique
+  logoUrl           String?  @map("logo_url")
+  website           String?
+  description       String?
+  country           String?
+  source            String   @default("MANUAL")
+  sourceUrl         String?  @map("source_url")
+  // Owner's Manufacturer Master fields (Master value.xlsx) -- additive.
+  // logoUrl above already serves the owner's "Manufacturer Image" field.
+  distributorLink   String?  @map("distributor_link")
+  stockCheckLink    String?  @map("stock_check_link")
+  acquiredMfr       String?  @map("acquired_mfr")
+  remarks           String?
+  suffixInformation String?  @map("suffix_information")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   products Product[]
 
@@ -372,14 +447,40 @@ model Manufacturer {
 }
 
 model Vendor {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String
-  contactEmail String   @map("contact_email")
-  contactPhone String?  @map("contact_phone")
-  address      String?
-  notes        String?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                      String   @id @default(uuid()) @db.Uuid
+  name                    String
+  contactEmail            String   @map("contact_email")
+  contactPhone            String?  @map("contact_phone")
+  address                 String?
+  notes                   String?
+  // Owner's Vendor Master fields (Master value.xlsx) -- additive, same
+  // Settings-driven/JSON-contact-list conventions as Company above.
+  // contactName is the primary contact's name, paired with the pre-existing
+  // contactEmail above -- distinct from the fuller `contacts` list below.
+  contactName             String?  @map("contact_name")
+  vendorCode              String?  @unique @map("vendor_code")
+  billToAddress           String?  @map("bill_to_address")
+  shipToAddress           String?  @map("ship_to_address")
+  country                 String?
+  telephone               String?
+  fax                     String?
+  mobile                  String?
+  website                 String?
+  otherOffices            String?  @map("other_offices")
+  mov                     Decimal? @db.Decimal(18, 2)
+  paymentCurrency         String?  @map("payment_currency")
+  paymentTerms            String?  @map("payment_terms")
+  shippingAccount         String?  @map("shipping_account")
+  bankDetails             String?  @map("bank_details")
+  creditLimit             Decimal? @map("credit_limit") @db.Decimal(18, 2)
+  industrySegment         String?  @map("industry_segment")
+  businessType            String?  @map("business_type")
+  speciality              String?
+  gstOrRegistrationNumber String?  @map("gst_or_registration_number")
+  contacts                Json?
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
 
   vendorRfqs VendorRfq[]
 
@@ -636,6 +737,8 @@ model Organization {
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
+  users User[]
+
   @@map("organizations")
 }
 
@@ -649,6 +752,12 @@ model Setting {
   value      String
   sortOrder  Int      @default(0) @map("sort_order")
   isEditable Boolean  @default(true) @map("is_editable")
+  // Deactivating a value hides it from future dropdown options without
+  // deleting it -- any existing record that already stored this value (a
+  // plain string, no FK) keeps displaying correctly, since reads never
+  // re-validate against Settings, only writes do (see
+  // lib/settings-validation.ts).
+  isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -702,6 +811,24 @@ model Product {
   lastImportedAt  DateTime? @map("last_imported_at")
   dataHash        String?   @map("data_hash")
   importStatus    String    @default("MANUAL") @map("import_status")
+  // Owner's Product Master fields (Master value.xlsx) -- additive,
+  // admin/internal-only (never selected into the public toPublicProduct()
+  // DTO). "Part Status" (Active/Deactive) reuses the existing `isActive`
+  // above rather than adding a duplicate field. `packaging` (owner's
+  // BULK/TUBE/REEL/BOX shipping unit) is a different concept from the
+  // pre-existing `packageType` (physical package like "8-DIP") and is kept
+  // as a separate field rather than overloading/renaming that column.
+  // Quotation/sales/purchase history is intentionally NOT stored here --
+  // it is derived from the existing RfqItem/QuotationItem relations below.
+  productCode     String?   @map("product_code")
+  spq             Int?
+  packaging       String?
+  uom             String?
+  hsCode          String?   @map("hs_code")
+  hsDescription   String?   @map("hs_description")
+  productGroup    String?   @map("product_group")
+  eccn            String?
+  availableStock  Int?      @map("available_stock")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 

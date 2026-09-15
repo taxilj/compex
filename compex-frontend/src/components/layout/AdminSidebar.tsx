@@ -16,6 +16,7 @@ import {
   FolderTree,
   UploadCloud,
   BarChart3,
+  UserCog,
 } from "lucide-react";
 
 const navGroups = [
@@ -32,6 +33,7 @@ const navGroups = [
   {
     label: "Management",
     items: [
+      { href: "/admin/users", label: "Users", icon: UserCog, disabled: false },
       { href: "/admin/customers", label: "Customers", icon: Users, disabled: false },
       { href: "/admin/vendors", label: "Vendors", icon: Users, disabled: false },
       { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory, disabled: false },

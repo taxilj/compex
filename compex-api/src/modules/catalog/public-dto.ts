@@ -23,6 +23,12 @@ export function filterPublicSpecifications(specifications: unknown): Record<stri
 // importStatus, dataHash, lastImportedAt, isActive, createdAt, updatedAt,
 // categoryId, manufacturerId -- internal sourcing/DB metadata never shown to
 // public catalogue visitors (products.routes.ts / manufacturers.routes.ts).
+// Also deliberately excludes every admin-only Product Master field added for
+// the owner's Customer Master requirement (productCode, spq, packaging,
+// uom, hsCode, hsDescription, productGroup, eccn, availableStock) -- an
+// explicit allowlist below, not a spread, so a new admin-only column added
+// to the Product model in the future is excluded by default rather than
+// requiring someone to remember to deny-list it here.
 export function toPublicProduct(product: Product & { manufacturer?: Manufacturer | null; category?: Category | null }) {
   return {
     id: product.id,

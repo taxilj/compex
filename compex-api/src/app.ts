@@ -14,6 +14,7 @@ import { adminQuotationsRoutes } from "./modules/admin/admin.quotations.routes.j
 import { adminOrganizationsRoutes } from "./modules/admin/admin.organizations.routes.js";
 import { adminSettingsRoutes } from "./modules/admin/admin.settings.routes.js";
 import { adminCustomersRoutes } from "./modules/admin/admin.customers.routes.js";
+import { adminUsersRoutes } from "./modules/admin/admin.users.routes.js";
 import { testEmailRoutes } from "./modules/test-support/test-email.routes.js";
 import { env } from "./config/env.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
@@ -45,6 +46,7 @@ export async function buildApp() {
   await app.register(adminOrganizationsRoutes, { prefix: "/api/v1/admin/organizations" });
   await app.register(adminSettingsRoutes, { prefix: "/api/v1/admin/settings" });
   await app.register(adminCustomersRoutes, { prefix: "/api/v1/admin/customers" });
+  await app.register(adminUsersRoutes, { prefix: "/api/v1/admin/users" });
   await app.register(publicLeadsRoutes, { prefix: "/api/v1/leads" });
   await app.register(quotesRoutes, { prefix: "/api/v1/quotes" });
   await app.register(productsRoutes, { prefix: "/api/v1/products" });

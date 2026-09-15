@@ -16,6 +16,11 @@ const ManufacturerBody = z.object({
   country: z.string().max(100).optional(),
   source: z.string().max(50).optional(),
   sourceUrl: z.string().url().optional(),
+  distributorLink: z.string().trim().url().max(500).optional(),
+  stockCheckLink: z.string().trim().url().max(500).optional(),
+  acquiredMfr: z.string().trim().max(500).optional(),
+  remarks: z.string().trim().max(2000).optional(),
+  suffixInformation: z.string().trim().max(1000).optional(),
 });
 
 export async function adminManufacturersRoutes(app: FastifyInstance): Promise<void> {
@@ -23,11 +28,16 @@ export async function adminManufacturersRoutes(app: FastifyInstance): Promise<vo
   app.addHook("preHandler", requireRole("STAFF", "ADMIN"));
 
   app.get("/", async (req, reply) => {
-    const q = z.object({ page: z.coerce.number().int().positive().default(1), limit: z.coerce.number().int().positive().max(100).default(50) }).parse(req.query);
+    const q = z.object({
+      page: z.coerce.number().int().positive().default(1),
+      limit: z.coerce.number().int().positive().max(100).default(50),
+      search: z.string().trim().max(200).optional(),
+    }).parse(req.query);
+    const where = q.search ? { name: { contains: q.search, mode: "insensitive" as const } } : {};
     const skip = (q.page - 1) * q.limit;
     const [data, total] = await prisma.$transaction([
-      prisma.manufacturer.findMany({ skip, take: q.limit, orderBy: { name: "asc" } }),
-      prisma.manufacturer.count(),
+      prisma.manufacturer.findMany({ where, skip, take: q.limit, orderBy: { name: "asc" } }),
+      prisma.manufacturer.count({ where }),
     ]);
     return reply.send(paginated(data, total, q.page, q.limit));
   });
@@ -55,6 +65,30 @@ export async function adminManufacturersRoutes(app: FastifyInstance): Promise<vo
     const mfr = await prisma.$transaction(async (tx) => {
       const m = await tx.manufacturer.update({ where: { id }, data: ManufacturerBody.partial().parse(req.body) });
       await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.updated", entityType: "manufacturer", entityId: id, oldValue: existing, newValue: m });
+      return m;
+    });
+    return reply.send(ok(mfr));
+  });
+
+  app.post("/:id/deactivate", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const existing = await prisma.manufacturer.findUnique({ where: { id } });
+    if (!existing) throw Errors.notFound("Manufacturer");
+    const mfr = await prisma.$transaction(async (tx) => {
+      const m = await tx.manufacturer.update({ where: { id }, data: { isActive: false } });
+      await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.deactivated", entityType: "manufacturer", entityId: id });
+      return m;
+    });
+    return reply.send(ok(mfr));
+  });
+
+  app.post("/:id/activate", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const existing = await prisma.manufacturer.findUnique({ where: { id } });
+    if (!existing) throw Errors.notFound("Manufacturer");
+    const mfr = await prisma.$transaction(async (tx) => {
+      const m = await tx.manufacturer.update({ where: { id }, data: { isActive: true } });
+      await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.activated", entityType: "manufacturer", entityId: id });
       return m;
     });
     return reply.send(ok(mfr));

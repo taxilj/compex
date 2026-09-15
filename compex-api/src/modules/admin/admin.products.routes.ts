@@ -9,6 +9,7 @@ import { prisma } from "../../lib/prisma.js";
 import { auditInTx } from "../../lib/audit.js";
 import { PRODUCT_INCLUDE, searchProducts } from "../catalog/product-search.js";
 import { normalizeMpn } from "../catalog-import/normalizer.js";
+import { assertValidSettingValues } from "../../lib/settings-validation.js";
 
 const HttpUrl = z.string().url().refine((u) => /^https?:\/\//i.test(u), "Must be an http(s) URL");
 
@@ -25,7 +26,28 @@ const ProductBody = z.object({
   datasheetUrl: HttpUrl.optional(),
   images: z.array(HttpUrl).max(20).optional(),
   isActive: z.boolean().optional(),
+  // Owner's Product Master fields -- packaging/uom/productGroup are
+  // Settings-backed LOVs, validated below. productCategory reuses the
+  // pre-existing categoryId relation above rather than duplicating it as a
+  // Settings category.
+  productCode: z.string().trim().max(100).optional(),
+  spq: z.number().int().nonnegative().max(1_000_000_000).optional(),
+  packaging: z.string().trim().max(50).optional(),
+  uom: z.string().trim().max(30).optional(),
+  hsCode: z.string().trim().max(30).optional(),
+  hsDescription: z.string().trim().max(500).optional(),
+  productGroup: z.string().trim().max(100).optional(),
+  eccn: z.string().trim().max(30).optional(),
+  availableStock: z.number().int().nonnegative().max(1_000_000_000).optional(),
 });
+
+async function validateProductRefs(body: Partial<z.infer<typeof ProductBody>>): Promise<void> {
+  await assertValidSettingValues([
+    { category: "PACKAGING", value: body.packaging },
+    { category: "UOM", value: body.uom },
+    { category: "PRODUCT_GROUP", value: body.productGroup },
+  ]);
+}
 
 const ProductListQuery = z.object({
   q: z.string().max(200).optional(),
@@ -56,8 +78,63 @@ export async function adminProductsRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(ok(product));
   });
 
+  // Admin-only commercial history, derived entirely from existing
+  // RfqItem/QuotationItem/VendorQuote relations rather than a duplicated
+  // history table. Never merged into PRODUCT_INCLUDE above -- that constant
+  // is shared with the public product-search route, and this data (RFQ
+  // quantities/target prices, sold prices, vendor costs) must never reach a
+  // public response.
+  app.get("/:id/history", async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const product = await prisma.product.findUnique({ where: { id }, select: { id: true } });
+    if (!product) throw Errors.notFound("Product");
+
+    const [rfqRequests, sales] = await Promise.all([
+      prisma.rfqItem.findMany({
+        where: { productId: id },
+        select: {
+          id: true, quantity: true, targetPriceUsd: true, status: true, requiredDate: true, createdAt: true,
+          rfq: { select: { rfqNumber: true, status: true } },
+          vendorQuotes: { select: { id: true, unitCost: true, currency: true, leadTimeDays: true, moq: true, status: true, createdAt: true, vendorRfq: { select: { vendor: { select: { id: true, name: true } } } } } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.quotationItem.findMany({
+        where: { productId: id },
+        select: {
+          id: true, quantity: true, unitPrice: true, lineTotal: true, createdAt: true,
+          quotation: { select: { quotationNumber: true, status: true, currency: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+    ]);
+
+    const purchases = rfqRequests.flatMap((r) =>
+      r.vendorQuotes.map((vq) => ({
+        id: vq.id,
+        vendorId: vq.vendorRfq.vendor.id,
+        vendorName: vq.vendorRfq.vendor.name,
+        unitCost: vq.unitCost,
+        currency: vq.currency,
+        leadTimeDays: vq.leadTimeDays,
+        moq: vq.moq,
+        status: vq.status,
+        createdAt: vq.createdAt,
+      })),
+    );
+
+    return reply.send(ok({
+      rfqRequests: rfqRequests.map(({ vendorQuotes: _vendorQuotes, ...r }) => r),
+      sales,
+      purchases,
+    }));
+  });
+
   app.post("/", async (req, reply) => {
     const body = ProductBody.parse(req.body);
+    await validateProductRefs(body);
     const normalizedMpn = normalizeMpn(body.mpn);
     // Manufacturer-aware clash check — matches the import pipeline's
     // dedup logic (upsert.ts): the same MPN is only a conflict when it
@@ -83,6 +160,7 @@ export async function adminProductsRoutes(app: FastifyInstance): Promise<void> {
     const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) throw Errors.notFound("Product");
     const body = ProductBody.partial().parse(req.body);
+    await validateProductRefs(body);
 
     if (body.mpn !== undefined || body.manufacturerId !== undefined) {
       const targetManufacturerId = body.manufacturerId !== undefined ? body.manufacturerId : existing.manufacturerId;

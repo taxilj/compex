@@ -44,6 +44,13 @@ export interface PaginatedResponse<T> {
   limit: number;
 }
 
+export interface ContactEntry {
+  name: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+}
+
 export interface Vendor {
   id: string;
   name: string;
@@ -51,9 +58,38 @@ export interface Vendor {
   contactPhone: string | null;
   address: string | null;
   notes: string | null;
+  contactName: string | null;
+  vendorCode: string | null;
+  billToAddress: string | null;
+  shipToAddress: string | null;
+  country: string | null;
+  telephone: string | null;
+  fax: string | null;
+  mobile: string | null;
+  website: string | null;
+  otherOffices: string | null;
+  mov: string | null;
+  paymentCurrency: string | null;
+  paymentTerms: string | null;
+  shippingAccount: string | null;
+  bankDetails: string | null;
+  creditLimit: string | null;
+  industrySegment: string | null;
+  businessType: string | null;
+  speciality: string | null;
+  gstOrRegistrationNumber: string | null;
+  contacts: ContactEntry[] | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+export type VendorInput = Partial<Omit<Vendor, "id" | "createdAt" | "updatedAt" | "isActive" | "mov" | "creditLimit">> & {
+  name: string;
+  contactEmail: string;
+  mov?: number;
+  creditLimit?: number;
+};
 
 export interface Manufacturer {
   id: string;
@@ -65,9 +101,20 @@ export interface Manufacturer {
   country: string | null;
   source: string;
   sourceUrl: string | null;
+  distributorLink: string | null;
+  stockCheckLink: string | null;
+  acquiredMfr: string | null;
+  remarks: string | null;
+  suffixInformation: string | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ManufacturerInput = Partial<Omit<Manufacturer, "id" | "createdAt" | "updatedAt" | "isActive">> & {
+  name: string;
+  slug: string;
+};
 
 export interface AdminCategory {
   id: string;
@@ -97,6 +144,15 @@ export interface AdminProduct {
   categoryId: string | null;
   manufacturer: { id: string; name: string } | null;
   category: { id: string; name: string } | null;
+  productCode: string | null;
+  spq: number | null;
+  packaging: string | null;
+  uom: string | null;
+  hsCode: string | null;
+  hsDescription: string | null;
+  productGroup: string | null;
+  eccn: string | null;
+  availableStock: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -114,6 +170,25 @@ export interface AdminProductInput {
   datasheetUrl?: string;
   images?: string[];
   isActive?: boolean;
+  productCode?: string;
+  spq?: number;
+  packaging?: string;
+  uom?: string;
+  hsCode?: string;
+  hsDescription?: string;
+  productGroup?: string;
+  eccn?: string;
+  availableStock?: number;
+}
+
+export interface ProductHistory {
+  rfqRequests: Array<{ id: string; quantity: number; targetPriceUsd: string | null; status: string; requiredDate: string | null; createdAt: string; rfq: { rfqNumber: string; status: string } }>;
+  sales: Array<{ id: string; quantity: number; unitPrice: string; lineTotal: string; createdAt: string; quotation: { quotationNumber: string; status: string; currency: string } }>;
+  purchases: Array<{ id: string; vendorId: string; vendorName: string; unitCost: string; currency: string; leadTimeDays: number | null; moq: number | null; status: string; createdAt: string }>;
+}
+
+export function getProductHistory(id: string) {
+  return apiFetch<ProductHistory>(`/admin/products/${id}/history`);
 }
 
 export interface CatalogImportRun {
@@ -130,13 +205,46 @@ export interface CatalogImportRun {
   completedAt: string | null;
 }
 
+export interface AdminCustomerCompany {
+  id: string;
+  name: string;
+  gstin: string | null;
+  city: string | null;
+  address: string | null;
+  shortName: string | null;
+  billToAddress: string | null;
+  shipToAddress: string | null;
+  additionalShipToAddresses: string[] | null;
+  state: string | null;
+  country: string | null;
+  relationshipType: string | null;
+  customerType: string | null;
+  website: string | null;
+  fax: string | null;
+  primaryContact: string | null;
+  contactEmail: string | null;
+  authorisedPerson: string | null;
+  paymentTerms: string | null;
+  creditLimit: string | null;
+  region: string | null;
+  internalAccountNumber: string | null;
+  shippingAccount: string | null;
+  bankDetails: string | null;
+  industrySegment: string | null;
+  remarks: string | null;
+  contacts: ContactEntry[] | null;
+  salesPerson: { id: string; firstName: string; lastName: string } | null;
+  salesCoordinator: { id: string; firstName: string; lastName: string } | null;
+  sourcingOwner: { id: string; firstName: string; lastName: string } | null;
+}
+
 export interface AdminCustomer {
   id: string;
   accountNumber: string;
   createdAt: string;
   updatedAt: string;
   user: { id: string; email: string; firstName: string; lastName: string; phone: string | null; status: "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED" };
-  company: { id: string; name: string; gstin: string | null; city: string | null; address: string | null };
+  company: AdminCustomerCompany;
   _count: { rfqs: number; quotations: number };
 }
 
@@ -149,6 +257,31 @@ export interface AdminCustomerInput {
   gstin?: string;
   city?: string;
   address?: string;
+  shortName?: string;
+  billToAddress?: string;
+  shipToAddress?: string;
+  additionalShipToAddresses?: string[];
+  state?: string;
+  country?: string;
+  relationshipType?: string;
+  customerType?: string;
+  website?: string;
+  fax?: string;
+  primaryContact?: string;
+  contactEmail?: string;
+  authorisedPerson?: string;
+  paymentTerms?: string;
+  creditLimit?: number;
+  region?: string;
+  salesPersonId?: string | null;
+  salesCoordinatorId?: string | null;
+  sourcingOwnerId?: string | null;
+  internalAccountNumber?: string;
+  shippingAccount?: string;
+  bankDetails?: string;
+  industrySegment?: string;
+  remarks?: string;
+  contacts?: ContactEntry[];
 }
 
 export function listCustomers(params?: { q?: string; page?: number; limit?: number }) {
@@ -193,12 +326,29 @@ export function updateAdminRfqStatus(id: string, status: RfqStatus, internalNote
   });
 }
 
-export function listVendors() {
-  return apiFetchPaginated<Vendor>("/admin/vendors");
+export function listVendors(params?: { search?: string; page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return apiFetchPaginated<Vendor>(`/admin/vendors${qs ? `?${qs}` : ""}`);
 }
 
-export function createVendor(data: { name: string; contactEmail: string; contactPhone?: string; address?: string; notes?: string }) {
+export function createVendor(data: VendorInput) {
   return apiFetch<Vendor>("/admin/vendors", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateVendor(id: string, data: Partial<VendorInput>) {
+  return apiFetch<Vendor>(`/admin/vendors/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deactivateVendor(id: string) {
+  return apiFetch<Vendor>(`/admin/vendors/${id}/deactivate`, { method: "POST" });
+}
+
+export function activateVendor(id: string) {
+  return apiFetch<Vendor>(`/admin/vendors/${id}/activate`, { method: "POST" });
 }
 
 export type VendorRfqStatus = "DRAFT" | "SENT" | "REPLIED" | "CLOSED";
@@ -254,16 +404,29 @@ export function selectVendorQuote(vendorRfqId: string, quoteId: string, status: 
   return apiFetch<AdminVendorQuote>(`/admin/vendor-rfqs/${vendorRfqId}/quotes/${quoteId}`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
 
-export function listManufacturers() {
-  return apiFetchPaginated<Manufacturer>("/admin/manufacturers");
+export function listManufacturers(params?: { search?: string; page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return apiFetchPaginated<Manufacturer>(`/admin/manufacturers${qs ? `?${qs}` : ""}`);
 }
 
-export function createManufacturer(data: { name: string; slug: string; logoUrl?: string; website?: string; description?: string; country?: string; sourceUrl?: string }) {
+export function createManufacturer(data: ManufacturerInput) {
   return apiFetch<Manufacturer>("/admin/manufacturers", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateManufacturer(id: string, data: Partial<{ name: string; slug: string; logoUrl: string; website: string; description: string; country: string; sourceUrl: string }>) {
+export function updateManufacturer(id: string, data: Partial<ManufacturerInput>) {
   return apiFetch<Manufacturer>(`/admin/manufacturers/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deactivateManufacturer(id: string) {
+  return apiFetch<Manufacturer>(`/admin/manufacturers/${id}/deactivate`, { method: "POST" });
+}
+
+export function activateManufacturer(id: string) {
+  return apiFetch<Manufacturer>(`/admin/manufacturers/${id}/activate`, { method: "POST" });
 }
 
 export function listAdminCategories() {
@@ -489,27 +652,104 @@ export interface Setting {
   value: string;
   sortOrder: number;
   isEditable: boolean;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export function listSettings(category?: string) {
-  const qs = category ? `?category=${encodeURIComponent(category)}` : "";
-  return apiFetch<Setting[]>(`/admin/settings${qs}`);
+// Dropdown consumers (SettingsSelect) call this with no options and get only
+// active values. The Settings management page passes includeInactive so an
+// admin can see and reactivate retired values.
+export function listSettings(category?: string, options?: { includeInactive?: boolean }) {
+  const q = new URLSearchParams();
+  if (category) q.set("category", category);
+  if (options?.includeInactive) q.set("includeInactive", "true");
+  const qs = q.toString();
+  return apiFetch<Setting[]>(`/admin/settings${qs ? `?${qs}` : ""}`);
 }
 
 export function listSettingCategories() {
   return apiFetch<string[]>("/admin/settings/categories");
 }
 
-export function createSetting(data: { category: string; value: string; sortOrder?: number }) {
+export function createSetting(data: { category: string; value: string; sortOrder?: number; isActive?: boolean }) {
   return apiFetch<Setting>("/admin/settings", { method: "POST", body: JSON.stringify(data) });
 }
 
-export function updateSetting(id: string, data: { value?: string; sortOrder?: number }) {
+export function updateSetting(id: string, data: { value?: string; sortOrder?: number; isActive?: boolean }) {
   return apiFetch<Setting>(`/admin/settings/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
 export async function deleteSetting(id: string) {
   await apiFetch<void>(`/admin/settings/${id}`, { method: "DELETE" });
+}
+
+export function deactivateSetting(id: string) {
+  return apiFetch<Setting>(`/admin/settings/${id}/deactivate`, { method: "POST" });
+}
+
+export function activateSetting(id: string) {
+  return apiFetch<Setting>(`/admin/settings/${id}/activate`, { method: "POST" });
+}
+
+export type UserRoleValue = "CUSTOMER" | "STAFF" | "ADMIN";
+export type UserStatusValue = "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED";
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: UserRoleValue;
+  status: UserStatusValue;
+  firstName: string;
+  lastName: string;
+  screenName: string | null;
+  organizationId: string | null;
+  position: string | null;
+  department: string | null;
+  mobile: string | null;
+  phone: string | null;
+  address: string | null;
+  skype: string | null;
+  createdAt: string;
+  updatedAt: string;
+  organization: { id: string; companyName: string; shortName: string } | null;
+}
+
+export interface CreateUserInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role?: UserRoleValue;
+  screenName?: string;
+  organizationId?: string | null;
+  position?: string;
+  department?: string;
+  mobile?: string;
+  phone?: string;
+  address?: string;
+  skype?: string;
+}
+
+export type UpdateUserInput = Partial<Omit<CreateUserInput, "role">> & { status?: "ACTIVE" | "SUSPENDED" };
+
+export function listUsers(params?: { search?: string; role?: UserRoleValue; page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.role) q.set("role", params.role);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return apiFetchPaginated<AdminUser>(`/admin/users${qs ? `?${qs}` : ""}`);
+}
+
+export function getUser(id: string) {
+  return apiFetch<AdminUser>(`/admin/users/${id}`);
+}
+
+export function createUser(data: CreateUserInput) {
+  return apiFetch<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateUser(id: string, data: UpdateUserInput) {
+  return apiFetch<AdminUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
