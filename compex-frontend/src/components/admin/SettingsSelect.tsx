@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { listSettings, type Setting } from "@/lib/api/admin";
 
 // The single place every admin form gets a Settings-backed dropdown from --
@@ -26,14 +26,24 @@ export function SettingsSelect({
 }) {
   const [options, setOptions] = useState<Setting[] | null>(null);
   const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
+  // State changes happen inside the setTimeout callback, never
+  // synchronously in the effect body -- same pattern as PublicHeader's
+  // category fetch, avoids a cascading-render lint violation.
   useEffect(() => {
     let cancelled = false;
-    listSettings(category)
-      .then((rows) => { if (!cancelled) setOptions(rows); })
-      .catch(() => { if (!cancelled) setError(true); });
-    return () => { cancelled = true; };
-  }, [category]);
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setError(false);
+      listSettings(category)
+        .then((rows) => { if (!cancelled) setOptions(rows); })
+        .catch(() => { if (!cancelled) setError(true); });
+    }, 0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [category, attempt]);
+
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   const knownValues = options?.map((o) => o.value) ?? [];
   const showCurrentValue = value && !knownValues.includes(value);
@@ -42,9 +52,14 @@ export function SettingsSelect({
     <div>
       <label className="block font-label-md text-[#44474d] mb-1.5 text-sm">{label}</label>
       {error ? (
-        <p role="alert" className="font-body-sm text-[#B42318] text-xs py-2">
-          Couldn&apos;t load options for &quot;{category}&quot;. Add values in Settings first.
-        </p>
+        <div className="py-2 space-y-1">
+          <p role="alert" className="font-body-sm text-[#B42318] text-xs">
+            Couldn&apos;t load options for &quot;{category}&quot;.
+          </p>
+          <button type="button" onClick={retry} className="font-label-sm text-[#1769E0] text-xs hover:underline">
+            Retry
+          </button>
+        </div>
       ) : (
         <select
           value={value}

@@ -14,9 +14,30 @@ export function isPublicSafeSpecKey(name: string): boolean {
   return !INTERNAL_SPEC_KEY_PATTERN.test(name);
 }
 
+// Some provider parametric attribute names are literally branded with the
+// distributor's own name (DigiKey's "DigiKey Programmable" flag being the
+// concrete case that surfaced on production). These are legitimate public
+// facts about the part, so they are not stripped like the internal keys
+// above -- but the customer-facing label must never name a specific
+// distributor. This strips the brand token from the label only; the value
+// is untouched.
+const PROVIDER_BRAND_TOKEN_PATTERN = /\b(digi-?key|mouser|element\s?14|newark|nexar|arrow|avnet)\b/gi;
+
+export function sanitizeSpecKeyLabel(name: string): string {
+  const stripped = name.replace(PROVIDER_BRAND_TOKEN_PATTERN, "").replace(/\s{2,}/g, " ").trim();
+  return stripped.length > 0 ? stripped : "Attribute";
+}
+
 export function filterPublicSpecifications(specifications: unknown): Record<string, unknown> {
   const entries = Object.entries((specifications ?? {}) as Record<string, unknown>);
-  return Object.fromEntries(entries.filter(([key]) => isPublicSafeSpecKey(key)));
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of entries) {
+    if (!isPublicSafeSpecKey(key)) continue;
+    // Last write wins on the rare collision created by stripping a brand
+    // token (e.g. two distinct provider keys both reducing to "Programmable").
+    result[sanitizeSpecKeyLabel(key)] = value;
+  }
+  return result;
 }
 
 // Deliberately excludes source, sourceUrl, sourceProductId, normalizedMpn,

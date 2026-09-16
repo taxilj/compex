@@ -6,7 +6,7 @@ import { createElement14Fetcher } from "../catalog-import/fetchers/element14-fet
 import type { RawCatalogItem } from "../catalog-import/types.js";
 import { env } from "../../config/env.js";
 import { Errors } from "../../lib/errors.js";
-import { isPublicSafeSpecKey } from "./public-dto.js";
+import { isPublicSafeSpecKey, sanitizeSpecKeyLabel } from "./public-dto.js";
 
 // Multi-supplier exact-MPN search orchestrator (COMPEX multi-supplier live
 // search feature). Mouser / DigiKey / element14 run in parallel as PRIMARY
@@ -185,7 +185,7 @@ export function mergeRawCatalogItems(rawItems: RawCatalogItem[]): RawCatalogItem
 function specEntries(specifications: Record<string, unknown> | undefined): Array<{ name: string; value: string }> {
   return Object.entries(specifications ?? {})
     .filter(([name, value]) => isPublicSafeSpecKey(name) && value !== undefined && value !== null && String(value).trim().length > 0)
-    .map(([name, value]) => ({ name, value: String(value) }));
+    .map(([name, value]) => ({ name: sanitizeSpecKeyLabel(name), value: String(value) }));
 }
 
 function isComplianceSpecName(name: string): boolean {
@@ -197,7 +197,12 @@ function isComplianceSpecName(name: string): boolean {
 // internal-looking key just because it predates this filter.
 function sanitizeCachedProduct(product: PublicProduct | null): PublicProduct | null {
   if (!product) return null;
-  return { ...product, specifications: product.specifications.filter((spec) => isPublicSafeSpecKey(spec.name)) };
+  return {
+    ...product,
+    specifications: product.specifications
+      .filter((spec) => isPublicSafeSpecKey(spec.name))
+      .map((spec) => ({ ...spec, name: sanitizeSpecKeyLabel(spec.name) })),
+  };
 }
 
 // Deliberately facts-only: never expose sourceUrl, sourceProductId, or

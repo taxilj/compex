@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterPublicSpecifications, isPublicSafeSpecKey, toPublicManufacturer, toPublicProduct } from "../../src/modules/catalog/public-dto.js";
+import { filterPublicSpecifications, isPublicSafeSpecKey, sanitizeSpecKeyLabel, toPublicManufacturer, toPublicProduct } from "../../src/modules/catalog/public-dto.js";
 
 const baseProduct = {
   id: "prod-1",
@@ -65,6 +65,23 @@ describe("isPublicSafeSpecKey", () => {
   });
 });
 
+describe("sanitizeSpecKeyLabel", () => {
+  it("strips a distributor brand token from a public spec label without touching the value", () => {
+    expect(sanitizeSpecKeyLabel("DigiKey Programmable")).toBe("Programmable");
+    expect(sanitizeSpecKeyLabel("Digi-Key Programmable")).toBe("Programmable");
+    expect(sanitizeSpecKeyLabel("Mouser Part Status")).toBe("Part Status");
+  });
+
+  it("leaves ordinary spec labels untouched", () => {
+    expect(sanitizeSpecKeyLabel("Resistance")).toBe("Resistance");
+    expect(sanitizeSpecKeyLabel("Package / Case")).toBe("Package / Case");
+  });
+
+  it("falls back to a neutral label if stripping the brand leaves nothing", () => {
+    expect(sanitizeSpecKeyLabel("DigiKey")).toBe("Attribute");
+  });
+});
+
 describe("filterPublicSpecifications", () => {
   it("strips internal keys and keeps legitimate ones", () => {
     const result = filterPublicSpecifications(baseProduct.specifications);
@@ -74,6 +91,11 @@ describe("filterPublicSpecifications", () => {
   it("handles null/undefined input safely", () => {
     expect(filterPublicSpecifications(null)).toEqual({});
     expect(filterPublicSpecifications(undefined)).toEqual({});
+  });
+
+  it("de-brands a distributor-named provider attribute key but keeps the fact", () => {
+    const result = filterPublicSpecifications({ "DigiKey Programmable": "Verified", Resistance: "10k" });
+    expect(result).toEqual({ Programmable: "Verified", Resistance: "10k" });
   });
 });
 
