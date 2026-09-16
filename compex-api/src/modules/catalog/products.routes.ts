@@ -23,6 +23,10 @@ const ProductDetailQuery = z.object({
   manufacturerId: z.string().uuid().optional(),
 });
 
+const ProductMpnParams = z.object({
+  mpn: z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9 ._+/#-]+$/, "MPN contains invalid characters"),
+});
+
 export async function productsRoutes(app: FastifyInstance): Promise<void> {
   // Multi-supplier exact-MPN search (Mouser + DigiKey + element14 primary,
   // provider lookup -- see mpn-search-orchestrator.ts). Always
@@ -62,7 +66,7 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/:mpn", async (req, reply) => {
-    const { mpn } = z.object({ mpn: z.string().min(1).max(100) }).parse(req.params);
+    const { mpn } = ProductMpnParams.parse(req.params);
     const { manufacturerId } = ProductDetailQuery.parse(req.query);
     // Match on normalizedMpn (the same key upsertProduct() persists and
     // matches by) rather than raw mpn -- a raw case-insensitive match misses
@@ -89,7 +93,7 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
   // visitor for this MPN hits the fast database path instead of triggering
   // another live lookup.
   app.post("/:mpn/resolve", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req, reply) => {
-    const { mpn } = z.object({ mpn: z.string().min(1).max(100) }).parse(req.params);
+    const { mpn } = ProductMpnParams.parse(req.params);
     const { manufacturerId } = ProductDetailQuery.parse(req.query);
     const result = await resolveUnknownMpn(mpn, manufacturerId);
     return reply.send(ok(result));

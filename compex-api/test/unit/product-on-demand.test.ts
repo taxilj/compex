@@ -184,6 +184,42 @@ describe("resolveUnknownMpn", () => {
     expect(result.sources.every((s) => s.status === "NO_MATCH")).toBe(true);
   });
 
+  it("treats a provider 404 as a definitive NO_MATCH, not a transient failure", async () => {
+    mocks.productFindMany.mockResolvedValue([]);
+    mocks.runImport.mockRejectedValue(Object.assign(new Error("Provider request failed with status 404"), { statusCode: 404 }));
+
+    const result = await resolveUnknownMpn("UNKNOWN404");
+
+    expect(result.product).toBeNull();
+    expect(result.sources.every((s) => s.status === "NO_MATCH")).toBe(true);
+  });
+
+  it("contains an unexpected resolver failure as a safe unavailable response for ABC123", async () => {
+    mocks.productFindMany.mockRejectedValue(new Error("database credentials at private-url.example"));
+
+    const result = await resolveUnknownMpn("ABC123");
+
+    expect(result).toEqual({
+      product: null,
+      sources: [
+        { provider: "MOUSER", status: "ERROR" },
+        { provider: "DIGIKEY", status: "ERROR" },
+        { provider: "ELEMENT14", status: "ERROR" },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain("private-url");
+  });
+
+  it("returns a structured safe response when every provider rejects malformed data", async () => {
+    mocks.productFindMany.mockResolvedValue([]);
+    mocks.runImport.mockRejectedValue(new SyntaxError("Unexpected provider response"));
+
+    const result = await resolveUnknownMpn("MALFORMEDPART");
+
+    expect(result.product).toBeNull();
+    expect(result.sources.every((s) => s.status === "ERROR")).toBe(true);
+  });
+
   it("bounds a hung provider call with a real timeout instead of waiting forever", async () => {
     vi.useFakeTimers();
     try {

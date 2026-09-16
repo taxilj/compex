@@ -58,7 +58,7 @@ describe("HeaderSearch", () => {
     vi.mocked(listProducts).mockResolvedValue({ data: [product()], total: 1, page: 1, limit: 8 });
 
     render(<HeaderSearch />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "STM32" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" }), { target: { value: "STM32" } });
 
     expect(await screen.findByText("STM32F103C8T6")).toBeInTheDocument();
     expect(screen.getByText(/STMicroelectronics/)).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe("HeaderSearch", () => {
     vi.mocked(listProducts).mockResolvedValue({ data: [], total: 0, page: 1, limit: 8 });
 
     render(<HeaderSearch />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "NOTREAL999" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" }), { target: { value: "NOTREAL999" } });
 
     expect(await screen.findByText(/No products found for/)).toBeInTheDocument();
     expect(screen.getByText(/Request sourcing/)).toBeInTheDocument();
@@ -89,7 +89,7 @@ describe("HeaderSearch", () => {
       .mockImplementationOnce(() => Promise.resolve({ data: [productB], total: 1, page: 1, limit: 8 }));
 
     render(<HeaderSearch />);
-    const input = screen.getByRole("combobox");
+    const input = screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" });
 
     fireEvent.change(input, { target: { value: "slow" } });
     await waitFor(() => expect(listProducts).toHaveBeenCalledTimes(1));
@@ -112,7 +112,7 @@ describe("HeaderSearch", () => {
     vi.mocked(listProducts).mockResolvedValue({ data: [product()], total: 1, page: 1, limit: 8 });
 
     render(<HeaderSearch />);
-    const input = screen.getByRole("combobox");
+    const input = screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" });
     fireEvent.change(input, { target: { value: "STM32" } });
     await screen.findByText("STM32F103C8T6");
 
@@ -125,7 +125,7 @@ describe("HeaderSearch", () => {
     vi.mocked(listProducts).mockRejectedValueOnce(new Error("network error"));
 
     render(<HeaderSearch />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "STM32" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" }), { target: { value: "STM32" } });
 
     expect(await screen.findByText("Search failed. Please try again.")).toBeInTheDocument();
 
@@ -140,7 +140,7 @@ describe("HeaderSearch", () => {
     vi.mocked(listProducts).mockResolvedValue({ data: [product()], total: 1, page: 1, limit: 8 });
 
     render(<HeaderSearch />);
-    const input = screen.getByRole("combobox");
+    const input = screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" });
     fireEvent.change(input, { target: { value: "STM32" } });
     await screen.findByText("STM32F103C8T6");
 
@@ -154,7 +154,7 @@ describe("HeaderSearch", () => {
     vi.mocked(listProducts).mockResolvedValue({ data: [product()], total: 1, page: 1, limit: 8 });
     render(<HeaderSearch />);
 
-    const input = screen.getByRole("combobox");
+    const input = screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" });
     fireEvent.change(input, { target: { value: "stm32f103c8t6" } });
     await screen.findByText("STM32F103C8T6");
     fireEvent.keyDown(input, { key: "Enter" });
@@ -164,9 +164,24 @@ describe("HeaderSearch", () => {
 
   it("submits a general keyword through the products search route from the Search button", () => {
     render(<HeaderSearch />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "ceramic capacitor" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" }), { target: { value: "ceramic capacitor" } });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     expect(pushMock).toHaveBeenCalledWith("/products?q=ceramic%20capacitor");
+  });
+
+  it("filters autocomplete and keyword search by the selected main category", async () => {
+    const categories = [{
+      id: "semiconductors", name: "Semiconductors", description: null, parentId: null, children: [], _count: { products: 0 }, createdAt: "", updatedAt: "",
+    }];
+    vi.mocked(listProducts).mockResolvedValue({ data: [], total: 0, page: 1, limit: 8 });
+    render(<HeaderSearch categories={categories} />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" }), { target: { value: "transistor" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Search category" }), { target: { value: "semiconductors" } });
+    await waitFor(() => expect(listProducts).toHaveBeenLastCalledWith({ q: "transistor", categoryId: "semiconductors", limit: 8 }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(pushMock).toHaveBeenCalledWith("/products?q=transistor&categoryId=semiconductors");
   });
 });

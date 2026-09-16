@@ -51,6 +51,20 @@ function isProviderConfigured(provider: OnDemandProviderName): boolean {
   return Boolean(env.ELEMENT14_API_KEY);
 }
 
+function unavailableSources(): OnDemandProviderEntry[] {
+  return (["MOUSER", "DIGIKEY", "ELEMENT14"] as const)
+    .filter(isProviderConfigured)
+    .map((provider) => ({ provider, status: "ERROR" as const }));
+}
+
+function isNotFoundProviderError(err: unknown): boolean {
+  const error = err as { code?: string; statusCode?: number; message?: string } | undefined;
+  // Existing provider adapters expose an upstream 404 through their safe
+  // service-unavailable error message. Keep that status private, but treat it
+  // as the provider's definitive no-match instead of a transient outage.
+  return error?.code === "NOT_FOUND" || error?.statusCode === 404 || /\bstatus 404\b/i.test(error?.message ?? "");
+}
+
 async function findInDb(mpn: string, manufacturerId?: string) {
   // Match on normalizedMpn, the exact same key upsertProduct() persists and
   // matches by (see normalizer.ts) -- matching on raw mpn here would miss a
@@ -97,6 +111,7 @@ async function importFromProvider(fetcher: CatalogFetcher): Promise<OnDemandProv
     return "NO_MATCH";
   } catch (err) {
     const code = (err as { code?: string } | undefined)?.code;
+    if (isNotFoundProviderError(err)) return "NO_MATCH";
     return code === "RATE_LIMITED" ? "RATE_LIMITED" : "ERROR";
   }
 }
@@ -113,6 +128,7 @@ export async function resolveUnknownMpn(mpn: string, manufacturerId?: string): P
   if (shared) return shared;
 
   const promise = (async (): Promise<OnDemandResult> => {
+    try {
     // Race-safety: another concurrent request (or a background sync run) may
     // have already imported this MPN between the caller's initial DB miss
     // and now.
@@ -148,6 +164,14 @@ export async function resolveUnknownMpn(mpn: string, manufacturerId?: string): P
 
     const product = await findInDb(mpn, manufacturerId);
     return { product: product ? toPublicProduct(product) : null, sources };
+    } catch {
+      // Database/cache/import infrastructure failures must never turn a
+      // public unknown-MPN lookup into an uncaught rejection or expose its
+      // implementation details. The established response contract represents
+      // this honestly as unavailable provider sources, not as a confirmed
+      // product miss.
+      return { product: null, sources: unavailableSources() };
+    }
   })();
 
   inFlight.set(key, promise);

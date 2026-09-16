@@ -1,15 +1,20 @@
 import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ZodError } from "zod";
 
 const mocks = vi.hoisted(() => ({
   anyPrimaryConfigured: vi.fn(),
   searchMpnAcrossProviders: vi.fn(),
+  resolveUnknownMpn: vi.fn(),
 }));
 
 vi.mock("../../src/modules/catalog/mpn-search-orchestrator.js", () => ({
   anyPrimaryConfigured: mocks.anyPrimaryConfigured,
   searchMpnAcrossProviders: mocks.searchMpnAcrossProviders,
+}));
+vi.mock("../../src/modules/catalog/product-on-demand.js", () => ({
+  resolveUnknownMpn: mocks.resolveUnknownMpn,
 }));
 
 import { productsRoutes } from "../../src/modules/catalog/products.routes.js";
@@ -27,6 +32,12 @@ describe("GET /products/lookup", () => {
     apps.push(instance);
     await instance.register(rateLimit);
     instance.setErrorHandler((error, _request, reply) => {
+      if (error instanceof ZodError) {
+        return reply.status(400).send({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "Invalid request data" },
+        });
+      }
       const appError = error as { statusCode?: number; code?: string; message: string };
       return reply.status(appError.statusCode ?? 500).send({
         success: false,
@@ -34,6 +45,7 @@ describe("GET /products/lookup", () => {
       });
     });
     await instance.register(productsRoutes, { prefix: "/products" });
+    instance.get("/health", async () => ({ status: "ok" }));
     return instance;
   }
 
@@ -93,5 +105,35 @@ describe("GET /products/lookup", () => {
     const response = await (await app()).inject({ method: "GET", url: "/products/lookup?mpn=X1" });
     expect(response.statusCode).toBe(200);
     expect(JSON.stringify(response.json())).not.toMatch(/price|stock|inventory|moq|lead.?time|supplier|secret/i);
+  });
+
+  it("returns ABC123's structured unavailable result and remains healthy for the next valid MPN", async () => {
+    mocks.resolveUnknownMpn
+      .mockResolvedValueOnce({ product: null, sources: [{ provider: "DIGIKEY", status: "ERROR" }] })
+      .mockResolvedValueOnce({ product: { id: "p-1", mpn: "TLC555CP" }, sources: [{ provider: "DIGIKEY", status: "FOUND" }] });
+    const instance = await app();
+
+    const unknown = await instance.inject({ method: "POST", url: "/products/ABC123/resolve" });
+    const health = await instance.inject({ method: "GET", url: "/health" });
+    const valid = await instance.inject({ method: "POST", url: "/products/TLC555CP/resolve" });
+
+    expect(unknown.statusCode).toBe(200);
+    expect(unknown.json().data.product).toBeNull();
+    expect(unknown.json().data.sources[0].status).toBe("ERROR");
+    expect(health.statusCode).toBe(200);
+    expect(health.json()).toEqual({ status: "ok" });
+    expect(valid.statusCode).toBe(200);
+    expect(valid.json().data.product.mpn).toBe("TLC555CP");
+  });
+
+  it("rejects empty and malformed resolver MPNs before provider resolution", async () => {
+    const instance = await app();
+
+    const empty = await instance.inject({ method: "POST", url: "/products/%20/resolve" });
+    const invalid = await instance.inject({ method: "POST", url: "/products/%21%21%21/resolve" });
+
+    expect(empty.statusCode).toBe(400);
+    expect(invalid.statusCode).toBe(400);
+    expect(mocks.resolveUnknownMpn).not.toHaveBeenCalled();
   });
 });

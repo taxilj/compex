@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Menu, ChevronDown, Loader2, AlertCircle } from "lucide-react";
+import { Menu, ChevronDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufacturers";
 import { useClickOutside } from "@/hooks/useClickOutside";
@@ -11,7 +11,6 @@ import HeaderSearch from "@/components/layout/HeaderSearch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const navLinks = [
-  { href: "/products", label: "Products" },
   { href: "/suppliers", label: "Suppliers" },
   { href: "/sourcing", label: "How Sourcing Works" },
   { href: "/industries", label: "Industries" },
@@ -95,6 +94,50 @@ function MobileCategoryTree({ categories, onSelect }: { categories: CategoryWith
         </li>
       ))}
     </ul>
+  );
+}
+
+function ProductCategoryMenu({ categories, onSelect }: { categories: CategoryWithChildren[]; onSelect: () => void }) {
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const activeCategory = categories.find((category) => category.id === activeCategoryId);
+
+  return (
+    <div className="flex min-h-[18rem]">
+      <div className="w-72 shrink-0 py-2">
+        <div className="flex items-center justify-between border-b border-[#E4E7EC] px-4 pb-2">
+          <span className="font-label-md uppercase tracking-wide text-[#111c2d]">Products</span>
+          <Link href="/categories" onClick={onSelect} className="font-label-sm text-[#1769E0] hover:underline">View all</Link>
+        </div>
+        <ul className="py-1">
+          {categories.map((category) => {
+            const active = category.id === activeCategoryId;
+            return (
+              <li key={category.id}>
+                <Link
+                  href={`/products?categoryId=${encodeURIComponent(category.id)}`}
+                  onClick={onSelect}
+                  onMouseEnter={() => setActiveCategoryId(category.id)}
+                  onFocus={() => setActiveCategoryId(category.id)}
+                  className={`flex items-center justify-between gap-3 px-4 py-2 font-body-sm ${active ? "bg-[#F0F3FF] text-[#0B1F3A]" : "text-[#344054] hover:bg-[#F8FAFC]"}`}
+                >
+                  <span>{category.name}</span>
+                  {category.children.length > 0 && <ChevronRight size={16} aria-hidden="true" />}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      {activeCategory?.children.length ? (
+        <div className="w-80 border-l border-[#E4E7EC] bg-[#FCFCFD] p-4">
+          <Link href={`/products?categoryId=${encodeURIComponent(activeCategory.id)}`} onClick={onSelect} className="font-label-md text-[#111c2d] hover:text-[#1769E0]">
+            {activeCategory.name}
+          </Link>
+          <p className="mt-1 font-body-sm text-[#667085]">Browse subcategories</p>
+          <CategoryTree categories={activeCategory.children} onSelect={onSelect} />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -267,40 +310,23 @@ export default function PublicHeader() {
           />
         </Link>
 
-        {/* Categories mega-menu */}
+        {/* Semikart-like full-width header search, backed by real COMPEX categories. */}
+        <HeaderSearch categories={categories} className="hidden md:block flex-1 min-w-0 max-w-2xl" />
+
+        {/* DigiKey-like Products menu: main categories first, children on hover/focus. */}
         <NavDropdown
-          label="Categories"
+          label="Products"
           isOpen={openMenu === "categories"}
           onToggle={() => toggleMenu("categories")}
           onClose={closeMenu}
-          panelClassName="w-[min(760px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto p-4"
+          panelClassName="w-[min(672px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto p-0"
         >
           {categoriesLoading && <DropdownLoading />}
           {!categoriesLoading && categoriesError && <DropdownError onRetry={retryCategories} />}
           {!categoriesLoading && !categoriesError && categories.length === 0 && (
             <DropdownEmpty text="No categories found." />
           )}
-          {!categoriesLoading && !categoriesError && categories.length > 0 && (
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-6 gap-y-4">
-              {categories.map((cat) => (
-                <div key={cat.id}>
-                  <Link
-                    href={`/products?categoryId=${encodeURIComponent(cat.id)}`}
-                    onClick={closeMenu}
-                    className="font-label-md text-[#111c2d] hover:text-[#1769E0] block mb-1.5"
-                  >
-                    {cat.name}
-                  </Link>
-                  <CategoryTree categories={cat.children} onSelect={closeMenu} />
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="pt-3 mt-3 border-t border-[#E4E7EC]">
-            <Link href="/categories" onClick={closeMenu} className="font-label-sm text-[#1769E0] hover:underline">
-              View all categories →
-            </Link>
-          </div>
+          {!categoriesLoading && !categoriesError && categories.length > 0 && <ProductCategoryMenu categories={categories} onSelect={closeMenu} />}
         </NavDropdown>
 
         {/* Manufacturers dropdown */}
@@ -359,9 +385,6 @@ export default function PublicHeader() {
           </div>
         </NavDropdown>
 
-        {/* Live product search */}
-        <HeaderSearch className="hidden md:block flex-1 max-w-md" />
-
         {/* Secondary nav */}
         <nav className="hidden xl:flex items-center gap-5 shrink-0">
           {navLinks.map((link) => (
@@ -395,7 +418,7 @@ export default function PublicHeader() {
             <SheetTitle>Menu</SheetTitle>
           </SheetHeader>
           <div className="px-4 pb-6 flex flex-col gap-5">
-            <HeaderSearch onNavigate={() => setMobileOpen(false)} />
+            <HeaderSearch categories={categories} onNavigate={() => setMobileOpen(false)} />
 
             <nav className="flex flex-col gap-1">
               {navLinks.map((link) => (
@@ -414,7 +437,7 @@ export default function PublicHeader() {
             </nav>
 
             <div className="pt-3 border-t border-[#E4E7EC]">
-              <p className="font-label-sm text-[#44474d] uppercase tracking-wider mb-2">Categories</p>
+              <p className="font-label-sm text-[#44474d] uppercase tracking-wider mb-2">Product Categories</p>
               {categoriesLoading && <DropdownLoading />}
               {!categoriesLoading && categoriesError && <DropdownError onRetry={retryCategories} />}
               {!categoriesLoading && !categoriesError && categories.length === 0 && (

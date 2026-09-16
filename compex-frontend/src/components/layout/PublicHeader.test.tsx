@@ -26,14 +26,16 @@ const category = (id: string, name: string, children: CategoryFixture[] = []): C
 beforeEach(() => { vi.mocked(listCategories).mockReset(); });
 
 describe("PublicHeader categories", () => {
-  it("renders every real top-level category beyond six and preserves nested category links", async () => {
+  it("shows every real main category in the Products menu and reveals its subcategories on hover", async () => {
     const categories = Array.from({ length: 7 }, (_, index) => category(`top-${index}`, `Top category ${index}`));
     categories[0] = category("top-0", "Top category 0", [category("child", "Child category", [category("grandchild", "Grandchild category")])]);
     vi.mocked(listCategories).mockResolvedValue(categories);
     render(<PublicHeader />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Categories/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Products/i }));
     expect(await screen.findByText("Top category 6")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Grandchild category" })).not.toBeInTheDocument();
+    fireEvent.mouseEnter(screen.getByRole("link", { name: "Top category 0" }));
     expect(screen.getByRole("link", { name: "Grandchild category" })).toHaveAttribute("href", "/products?categoryId=grandchild");
   });
 
@@ -42,7 +44,7 @@ describe("PublicHeader categories", () => {
       .mockRejectedValueOnce(new Error("network failed"))
       .mockResolvedValueOnce([category("real", "Real category")]);
     render(<PublicHeader />);
-    fireEvent.click(screen.getByRole("button", { name: /Categories/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Products/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -52,7 +54,7 @@ describe("PublicHeader categories", () => {
   it("closes the category menu with Escape", async () => {
     vi.mocked(listCategories).mockResolvedValue([category("real", "Real category")]);
     render(<PublicHeader />);
-    const trigger = screen.getByRole("button", { name: /Categories/i });
+    const trigger = screen.getByRole("button", { name: /Products/i });
     fireEvent.click(trigger);
     await screen.findByText("Real category");
     fireEvent.keyDown(document, { key: "Escape" });

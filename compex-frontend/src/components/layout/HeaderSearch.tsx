@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Loader2 } from "lucide-react";
-import { listProducts, type BackendProduct } from "@/lib/api/products";
+import { Search, Loader2, X } from "lucide-react";
+import { listProducts, type BackendProduct, type CategoryWithChildren } from "@/lib/api/products";
 import { useClickOutside } from "@/hooks/useClickOutside";
 
 const MIN_QUERY_LENGTH = 2;
@@ -14,6 +14,8 @@ const MAX_RESULTS = 8;
 interface HeaderSearchProps {
   className?: string;
   onNavigate?: () => void;
+  /** Top-level categories supplied by the header's single category request. */
+  categories?: CategoryWithChildren[];
 }
 
 function productHref(product: BackendProduct): string {
@@ -28,7 +30,7 @@ function looksLikePartNumber(value: string): boolean {
   return /^(?=.*\d)[A-Z0-9][A-Z0-9._/-]*$/i.test(value);
 }
 
-export default function HeaderSearch({ className, onNavigate }: HeaderSearchProps) {
+export default function HeaderSearch({ className, onNavigate, categories = [] }: HeaderSearchProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
@@ -39,6 +41,7 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
   const [activeIndex, setActiveIndex] = useState(-1);
   const requestIdRef = useRef(0);
   const [retryToken, setRetryToken] = useState(0);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
 
   // Single debounced-fetch effect, mirroring the existing debounced search
   // on the manufacturer detail page: all state changes happen inside the
@@ -66,7 +69,7 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
       const requestId = ++requestIdRef.current;
       setLoading(true);
       setError(null);
-      listProducts({ q: term, limit: MAX_RESULTS })
+      listProducts({ q: term, categoryId: selectedCategoryId || undefined, limit: MAX_RESULTS })
         .then((res) => {
           if (cancelled || requestIdRef.current !== requestId) return;
           setResults(res.data);
@@ -86,7 +89,7 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, retryToken]);
+  }, [query, retryToken, selectedCategoryId]);
 
   useClickOutside(containerRef, () => setOpen(false), open);
 
@@ -134,7 +137,8 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
     if (looksLikePartNumber(term)) {
       router.push(`/products/${encodeURIComponent(term.toUpperCase())}`);
     } else {
-      router.push(`/products?q=${encodeURIComponent(term)}`);
+      const categoryParam = selectedCategoryId ? `&categoryId=${encodeURIComponent(selectedCategoryId)}` : "";
+      router.push(`/products?q=${encodeURIComponent(term)}${categoryParam}`);
     }
   }
 
@@ -150,12 +154,12 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
     <div ref={containerRef} className={`relative ${className ?? ""}`}>
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-2 border border-[#E4E7EC] rounded px-3 py-1.5 focus-within:border-[#1769E0] focus-within:ring-1 focus-within:ring-[#1769E0] bg-white"
+        className="flex h-11 items-center overflow-hidden rounded-md border border-[#C9CED6] bg-white shadow-sm focus-within:border-[#1769E0] focus-within:ring-2 focus-within:ring-[#1769E0]/20"
       >
         {loading ? (
-          <Loader2 size={16} className="text-[#75777e] shrink-0 animate-spin" />
+          <Loader2 size={18} className="ml-3 text-[#75777e] shrink-0 animate-spin" />
         ) : (
-          <Search size={16} className="text-[#75777e] shrink-0" />
+          <Search size={18} className="ml-3 text-[#44474d] shrink-0" />
         )}
         <input
           role="combobox"
@@ -164,8 +168,8 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
           aria-expanded={showDropdown}
           aria-controls="header-search-results"
           aria-activedescendant={activeIndex >= 0 ? `header-search-option-${activeIndex}` : undefined}
-          className="w-full bg-transparent border-none outline-none font-mono-label text-[#111c2d] placeholder:text-[#75777e] placeholder:font-body-sm"
-          placeholder="Enter keyword or part number"
+          className="min-w-0 flex-1 bg-transparent border-none px-3 outline-none font-body-sm text-[#111c2d] placeholder:text-[#75777e]"
+          placeholder="Type to search"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -174,8 +178,34 @@ export default function HeaderSearch({ className, onNavigate }: HeaderSearchProp
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
         />
-        <button type="submit" aria-label="Search" className="rounded p-1 text-[#0B1F3A] hover:bg-[#f0f3ff] focus:outline-none focus:ring-2 focus:ring-[#1769E0]">
-          <Search size={16} aria-hidden="true" />
+        {query && (
+          <button
+            type="button"
+            aria-label="Clear search"
+            onClick={() => {
+              setQuery("");
+              setResults([]);
+              setOpen(false);
+            }}
+            className="p-2 text-[#667085] hover:text-[#111c2d] focus:outline-none focus:ring-2 focus:ring-[#1769E0]"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        )}
+        <label className="sr-only" htmlFor="header-search-category">Search category</label>
+        <select
+          id="header-search-category"
+          aria-label="Search category"
+          value={selectedCategoryId}
+          onChange={(event) => setSelectedCategoryId(event.target.value)}
+          className="h-full max-w-[10.5rem] border-l border-[#D0D5DD] bg-white px-3 font-body-sm text-[#44474d] outline-none focus:bg-[#F8FAFC]"
+        >
+          <option value="">All Categories</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        <button type="submit" aria-label="Search" className="h-full shrink-0 bg-[#1769E0] px-3 font-label-md text-white hover:bg-[#1257B8] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
+          <span className="hidden lg:inline">Search</span>
+          <Search size={18} className="lg:hidden" aria-hidden="true" />
         </button>
       </form>
 
