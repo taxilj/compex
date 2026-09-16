@@ -213,6 +213,9 @@ model Company {
   customerType              String?  @map("customer_type")
   website                   String?
   fax                       String?
+  // Owner's Customer Master "Phone" field (distinct from the portal
+  // login User.phone) -- the company's own business phone number.
+  phone                     String?
   primaryContact            String?  @map("primary_contact")
   contactEmail              String?  @map("contact_email")
   authorisedPerson          String?  @map("authorised_person")

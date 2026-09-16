@@ -8,7 +8,7 @@ import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
 
 const blankForm: AdminCustomerInput = {
-  companyName: "", firstName: "", lastName: "", email: "", phone: "", gstin: "", city: "", address: "",
+  companyName: "", firstName: "", lastName: "", email: "", phone: "", companyPhone: "", gstin: "", city: "", address: "",
   shortName: "", billToAddress: "", shipToAddress: "", state: "", country: "", relationshipType: "", customerType: "",
   website: "", fax: "", primaryContact: "", contactEmail: "", authorisedPerson: "", paymentTerms: "", region: "",
   industrySegment: "", internalAccountNumber: "", shippingAccount: "", bankDetails: "", remarks: "",
@@ -20,7 +20,7 @@ function formFor(customer: AdminCustomer): AdminCustomerInput {
   const c = customer.company;
   return {
     companyName: c.name, firstName: customer.user.firstName, lastName: customer.user.lastName, email: customer.user.email,
-    phone: customer.user.phone ?? "", gstin: c.gstin ?? "", city: c.city ?? "", address: c.address ?? "",
+    phone: customer.user.phone ?? "", companyPhone: c.phone ?? "", gstin: c.gstin ?? "", city: c.city ?? "", address: c.address ?? "",
     shortName: c.shortName ?? "", billToAddress: c.billToAddress ?? "", shipToAddress: c.shipToAddress ?? "",
     state: c.state ?? "", country: c.country ?? "", relationshipType: c.relationshipType ?? "", customerType: c.customerType ?? "",
     website: c.website ?? "", fax: c.fax ?? "", primaryContact: c.primaryContact ?? "", contactEmail: c.contactEmail ?? "",
@@ -134,7 +134,8 @@ function CustomerDialog({ customer, form, saving, staff, onChange, onClose, onSu
             <Field label="First name *" value={form.firstName} onChange={(v) => set("firstName", v)} required />
             <Field label="Last name *" value={form.lastName} onChange={(v) => set("lastName", v)} required />
             <Field label="Business email *" value={form.email} onChange={(v) => set("email", v)} required type="email" />
-            <Field label="Phone" value={form.phone ?? ""} onChange={(v) => set("phone", v)} />
+            <Field label="Contact phone" value={form.phone ?? ""} onChange={(v) => set("phone", v)} />
+            <Field label="Company phone" value={form.companyPhone ?? ""} onChange={(v) => set("companyPhone", v)} />
             <Field label="GSTIN / Registration number" value={form.gstin ?? ""} onChange={(v) => set("gstin", v)} />
             <Field label="Website" value={form.website ?? ""} onChange={(v) => set("website", v)} />
             <Field label="Fax" value={form.fax ?? ""} onChange={(v) => set("fax", v)} />

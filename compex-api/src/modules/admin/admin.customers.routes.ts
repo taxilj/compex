@@ -26,7 +26,11 @@ const CustomerBody = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   email: z.string().email().toLowerCase(),
+  // Portal login contact's own phone number (User.phone) -- distinct
+  // from companyPhone below, which is the company's own business phone
+  // (owner's Customer Master "Phone" field).
   phone: z.string().trim().min(7).max(20).optional(),
+  companyPhone: z.string().trim().min(7).max(20).optional(),
   gstin: z.string().trim().max(15).optional(),
   city: z.string().trim().max(100).optional(),
   address: z.string().trim().max(500).optional(),
@@ -72,7 +76,7 @@ const CustomerSelect = {
   user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, status: true } },
   company: {
     select: {
-      id: true, name: true, gstin: true, city: true, address: true,
+      id: true, name: true, gstin: true, city: true, address: true, phone: true,
       shortName: true, billToAddress: true, shipToAddress: true, additionalShipToAddresses: true,
       state: true, country: true, relationshipType: true, customerType: true, website: true, fax: true,
       primaryContact: true, contactEmail: true, authorisedPerson: true, paymentTerms: true, creditLimit: true,
@@ -115,6 +119,7 @@ function companyData(body: Partial<CustomerBodyShape>) {
     gstin: body.gstin,
     city: body.city,
     address: body.address,
+    phone: body.companyPhone,
     shortName: body.shortName,
     billToAddress: body.billToAddress,
     shipToAddress: body.shipToAddress,

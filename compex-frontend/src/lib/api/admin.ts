@@ -211,6 +211,7 @@ export interface AdminCustomerCompany {
   gstin: string | null;
   city: string | null;
   address: string | null;
+  phone: string | null;
   shortName: string | null;
   billToAddress: string | null;
   shipToAddress: string | null;
@@ -254,6 +255,7 @@ export interface AdminCustomerInput {
   lastName: string;
   email: string;
   phone?: string;
+  companyPhone?: string;
   gstin?: string;
   city?: string;
   address?: string;
