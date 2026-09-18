@@ -44,6 +44,33 @@ describe("admin user privilege boundaries", () => {
   });
 });
 
+describe("owner user-master fields", () => {
+  it("persists a valid organization and internal remarks through the admin user API", async () => {
+    const admin = await createAdminAndLogin(app, "admin-user-master@invalid.test");
+    const organization = await prisma.organization.create({ data: { companyName: "User Master QA Organization", shortName: "UMQA" } });
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/v1/admin/users",
+      headers: adminHeaders(admin.accessToken),
+      payload: {
+        email: "user-master-fields@invalid.test",
+        firstName: "User",
+        lastName: "Master",
+        organizationId: organization.id,
+        remarks: "Synthetic QA remarks",
+      },
+    });
+
+    expect(created.statusCode).toBe(201);
+    expect(created.json().data).toMatchObject({
+      organizationId: organization.id,
+      remarks: "Synthetic QA remarks",
+      organization: { shortName: "UMQA" },
+    });
+  });
+});
+
 describe("settings-backed customer data", () => {
   it("rejects explicit empty, unknown, and inactive values; accepts an active value; and redacts financial data from audit history", async () => {
     const admin = await createAdminAndLogin(app, "admin-customer-settings@invalid.test");

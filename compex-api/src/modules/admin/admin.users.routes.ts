@@ -31,6 +31,7 @@ const UserSelect = {
   phone: true,
   address: true,
   skype: true,
+  remarks: true,
   createdAt: true,
   updatedAt: true,
   organization: { select: { id: true, companyName: true, shortName: true } },
@@ -49,6 +50,7 @@ const CreateUserBody = z.object({
   phone: z.string().trim().max(30).optional(),
   address: z.string().trim().max(500).optional(),
   skype: z.string().trim().max(100).optional(),
+  remarks: z.string().trim().max(2_000).optional(),
 });
 
 // Role is intentionally excluded from updates by regular PATCH -- promoting

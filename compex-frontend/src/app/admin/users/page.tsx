@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Plus, Search, X } from "lucide-react";
-import { createUser, listUsers, updateUser, type AdminUser, type CreateUserInput, type UpdateUserInput } from "@/lib/api/admin";
+import { createUser, listOrganizations, listUsers, updateUser, type AdminUser, type CreateUserInput, type Organization, type UpdateUserInput } from "@/lib/api/admin";
 import { ApiError } from "@/lib/api/client";
 import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
@@ -14,7 +14,7 @@ function formFor(u: AdminUser): CreateUserInput & { status?: "ACTIVE" | "SUSPEND
     email: u.email, firstName: u.firstName, lastName: u.lastName, role: u.role,
     screenName: u.screenName ?? "", organizationId: u.organizationId ?? undefined, position: u.position ?? "",
     department: u.department ?? "", mobile: u.mobile ?? "", phone: u.phone ?? "", address: u.address ?? "",
-    skype: u.skype ?? "", status: u.status === "PENDING_VERIFICATION" ? undefined : u.status,
+    skype: u.skype ?? "", remarks: u.remarks ?? "", status: u.status === "PENDING_VERIFICATION" ? undefined : u.status,
   };
 }
 
@@ -26,6 +26,7 @@ const statusBadge: Record<AdminUser["status"], string> = {
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,7 @@ export default function AdminUsersPage() {
   }, [search]);
 
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
+  useEffect(() => { void listOrganizations().then((r) => setOrganizations(r.data)).catch(() => setOrganizations([])); }, []);
 
   function openCreate() { setEditing(null); setForm(emptyForm); setFormError(null); setShowModal(true); }
   function openEdit(u: AdminUser) { setEditing(u); setForm(formFor(u)); setFormError(null); setShowModal(true); }
@@ -172,6 +174,13 @@ export default function AdminUsersPage() {
                     </select>
                   </div>
                 )}
+                <div>
+                  <label className="block font-label-md text-[#44474d] mb-1.5 text-sm">Organization</label>
+                  <select value={form.organizationId ?? ""} onChange={(e) => setForm({ ...form, organizationId: e.target.value || undefined })} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm">
+                    <option value="">—</option>
+                    {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.shortName || organization.companyName}</option>)}
+                  </select>
+                </div>
                 <SettingsSelect category="POSITION" label="Position" value={form.position ?? ""} onChange={(v) => setForm({ ...form, position: v })} />
                 <SettingsSelect category="DEPARTMENT" label="Department" value={form.department ?? ""} onChange={(v) => setForm({ ...form, department: v })} />
                 <Field label="Mobile" value={form.mobile ?? ""} onChange={(v) => setForm({ ...form, mobile: v })} />
@@ -179,6 +188,7 @@ export default function AdminUsersPage() {
                 <Field label="Skype" value={form.skype ?? ""} onChange={(v) => setForm({ ...form, skype: v })} />
               </div>
               <Field label="Address" value={form.address ?? ""} onChange={(v) => setForm({ ...form, address: v })} textarea />
+              <Field label="Remarks" value={form.remarks ?? ""} onChange={(v) => setForm({ ...form, remarks: v })} textarea />
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={close} className="px-4 py-2 rounded border border-[#E4E7EC] font-label-md text-sm">Cancel</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 rounded bg-[#0B1F3A] text-white font-label-md text-sm disabled:opacity-50">{saving ? "Saving…" : editing ? "Save changes" : "Create and send invitation"}</button>

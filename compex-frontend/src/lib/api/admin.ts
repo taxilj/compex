@@ -712,6 +712,7 @@ export interface AdminUser {
   phone: string | null;
   address: string | null;
   skype: string | null;
+  remarks: string | null;
   createdAt: string;
   updatedAt: string;
   organization: { id: string; companyName: string; shortName: string } | null;
@@ -730,6 +731,7 @@ export interface CreateUserInput {
   phone?: string;
   address?: string;
   skype?: string;
+  remarks?: string;
 }
 
 export type UpdateUserInput = Partial<Omit<CreateUserInput, "role">> & { status?: "ACTIVE" | "SUSPENDED" };

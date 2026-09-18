@@ -164,6 +164,7 @@ model User {
   mobile         String?
   address        String?
   skype          String?
+  remarks        String?
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
