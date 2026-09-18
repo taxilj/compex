@@ -25,7 +25,7 @@ export function normalizeMpn(mpn: string): string {
   return mpn.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-function slugify(name: string): string {
+export function slugify(name: string): string {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 

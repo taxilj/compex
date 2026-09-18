@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { UploadCloud, Loader2, Search } from "lucide-react";
-import { uploadCatalogCsv, listCatalogImportRuns, importFromMouser, importFromElement14, importFromDigiKey, type CatalogImportRun, type AdminProduct } from "@/lib/api/admin";
+import { UploadCloud, Loader2, Search, Building2 } from "lucide-react";
+import { uploadCatalogCsv, listCatalogImportRuns, importFromMouser, importFromElement14, importFromDigiKey, importDigiKeyManufacturers, type CatalogImportRun, type AdminProduct, type ManufacturerImportResult } from "@/lib/api/admin";
 
 const statusColor: Record<string, string> = {
   COMPLETED: "bg-[#12B76A]/10 text-[#12B76A]",
@@ -23,6 +23,9 @@ export default function AdminCatalogImportPage() {
   const [providerLoading, setProviderLoading] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
   const [providerResult, setProviderResult] = useState<AdminProduct | null>(null);
+  const [manufacturerLoading, setManufacturerLoading] = useState(false);
+  const [manufacturerError, setManufacturerError] = useState<string | null>(null);
+  const [manufacturerResult, setManufacturerResult] = useState<ManufacturerImportResult | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -78,6 +81,22 @@ export default function AdminCatalogImportPage() {
     }
   };
 
+  const handleManufacturerImport = async () => {
+    setManufacturerLoading(true);
+    setManufacturerError(null);
+    setManufacturerResult(null);
+    try {
+      const { result } = await importDigiKeyManufacturers();
+      if (!result) throw new Error("DigiKey manufacturer import failed.");
+      setManufacturerResult(result);
+      load();
+    } catch (err) {
+      setManufacturerError(err instanceof Error ? err.message : "DigiKey manufacturer import failed.");
+    } finally {
+      setManufacturerLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -86,6 +105,17 @@ export default function AdminCatalogImportPage() {
       </div>
 
       {error && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
+
+      <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6">
+        <h2 className="font-headline-sm text-[#111c2d] mb-1">Manufacturer Master</h2>
+        <p className="font-body-sm text-[#44474d] mb-4">Load DigiKey&apos;s official manufacturer directory through the configured server-side API. Existing local master records are kept unchanged.</p>
+        <button type="button" onClick={handleManufacturerImport} disabled={manufacturerLoading} className="flex items-center gap-2 bg-[#0B1F3A] text-white px-4 py-2 rounded font-label-md text-sm disabled:opacity-50">
+          {manufacturerLoading ? <Loader2 size={15} className="animate-spin" /> : <Building2 size={15} />}
+          {manufacturerLoading ? "Importing manufacturers…" : "Import DigiKey manufacturer directory"}
+        </button>
+        {manufacturerError && <p role="alert" className="mt-3 font-body-sm text-[#B42318]">{manufacturerError}</p>}
+        {manufacturerResult && <p className="mt-3 font-body-sm text-[#067647]">Retrieved {manufacturerResult.retrieved}; created {manufacturerResult.created}; existing {manufacturerResult.existing}; skipped {manufacturerResult.skipped}.</p>}
+      </div>
 
       <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6">
         <h2 className="font-headline-sm text-[#111c2d] mb-1">Distributor Single-Part Lookup</h2>

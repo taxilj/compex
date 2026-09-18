@@ -19,6 +19,7 @@ import { mapDigiKeyProduct, type DigiKeyProduct } from "./digikey-mapper.js";
 // Mouser/element14 fetchers already use.
 const TOKEN_URL = "https://api.digikey.com/v1/oauth2/token";
 const KEYWORD_SEARCH_URL = "https://api.digikey.com/products/v4/search/keyword";
+const MANUFACTURERS_URL = "https://api.digikey.com/products/v4/search/manufacturers";
 
 interface TokenResponse {
   access_token?: string;
@@ -47,6 +48,15 @@ interface DigiKeyV4Product {
 
 interface DigiKeyKeywordSearchResponse {
   Products?: DigiKeyV4Product[];
+}
+
+interface DigiKeyManufacturersResponse {
+  Manufacturers?: Array<{ Id?: number; Name?: string }>;
+}
+
+export interface DigiKeyManufacturer {
+  id: number;
+  name: string;
 }
 
 // Module-level token cache — a client-credentials token is valid for the
@@ -79,6 +89,33 @@ async function getAccessToken(): Promise<string> {
 
   cachedToken = { value: body.access_token, expiresAt: Date.now() + (body.expires_in ?? 600) * 1000 };
   return cachedToken.value;
+}
+
+// Retrieves DigiKey's complete manufacturer directory. This is intentionally
+// a first-party API call rather than an HTML scrape or a bundled snapshot:
+// names and IDs remain traceable to the distributor and can be refreshed.
+export async function fetchDigiKeyManufacturers(): Promise<DigiKeyManufacturer[]> {
+  const token = await getAccessToken();
+  const res = await fetch(MANUFACTURERS_URL, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-DIGIKEY-Client-Id": env.DIGIKEY_CLIENT_ID ?? "",
+      "X-DIGIKEY-Locale-Site": "US",
+      "X-DIGIKEY-Locale-Language": "en",
+      "X-DIGIKEY-Locale-Currency": "USD",
+      Accept: "application/json",
+    },
+  });
+
+  if (res.status === 429) throw Errors.rateLimited();
+  if (!res.ok) throw Errors.serviceUnavailable(`DigiKey manufacturer API request failed with status ${res.status}`);
+
+  const body = (await res.json()) as DigiKeyManufacturersResponse;
+  return (body.Manufacturers ?? [])
+    .filter((manufacturer): manufacturer is { Id: number; Name: string } =>
+      Number.isInteger(manufacturer.Id) && typeof manufacturer.Name === "string" && manufacturer.Name.trim().length > 0,
+    )
+    .map((manufacturer) => ({ id: manufacturer.Id, name: manufacturer.Name.trim() }));
 }
 
 function toDigiKeyProduct(details: DigiKeyV4Product | undefined): DigiKeyProduct {

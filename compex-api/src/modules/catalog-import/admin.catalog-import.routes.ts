@@ -6,10 +6,12 @@ import { requireRole } from "../../middleware/requireRole.js";
 import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
+import { audit } from "../../lib/audit.js";
 import { createCsvFetcher } from "./fetchers/csv-fetcher.js";
 import { createMouserFetcher } from "./fetchers/mouser-fetcher.js";
 import { createElement14Fetcher } from "./fetchers/element14-fetcher.js";
 import { createDigiKeyFetcher } from "./fetchers/digikey-fetcher.js";
+import { DIGIKEY_MANUFACTURER_IMPORT_SOURCE, importDigiKeyManufacturers } from "./digikey-manufacturer-import.js";
 import { runImport } from "./run-import.js";
 import { PRODUCT_INCLUDE } from "../catalog/product-search.js";
 
@@ -103,6 +105,47 @@ export async function adminCatalogImportRoutes(app: FastifyInstance): Promise<vo
       return reply.status(502).send(ok({ run: failed, product: null }));
     }
 
+  });
+
+  // Imports only official manufacturer names from DigiKey's documented
+  // manufacturer endpoint. It never changes a locally-curated record and is
+  // admin-only because it writes the master list.
+  app.post("/digikey/manufacturers", async (req, reply) => {
+    const run = await prisma.catalogImportRun.create({ data: { source: DIGIKEY_MANUFACTURER_IMPORT_SOURCE } });
+
+    try {
+      const result = await importDigiKeyManufacturers();
+      const completed = await prisma.catalogImportRun.update({
+        where: { id: run.id },
+        data: {
+          status: "COMPLETED",
+          itemsProcessed: result.retrieved,
+          itemsCreated: result.created,
+          itemsUpdated: result.existing,
+          itemsFailed: result.skipped,
+          completedAt: new Date(),
+        },
+      });
+      audit({
+        userId: req.user!.id,
+        action: "manufacturer.digikey_imported",
+        entityType: "catalog_import_run",
+        entityId: run.id,
+        newValue: result,
+      });
+      return reply.status(201).send(ok({ run: completed, result }));
+    } catch (err) {
+      req.log.error({ err, runId: run.id }, "DigiKey manufacturer import failed");
+      const failed = await prisma.catalogImportRun.update({
+        where: { id: run.id },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+          errorLog: [{ message: "DigiKey manufacturer import failed. Check the server's approved DigiKey API configuration and retry." }],
+        },
+      });
+      return reply.status(502).send(ok({ run: failed, result: null }));
+    }
   });
 
   app.post("/digikey/:mpn", async (req, reply) => {
