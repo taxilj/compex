@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { prisma } from "./prisma.js";
 
@@ -100,6 +101,34 @@ async function sendViaResend(opts: EmailOptions): Promise<{ messageId?: string }
   return { messageId: data.id };
 }
 
+function getSmtpTransport() {
+  return nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT ?? 587,
+    secure: (env.SMTP_PORT ?? 587) === 465,
+    auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 10_000,
+  });
+}
+
+async function sendViaSmtp(opts: EmailOptions): Promise<{ messageId?: string }> {
+  if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) {
+    throw new Error("SMTP email provider is not configured");
+  }
+
+  const result = await getSmtpTransport().sendMail({
+    from: `"Compex Solution" <${env.EMAIL_FROM}>`,
+    to: opts.to,
+    replyTo: opts.replyTo,
+    subject: opts.subject,
+    html: opts.html,
+    attachments: opts.attachments,
+  });
+  return { messageId: result.messageId };
+}
+
 export async function sendEmail(opts: EmailOptions): Promise<{ messageId?: string }> {
   if (env.EMAIL_PROVIDER === "log") {
     throw new Error("Email delivery is disabled in this environment");
@@ -118,6 +147,10 @@ export async function sendEmail(opts: EmailOptions): Promise<{ messageId?: strin
       },
     });
     return { messageId: "test-email" };
+  }
+
+  if (env.EMAIL_PROVIDER === "smtp") {
+    return sendViaSmtp(opts);
   }
 
   if (!env.RESEND_API_KEY) {
