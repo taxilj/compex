@@ -198,7 +198,7 @@ export default function HeaderSearch({ className, onNavigate, categories = [] }:
           aria-label="Search category"
           value={selectedCategoryId}
           onChange={(event) => setSelectedCategoryId(event.target.value)}
-          className="h-full max-w-[10.5rem] border-l border-[#D0D5DD] bg-white px-3 font-body-sm text-[#44474d] outline-none focus:bg-[#F8FAFC]"
+          className="h-full min-w-0 max-w-[10.5rem] shrink border-l border-[#D0D5DD] bg-white px-3 font-body-sm text-[#44474d] outline-none focus:bg-[#F8FAFC]"
         >
           <option value="">All Categories</option>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}

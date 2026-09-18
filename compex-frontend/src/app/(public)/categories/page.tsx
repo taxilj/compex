@@ -1,38 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useEffect, useState } from "react";
 import Link from "next/link";
-import { Cpu, Zap, Cable, CircuitBoard, BatteryCharging, Radio, Package, ArrowRight, AlertCircle } from "lucide-react";
+import { Search, AlertCircle } from "lucide-react";
 import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 import CTABanner from "@/components/ui/CTABanner";
 
-// Generic, factual blurbs about what a category concept covers electronically —
-// not a claim about Compex's catalogue scale. Falls back to a neutral line for
-// any real category name not covered here, so new categories from future
-// imports render correctly with no further code changes.
-const CATEGORY_BLURBS: Record<string, string> = {
-  "Integrated Circuits (ICs)": "Semiconductor devices with a complete circuit fabricated on a single chip — microcontrollers, amplifiers, timers, and logic ICs.",
-  "Discrete Semiconductor Products": "Individual semiconductor devices — diodes, transistors, and rectifiers — used as single-function building blocks in a circuit.",
-  "Connectors": "Interconnect hardware for joining circuits, cables, and boards — headers, terminals, and board-to-board connectors.",
-  "Passive Components": "Non-amplifying components — resistors, capacitors, and inductors — that shape, store, or limit electrical signals.",
-  "Power": "Voltage regulation, conversion, and protection components for powering a circuit.",
-  "Sensors": "Components that detect and respond to physical input — temperature, light, motion, and more.",
-};
-
-function categoryIcon(name: string) {
-  if (/integrated circuit|\bic\b|microcontroller/i.test(name)) return Cpu;
-  if (/discrete|semiconductor|transistor|diode/i.test(name)) return Zap;
-  if (/connector|cable|interconnect/i.test(name)) return Cable;
-  if (/passive|resistor|capacitor|inductor/i.test(name)) return CircuitBoard;
-  if (/power|voltage|battery/i.test(name)) return BatteryCharging;
-  if (/sensor|rf|wireless/i.test(name)) return Radio;
-  return Package;
+function matchesQuery(category: CategoryWithChildren, q: string): boolean {
+  if (q === "") return true;
+  if (category.name.toLowerCase().includes(q)) return true;
+  return category.children.some((child) => child.name.toLowerCase().includes(q));
 }
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryWithChildren[] | null>(null);
   const [error, setError] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!categories) return [];
+    const q = query.trim().toLowerCase();
+    return categories.filter((c) => matchesQuery(c, q));
+  }, [categories, query]);
 
   useEffect(() => {
     let active = true;
@@ -96,40 +86,72 @@ export default function CategoriesPage() {
             </div>
           )}
 
+          {/* DigiKey-style Product Index: a search-within box, a jump list of
+              top-level categories, and a dense two-column subcategory list
+              with counts -- fast to scan, unlike a sparse card grid. */}
           {!error && categories !== null && categories.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {categories.map((cat) => {
-                const Icon = categoryIcon(cat.name);
-                const blurb = cat.description || CATEGORY_BLURBS[cat.name] || `Explore verified ${cat.name} components in the Compex catalogue.`;
-                return (
-                  <Link
-                    key={cat.id}
-                    href={`/products?categoryId=${encodeURIComponent(cat.id)}`}
-                    className="group bg-white border border-[#E4E7EC] rounded-xl overflow-hidden hover:border-[#1769E0] hover:shadow-md transition-all flex flex-col"
-                  >
-                    <div className="h-28 bg-[#f0f3ff] border-b border-[#E4E7EC] flex items-center justify-center relative overflow-hidden">
-                      <Icon size={40} className="text-[#0B1F3A]/25" strokeWidth={1.25} />
-                    </div>
-                    <div className="p-6 flex flex-col flex-1">
-                      <h2 className="font-headline-sm text-[#0B1F3A] mb-1.5">{cat.name}</h2>
-                      <p className="font-mono-label text-[#1769E0] text-xs uppercase tracking-wider mb-3">
-                        {cat._count.products} product{cat._count.products !== 1 ? "s" : ""}
-                      </p>
-                      <p className="font-body-sm text-[#44474d] mb-5 flex-1">{blurb}</p>
-                      {cat.children.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-4">
-                          {cat.children.map((child) => (
-                            <span key={child.id} className="tag">{child.name}</span>
-                          ))}
-                        </div>
-                      )}
-                      <span className="font-label-md text-[#1769E0] flex items-center gap-2 group-hover:gap-3 transition-all mt-auto">
-                        Browse Products <ArrowRight size={16} />
+            <div className="flex flex-col lg:flex-row gap-10">
+              <aside className="lg:w-64 shrink-0">
+                <div className="lg:sticky lg:top-32">
+                  <div className="relative mb-4">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#75777e]" />
+                    <input
+                      aria-label="Search categories"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search within..."
+                      className="w-full pl-9 pr-3 py-2.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:ring-1 focus:ring-[#1769E0] focus:border-[#1769E0]"
+                    />
+                  </div>
+                  <p className="font-label-sm text-[#44474d] uppercase tracking-wider mb-2">Categories</p>
+                  <ul className="max-h-[60vh] overflow-y-auto border-t border-[#E4E7EC]">
+                    {filtered.map((cat) => (
+                      <li key={cat.id} className="border-b border-[#E4E7EC]">
+                        <a href={`#category-${cat.id}`} className="block py-2 font-body-sm text-[#1769E0] hover:underline">
+                          {cat.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </aside>
+
+              <div className="flex-1 min-w-0 space-y-10">
+                {filtered.length === 0 && (
+                  <p className="font-body-md text-[#44474d] py-12 text-center">No categories match your search.</p>
+                )}
+                {filtered.map((cat) => (
+                  <section key={cat.id} id={`category-${cat.id}`} className="scroll-mt-32">
+                    <div className="flex items-baseline justify-between gap-4 border-b border-[#E4E7EC] pb-2 mb-3">
+                      <Link href={`/products?categoryId=${encodeURIComponent(cat.id)}`} className="font-headline-sm text-[#0B1F3A] hover:text-[#1769E0]">
+                        {cat.name}
+                      </Link>
+                      <span className="font-mono-label text-[#75777e] text-xs shrink-0">
+                        {cat._count.products} item{cat._count.products !== 1 ? "s" : ""}
                       </span>
                     </div>
-                  </Link>
-                );
-              })}
+                    {cat.children.length > 0 ? (
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+                        {cat.children.map((child) => (
+                          <li key={child.id}>
+                            <Link
+                              href={`/products?categoryId=${encodeURIComponent(child.id)}`}
+                              className="flex items-baseline justify-between gap-2 py-1 font-body-sm text-[#111c2d] hover:text-[#1769E0] hover:underline"
+                            >
+                              <span className="truncate">{child.name}</span>
+                              <span className="font-mono-label text-[#75777e] text-xs shrink-0">{child._count.products}</span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <Link href={`/products?categoryId=${encodeURIComponent(cat.id)}`} className="font-label-md text-[#1769E0] hover:underline">
+                        Browse all {cat.name} →
+                      </Link>
+                    )}
+                  </section>
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -32,7 +32,10 @@ describe("CategoriesPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    expect(await screen.findByText("Real Category")).toBeInTheDocument();
+    // "Real Category" now renders twice by design -- once in the sidebar
+    // jump list, once as the section heading -- so assert on the set rather
+    // than a single ambiguous match.
+    expect(await screen.findAllByText("Real Category")).not.toHaveLength(0);
     await waitFor(() => expect(listCategories).toHaveBeenCalledTimes(2));
   });
 

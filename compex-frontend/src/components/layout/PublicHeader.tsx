@@ -3,12 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Menu, ChevronDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { Menu, ChevronDown, ChevronRight, Loader2, AlertCircle, Phone, Mail } from "lucide-react";
 import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
 import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufacturers";
 import { useClickOutside } from "@/hooks/useClickOutside";
 import HeaderSearch from "@/components/layout/HeaderSearch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { COMPANY_PHONE, COMPANY_PHONE_TEL_HREF, COMPANY_EMAIL, COMPANY_EMAIL_MAILTO_HREF } from "@/lib/constants/contact";
 
 const navLinks = [
   { href: "/suppliers", label: "Suppliers" },
@@ -147,6 +148,7 @@ function NavDropdown({
   onToggle,
   onClose,
   panelClassName,
+  labelClassName,
   children,
 }: {
   label: string;
@@ -154,6 +156,7 @@ function NavDropdown({
   onToggle: () => void;
   onClose: () => void;
   panelClassName?: string;
+  labelClassName?: string;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -183,7 +186,7 @@ function NavDropdown({
         onClick={onToggle}
         aria-expanded={isOpen}
         aria-haspopup="true"
-        className="flex items-center gap-1.5 font-label-md text-[#111c2d] hover:text-[#1769E0] py-2"
+        className={labelClassName ?? "flex items-center gap-1.5 font-label-md text-[#111c2d] hover:text-[#1769E0] py-2"}
       >
         {label}
         <ChevronDown size={14} className={isOpen ? "rotate-180 transition-transform" : "transition-transform"} />
@@ -297,6 +300,24 @@ export default function PublicHeader() {
 
   return (
     <header className="fixed top-0 w-full z-50 bg-white border-b border-[#E4E7EC]">
+      {/* Row 1: thin contact utility bar, Mouser-style. */}
+      <div className="hidden sm:block bg-[#F8FAFC] border-b border-[#E4E7EC]">
+        <div className="h-9 max-w-[1440px] mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 font-body-sm text-[#44474d]">
+            <a href={COMPANY_PHONE_TEL_HREF} className="flex items-center gap-1.5 hover:text-[#1769E0]">
+              <Phone size={12} /> {COMPANY_PHONE}
+            </a>
+            <a href={COMPANY_EMAIL_MAILTO_HREF} className="hidden md:flex items-center gap-1.5 hover:text-[#1769E0]">
+              <Mail size={12} /> {COMPANY_EMAIL}
+            </a>
+          </div>
+          <Link href="/contact" className="font-body-sm text-[#44474d] hover:text-[#1769E0]">
+            Contact Us
+          </Link>
+        </div>
+      </div>
+
+      {/* Row 2: logo + full-width part-number search, Mouser-style. */}
       <div className="h-16 max-w-[1440px] mx-auto px-4 md:px-8 flex items-center gap-4 md:gap-6">
         {/* Logo */}
         <Link href="/" className="flex items-center shrink-0" aria-label="Compex Solution home">
@@ -310,104 +331,124 @@ export default function PublicHeader() {
           />
         </Link>
 
-        {/* Semikart-like full-width header search, backed by real COMPEX categories. */}
-        <HeaderSearch categories={categories} className="hidden md:block flex-1 min-w-0 max-w-2xl" />
+        {/* Mouser-like full-width header search, backed by real COMPEX categories. */}
+        <HeaderSearch categories={categories} className="hidden md:block flex-1 min-w-0" />
 
-        {/* DigiKey-like Products menu: main categories first, children on hover/focus. */}
-        <NavDropdown
-          label="Products"
-          isOpen={openMenu === "categories"}
-          onToggle={() => toggleMenu("categories")}
-          onClose={closeMenu}
-          panelClassName="w-[min(672px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto p-0"
-        >
-          {categoriesLoading && <DropdownLoading />}
-          {!categoriesLoading && categoriesError && <DropdownError onRetry={retryCategories} />}
-          {!categoriesLoading && !categoriesError && categories.length === 0 && (
-            <DropdownEmpty text="No categories found." />
-          )}
-          {!categoriesLoading && !categoriesError && categories.length > 0 && <ProductCategoryMenu categories={categories} onSelect={closeMenu} />}
-        </NavDropdown>
-
-        {/* Manufacturers dropdown */}
-        <NavDropdown
-          label="Manufacturers"
-          isOpen={openMenu === "manufacturers"}
-          onToggle={() => toggleMenu("manufacturers")}
-          onClose={closeMenu}
-          panelClassName="w-[320px] max-h-[70vh] overflow-y-auto p-2"
-        >
-          {manufacturersLoading && <DropdownLoading />}
-          {!manufacturersLoading && manufacturersError && <DropdownError onRetry={retryManufacturers} />}
-          {!manufacturersLoading && !manufacturersError && manufacturersFetched && manufacturers.length === 0 && (
-            <DropdownEmpty text="No manufacturers found." />
-          )}
-          {!manufacturersLoading && !manufacturersError && manufacturers.map((mfr) => (
-            <Link
-              key={mfr.id}
-              href={`/manufacturers/${encodeURIComponent(mfr.slug)}`}
-              onClick={closeMenu}
-              className="flex items-center justify-between px-2 py-2 rounded hover:bg-[#f0f3ff]"
-            >
-              <span className="font-body-sm text-[#111c2d]">{mfr.name}</span>
-              <span className="font-mono-label text-[#75777e] text-xs">{mfr._count.products}</span>
-            </Link>
-          ))}
-          <div className="pt-2 mt-2 border-t border-[#E4E7EC]">
-            <Link href="/manufacturers" onClick={closeMenu} className="font-label-sm text-[#1769E0] hover:underline px-2 block">
-              View all manufacturers →
-            </Link>
-          </div>
-        </NavDropdown>
-
-        {/* Resources dropdown */}
-        <NavDropdown
-          label="Resources"
-          isOpen={openMenu === "resources"}
-          onToggle={() => toggleMenu("resources")}
-          onClose={closeMenu}
-          panelClassName="w-[260px] p-2"
-        >
-          {resourceLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={closeMenu}
-              className="block px-2 py-2 rounded font-body-sm text-[#111c2d] hover:bg-[#f0f3ff] hover:text-[#1769E0]"
-            >
-              {link.label}
-            </Link>
-          ))}
-          <div className="pt-2 mt-2 border-t border-[#E4E7EC]">
-            <Link href="/tools" onClick={closeMenu} className="font-label-sm text-[#1769E0] hover:underline px-2 block">
-              View all tools →
-            </Link>
-          </div>
-        </NavDropdown>
-
-        {/* Secondary nav */}
-        <nav className="hidden xl:flex items-center gap-5 shrink-0">
-          {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="font-label-md text-[#44474d] hover:text-[#1769E0] whitespace-nowrap">
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-
-        {/* Actions */}
-        <div className="flex items-center gap-3 shrink-0 ml-auto md:ml-0">
-          <Link href="/login" className="font-label-md text-[#44474d] hover:text-[#0B1F3A] hidden sm:block whitespace-nowrap">
-            Login
-          </Link>
+        {/* Below `lg` the row-3 bar (with its own Request a Quote) is hidden,
+            so the primary CTA needs a stand-in here rather than being buried
+            behind the hamburger menu. */}
+        <div className="flex items-center gap-3 shrink-0 ml-auto md:ml-0 lg:hidden">
           <Link
             href="/request-quote"
             className="bg-[#1769E0] text-white px-4 py-2 rounded font-label-md hover:bg-[#1257b8] transition-colors whitespace-nowrap"
           >
             Request a Quote
           </Link>
-          <button className="xl:hidden p-1 text-[#44474d]" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+          <button className="p-1 text-[#44474d]" onClick={() => setMobileOpen(true)} aria-label="Open menu">
             <Menu size={22} />
           </button>
+        </div>
+      </div>
+
+      {/* Row 3: solid category navigation bar, Mouser-style placement with a DigiKey-style Products mega menu. */}
+      <div className="hidden lg:block bg-[#0B1F3A]">
+        <div className="h-12 max-w-[1440px] mx-auto px-4 md:px-8 flex items-center gap-6">
+          {/* DigiKey-like Products menu: main categories first, children on hover/focus. */}
+          <NavDropdown
+            label="Products"
+            isOpen={openMenu === "categories"}
+            onToggle={() => toggleMenu("categories")}
+            onClose={closeMenu}
+            panelClassName="w-[min(672px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto p-0"
+            labelClassName="flex items-center gap-1.5 font-label-md text-white hover:text-white/80 py-2"
+          >
+            {categoriesLoading && <DropdownLoading />}
+            {!categoriesLoading && categoriesError && <DropdownError onRetry={retryCategories} />}
+            {!categoriesLoading && !categoriesError && categories.length === 0 && (
+              <DropdownEmpty text="No categories found." />
+            )}
+            {!categoriesLoading && !categoriesError && categories.length > 0 && <ProductCategoryMenu categories={categories} onSelect={closeMenu} />}
+          </NavDropdown>
+
+          {/* Manufacturers dropdown */}
+          <NavDropdown
+            label="Manufacturers"
+            isOpen={openMenu === "manufacturers"}
+            onToggle={() => toggleMenu("manufacturers")}
+            onClose={closeMenu}
+            panelClassName="w-[320px] max-h-[70vh] overflow-y-auto p-2"
+            labelClassName="flex items-center gap-1.5 font-label-md text-white hover:text-white/80 py-2"
+          >
+            {manufacturersLoading && <DropdownLoading />}
+            {!manufacturersLoading && manufacturersError && <DropdownError onRetry={retryManufacturers} />}
+            {!manufacturersLoading && !manufacturersError && manufacturersFetched && manufacturers.length === 0 && (
+              <DropdownEmpty text="No manufacturers found." />
+            )}
+            {!manufacturersLoading && !manufacturersError && manufacturers.map((mfr) => (
+              <Link
+                key={mfr.id}
+                href={`/manufacturers/${encodeURIComponent(mfr.slug)}`}
+                onClick={closeMenu}
+                className="flex items-center justify-between px-2 py-2 rounded hover:bg-[#f0f3ff]"
+              >
+                <span className="font-body-sm text-[#111c2d]">{mfr.name}</span>
+                <span className="font-mono-label text-[#75777e] text-xs">{mfr._count.products}</span>
+              </Link>
+            ))}
+            <div className="pt-2 mt-2 border-t border-[#E4E7EC]">
+              <Link href="/manufacturers" onClick={closeMenu} className="font-label-sm text-[#1769E0] hover:underline px-2 block">
+                View all manufacturers →
+              </Link>
+            </div>
+          </NavDropdown>
+
+          {/* Resources dropdown */}
+          <NavDropdown
+            label="Resources"
+            isOpen={openMenu === "resources"}
+            onToggle={() => toggleMenu("resources")}
+            onClose={closeMenu}
+            panelClassName="w-[260px] p-2"
+            labelClassName="flex items-center gap-1.5 font-label-md text-white hover:text-white/80 py-2"
+          >
+            {resourceLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={closeMenu}
+                className="block px-2 py-2 rounded font-body-sm text-[#111c2d] hover:bg-[#f0f3ff] hover:text-[#1769E0]"
+              >
+                {link.label}
+              </Link>
+            ))}
+            <div className="pt-2 mt-2 border-t border-[#E4E7EC]">
+              <Link href="/tools" onClick={closeMenu} className="font-label-sm text-[#1769E0] hover:underline px-2 block">
+                View all tools →
+              </Link>
+            </div>
+          </NavDropdown>
+
+          {/* Secondary nav */}
+          <nav className="flex items-center gap-5 shrink-0">
+            {navLinks.map((link) => (
+              <Link key={link.href} href={link.href} className="font-label-md text-white/90 hover:text-white whitespace-nowrap">
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Account actions, mirroring Mouser's Account/Cart placement on the right of the bar. */}
+          <div className="flex items-center gap-3 shrink-0 ml-auto">
+            <Link href="/login" className="font-label-md text-white/90 hover:text-white whitespace-nowrap">
+              Login
+            </Link>
+            <Link
+              href="/request-quote"
+              className="bg-white text-[#0B1F3A] px-4 py-1.5 rounded font-label-md hover:bg-white/90 transition-colors whitespace-nowrap"
+            >
+              Request a Quote
+            </Link>
+          </div>
         </div>
       </div>
 

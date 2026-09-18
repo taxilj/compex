@@ -4,22 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufacturers";
-import { listProducts } from "@/lib/api/products";
-import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
 const PAGE_SIZE = 100; // matches the backend's per-page cap; pages are fetched in a loop below until every manufacturer is loaded, never a fixed top-N truncation
+
+// # first (numeric-leading names), then A-Z -- matches the DigiKey/Mouser
+// manufacturer-directory convention this page is modeled on.
+const ALPHABET = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
+
+function groupKey(name: string): string {
+  const first = name[0]?.toUpperCase() ?? "#";
+  return /[A-Z]/.test(first) ? first : "#";
+}
 
 export default function ManufacturersGrid() {
   const [manufacturers, setManufacturers] = useState<ManufacturerListItem[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const [query, setQuery] = useState("");
-  const [letter, setLetter] = useState<string | null>(null);
-  // One real product image per manufacturer, reused as a card thumbnail when no
-  // logoUrl is on file — never a generated/invented logo. A single page-wide
-  // fetch (not one call per card) since the catalogue is small enough to fit
-  // in one page.
-  const [sampleImages, setSampleImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -49,34 +50,28 @@ export default function ManufacturersGrid() {
     return () => { cancelled = true; };
   }, [retryToken]);
 
-  useEffect(() => {
-    listProducts({ limit: 100 })
-      .then((r) => {
-        const map: Record<string, string> = {};
-        for (const p of r.data) {
-          const mfrId = p.manufacturer?.id;
-          const image = p.images[0];
-          if (mfrId && image && !map[mfrId]) map[mfrId] = image;
-        }
-        setSampleImages(map);
-      })
-      .catch(() => {});
-  }, []);
-
-  const letters = useMemo(() => {
-    if (!manufacturers) return [];
-    return Array.from(new Set(manufacturers.map((m) => m.name[0]?.toUpperCase()).filter(Boolean))).sort();
-  }, [manufacturers]);
-
   const filtered = useMemo(() => {
     if (!manufacturers) return [];
     const q = query.trim().toLowerCase();
-    return manufacturers.filter((m) => {
-      const matchesQuery = q === "" || m.name.toLowerCase().includes(q);
-      const matchesLetter = !letter || m.name[0]?.toUpperCase() === letter;
-      return matchesQuery && matchesLetter;
-    });
-  }, [manufacturers, query, letter]);
+    if (!q) return manufacturers;
+    return manufacturers.filter((m) => m.name.toLowerCase().includes(q));
+  }, [manufacturers, query]);
+
+  // Letter -> manufacturers (sorted), for the DigiKey/Mouser-style indexed
+  // list -- dense text links grouped under a jump-to heading, not cards.
+  const grouped = useMemo(() => {
+    const map = new Map<string, ManufacturerListItem[]>();
+    for (const m of filtered) {
+      const key = groupKey(m.name);
+      const list = map.get(key) ?? [];
+      list.push(m);
+      map.set(key, list);
+    }
+    for (const list of map.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+    return map;
+  }, [filtered]);
+
+  const availableLetters = useMemo(() => new Set(grouped.keys()), [grouped]);
 
   if (loadError) {
     return (
@@ -110,7 +105,7 @@ export default function ManufacturersGrid() {
     );
   }
 
-  // Real catalogue data only — no invented manufacturers, logos, or counts.
+  // Real catalogue data only -- no invented manufacturers, logos, or counts.
   if (manufacturers.length === 0) {
     return (
       <div className="text-center py-16 border border-dashed border-[#E4E7EC] rounded-xl">
@@ -127,7 +122,7 @@ export default function ManufacturersGrid() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <div className="relative flex-1 max-w-sm">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#75777e]" />
           <input
@@ -138,56 +133,58 @@ export default function ManufacturersGrid() {
             className="w-full pl-9 pr-3 py-2.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:ring-1 focus:ring-[#1769E0] focus:border-[#1769E0]"
           />
         </div>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Filter manufacturers alphabetically">
-          <button
-            type="button"
-            onClick={() => setLetter(null)}
-            className={`min-w-8 h-8 px-2 rounded text-xs font-label-sm transition-colors ${!letter ? "bg-[#0B1F3A] text-white" : "border border-[#E4E7EC] text-[#44474d] hover:border-[#1769E0]"}`}
-          >
-            All
-          </button>
-          {letters.map((l) => (
-            <button
+        <p className="font-mono-label text-[#75777e] text-xs uppercase tracking-wider">
+          {filtered.length} manufacturer{filtered.length !== 1 ? "s" : ""}
+        </p>
+      </div>
+
+      {/* A-Z jump nav, DigiKey/Mouser-style: click a letter to scroll straight
+          to its section instead of filtering the list down to one letter. */}
+      <div className="flex flex-wrap gap-1 mb-8 sticky top-16 sm:top-[6.25rem] lg:top-[9.25rem] z-10 bg-white/95 backdrop-blur-sm py-2 -mx-1 px-1" role="navigation" aria-label="Jump to manufacturers starting with">
+        {ALPHABET.map((l) => {
+          const has = availableLetters.has(l);
+          return has ? (
+            <a
               key={l}
-              type="button"
-              onClick={() => setLetter(l === letter ? null : l)}
-              className={`w-8 h-8 rounded text-xs font-label-sm transition-colors ${letter === l ? "bg-[#0B1F3A] text-white" : "border border-[#E4E7EC] text-[#44474d] hover:border-[#1769E0]"}`}
+              href={`#letter-${l}`}
+              className="min-w-8 h-8 px-2 rounded text-xs font-label-sm flex items-center justify-center border border-[#E4E7EC] text-[#44474d] hover:border-[#1769E0] hover:text-[#1769E0] transition-colors"
             >
               {l}
-            </button>
-          ))}
-        </div>
+            </a>
+          ) : (
+            <span
+              key={l}
+              aria-hidden="true"
+              className="min-w-8 h-8 px-2 rounded text-xs font-label-sm flex items-center justify-center text-[#C9CED6]"
+            >
+              {l}
+            </span>
+          );
+        })}
       </div>
 
       {filtered.length === 0 ? (
         <p className="font-body-md text-[#44474d] py-12 text-center">No manufacturers match your search.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((mfr) => {
-            const image = mfr.logoUrl || sampleImages[mfr.id];
-            return (
-              <Link
-                key={mfr.id}
-                href={`/manufacturers/${mfr.slug}`}
-                className="bg-white border border-[#E4E7EC] rounded-xl p-6 hover:border-[#1769E0] hover:shadow-md transition-all block"
-              >
-                <div className="flex items-center gap-4 mb-3">
-                  <div className="w-14 h-14 rounded-lg bg-[#f0f3ff] border border-[#E4E7EC] flex items-center justify-center shrink-0 overflow-hidden">
-                    <ImageWithFallback
-                      src={image}
-                      alt=""
-                      className="w-full h-full object-contain p-1.5"
-                      fallback={<span className="font-bold text-[#0B1F3A] text-sm">{mfr.name.slice(0, 2).toUpperCase()}</span>}
-                    />
-                  </div>
-                  <h2 className="font-headline-sm text-[#0B1F3A]">{mfr.name}</h2>
-                </div>
-                <p className="font-mono-label text-[#1769E0] text-xs uppercase tracking-wider">
-                  {mfr._count.products} product{mfr._count.products !== 1 ? "s" : ""} in catalogue
-                </p>
-              </Link>
-            );
-          })}
+        <div className="space-y-10">
+          {ALPHABET.filter((l) => grouped.has(l)).map((l) => (
+            <section key={l} id={`letter-${l}`} className="scroll-mt-24">
+              <h2 className="font-headline-sm text-[#0B1F3A] border-b border-[#E4E7EC] pb-2 mb-3">{l}</h2>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2">
+                {grouped.get(l)!.map((mfr) => (
+                  <li key={mfr.id}>
+                    <Link
+                      href={`/manufacturers/${mfr.slug}`}
+                      className="flex items-baseline justify-between gap-2 py-1 font-body-sm text-[#111c2d] hover:text-[#1769E0] hover:underline"
+                    >
+                      <span className="truncate">{mfr.name}</span>
+                      <span className="font-mono-label text-[#75777e] text-xs shrink-0">{mfr._count.products}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
         </div>
       )}
     </div>

@@ -3,10 +3,10 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, FileText } from "lucide-react";
 import { listProducts, listCategories, type BackendProduct, type CategoryWithChildren } from "@/lib/api/products";
 import { listManufacturers, type ManufacturerListItem } from "@/lib/api/manufacturers";
-import { ProductCard } from "@/components/products/ProductCard";
+import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 
 const PAGE_SIZE = 24;
 
@@ -24,12 +24,16 @@ function ProductSearchContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [manufacturers, setManufacturers] = useState<ManufacturerListItem[]>([]);
-  const [categories, setCategories] = useState<CategoryWithChildren[]>([]);
+  // null = still loading (backend may be cold-starting and take several
+  // seconds); an empty array means the fetch resolved with genuinely no
+  // rows. Conflating the two previously showed a false "No X yet" while
+  // the request was still in flight.
+  const [manufacturers, setManufacturers] = useState<ManufacturerListItem[] | null>(null);
+  const [categories, setCategories] = useState<CategoryWithChildren[] | null>(null);
 
   useEffect(() => {
-    listManufacturers({ limit: 100 }).then((r) => setManufacturers(r.data)).catch(() => {});
-    listCategories().then(setCategories).catch(() => {});
+    listManufacturers({ limit: 100 }).then((r) => setManufacturers(r.data)).catch(() => setManufacturers([]));
+    listCategories().then(setCategories).catch(() => setCategories([]));
   }, []);
 
   useEffect(() => {
@@ -105,16 +109,18 @@ function ProductSearchContent() {
             )}
           </div>
           <FilterGroup label="Category">
-            {categories.map((c) => (
+            {categories === null && <p className="font-body-sm text-[#44474d]">Loading…</p>}
+            {categories?.map((c) => (
               <CheckItem key={c.id} label={c.name} checked={categoryId === c.id} onChange={() => { setCategoryId(categoryId === c.id ? undefined : c.id); setPage(1); }} />
             ))}
-            {categories.length === 0 && <p className="font-body-sm text-[#44474d]">No categories yet</p>}
+            {categories?.length === 0 && <p className="font-body-sm text-[#44474d]">No categories yet</p>}
           </FilterGroup>
           <FilterGroup label="Manufacturer">
-            {manufacturers.map((m) => (
+            {manufacturers === null && <p className="font-body-sm text-[#44474d]">Loading…</p>}
+            {manufacturers?.map((m) => (
               <CheckItem key={m.id} label={m.name} checked={manufacturerId === m.id} onChange={() => { setManufacturerId(manufacturerId === m.id ? undefined : m.id); setPage(1); }} />
             ))}
-            {manufacturers.length === 0 && <p className="font-body-sm text-[#44474d]">No manufacturers yet</p>}
+            {manufacturers?.length === 0 && <p className="font-body-sm text-[#44474d]">No manufacturers yet</p>}
           </FilterGroup>
         </aside>
 
@@ -136,16 +142,9 @@ function ProductSearchContent() {
           )}
 
           {loading && (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4" aria-busy="true" aria-label="Loading products">
+            <div className="space-y-2" aria-busy="true" aria-label="Loading products">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="border border-[#E4E7EC] rounded bg-white overflow-hidden">
-                  <div className="aspect-square bg-[#f0f3ff] animate-pulse" />
-                  <div className="p-4 space-y-2">
-                    <div className="h-3 w-16 bg-[#f0f3ff] rounded animate-pulse" />
-                    <div className="h-4 w-24 bg-[#f0f3ff] rounded animate-pulse" />
-                    <div className="h-3 w-full bg-[#f0f3ff] rounded animate-pulse" />
-                  </div>
-                </div>
+                <div key={i} className="h-16 rounded bg-[#f0f3ff] animate-pulse" />
               ))}
             </div>
           )}
@@ -170,10 +169,69 @@ function ProductSearchContent() {
           )}
 
           {!loading && !error && products.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
+            <div className="overflow-x-auto border border-[#E4E7EC] rounded bg-white">
+              <table className="w-full min-w-[720px] border-collapse">
+                <thead>
+                  <tr className="bg-[#F8FAFC] border-b border-[#E4E7EC] text-left">
+                    <th className="p-3 font-label-sm text-[#44474d] uppercase tracking-wider w-16"></th>
+                    <th className="p-3 font-label-sm text-[#44474d] uppercase tracking-wider">Part #</th>
+                    <th className="p-3 font-label-sm text-[#44474d] uppercase tracking-wider">Mfr.</th>
+                    <th className="p-3 font-label-sm text-[#44474d] uppercase tracking-wider">Description</th>
+                    <th className="p-3 font-label-sm text-[#44474d] uppercase tracking-wider">Package</th>
+                    <th className="p-3 font-label-sm text-[#44474d] uppercase tracking-wider">Datasheet</th>
+                    <th className="p-3 font-label-sm text-[#44474d] uppercase tracking-wider"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((p) => (
+                    <tr key={p.id} className="border-b border-[#E4E7EC] last:border-0 hover:bg-[#f9f9ff]">
+                      <td className="p-3">
+                        <div className="w-10 h-10 rounded bg-[#f0f3ff] border border-[#E4E7EC] flex items-center justify-center overflow-hidden shrink-0">
+                          <ImageWithFallback
+                            src={p.images[0]}
+                            alt=""
+                            className="w-full h-full object-contain p-1"
+                            fallback={<span className="font-mono-label text-[10px] text-[#0B1F3A]">{p.mpn.slice(0, 2)}</span>}
+                          />
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Link href={`/products/${encodeURIComponent(p.mpn)}${p.manufacturer ? `?manufacturerId=${encodeURIComponent(p.manufacturer.id)}` : ""}`} className="font-mono-label text-[#1769E0] hover:underline">
+                          {p.mpn}
+                        </Link>
+                      </td>
+                      <td className="p-3">
+                        {p.manufacturer ? (
+                          <Link href={`/manufacturers/${encodeURIComponent(p.manufacturer.slug)}`} className="font-body-sm text-[#111c2d] hover:text-[#1769E0]">
+                            {p.manufacturer.name}
+                          </Link>
+                        ) : (
+                          <span className="font-body-sm text-[#75777e]">—</span>
+                        )}
+                      </td>
+                      <td className="p-3 font-body-sm text-[#44474d] max-w-xs truncate">{p.description || p.name || "—"}</td>
+                      <td className="p-3 font-body-sm text-[#44474d] whitespace-nowrap">{p.packageType || "—"}</td>
+                      <td className="p-3">
+                        {p.datasheetUrl ? (
+                          <a href={p.datasheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-label-sm text-[#1769E0] hover:underline whitespace-nowrap">
+                            <FileText size={14} /> View
+                          </a>
+                        ) : (
+                          <span className="font-body-sm text-[#75777e]">—</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <Link
+                          href={`/request-quote?mpn=${encodeURIComponent(p.mpn)}`}
+                          className="inline-block bg-[#1769E0] text-white px-3 py-1.5 rounded font-label-sm hover:bg-[#1257b8] transition-colors whitespace-nowrap"
+                        >
+                          Get Quote
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
 
