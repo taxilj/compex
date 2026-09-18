@@ -496,6 +496,13 @@ export function importDigiKeyManufacturers() {
   return apiFetch<{ run: CatalogImportRun; result: ManufacturerImportResult | null }>("/admin/catalog-import/digikey/manufacturers", { method: "POST" });
 }
 
+export function importDigiKeyStarterCatalog(pagesPerCategory = 1) {
+  return apiFetch<{ categories: number; pagesPerCategory: number; itemsProcessed: number; itemsCreated: number; itemsUpdated: number; itemsFailed: number }>("/admin/catalog-import/digikey/starter-catalog", {
+    method: "POST",
+    body: JSON.stringify({ pagesPerCategory }),
+  });
+}
+
 export function listCatalogImportRuns(params?: { page?: number; limit?: number }) {
   const q = new URLSearchParams();
   if (params?.page) q.set("page", String(params.page));

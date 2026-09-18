@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { UploadCloud, Loader2, Search, Building2 } from "lucide-react";
-import { uploadCatalogCsv, listCatalogImportRuns, importFromMouser, importFromElement14, importFromDigiKey, importDigiKeyManufacturers, type CatalogImportRun, type AdminProduct, type ManufacturerImportResult } from "@/lib/api/admin";
+import { uploadCatalogCsv, listCatalogImportRuns, importFromMouser, importFromElement14, importFromDigiKey, importDigiKeyManufacturers, importDigiKeyStarterCatalog, type CatalogImportRun, type AdminProduct, type ManufacturerImportResult } from "@/lib/api/admin";
 
 const statusColor: Record<string, string> = {
   COMPLETED: "bg-[#12B76A]/10 text-[#12B76A]",
@@ -26,6 +26,9 @@ export default function AdminCatalogImportPage() {
   const [manufacturerLoading, setManufacturerLoading] = useState(false);
   const [manufacturerError, setManufacturerError] = useState<string | null>(null);
   const [manufacturerResult, setManufacturerResult] = useState<ManufacturerImportResult | null>(null);
+  const [starterLoading, setStarterLoading] = useState(false);
+  const [starterError, setStarterError] = useState<string | null>(null);
+  const [starterResult, setStarterResult] = useState<{ itemsCreated: number; itemsUpdated: number; itemsFailed: number } | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -97,6 +100,21 @@ export default function AdminCatalogImportPage() {
     }
   };
 
+  const handleStarterCatalogImport = async () => {
+    setStarterLoading(true);
+    setStarterError(null);
+    setStarterResult(null);
+    try {
+      const result = await importDigiKeyStarterCatalog(1);
+      setStarterResult(result);
+      load();
+    } catch (err) {
+      setStarterError(err instanceof Error ? err.message : "DigiKey starter catalogue import failed.");
+    } finally {
+      setStarterLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -115,6 +133,17 @@ export default function AdminCatalogImportPage() {
         </button>
         {manufacturerError && <p role="alert" className="mt-3 font-body-sm text-[#B42318]">{manufacturerError}</p>}
         {manufacturerResult && <p className="mt-3 font-body-sm text-[#067647]">Retrieved {manufacturerResult.retrieved}; created {manufacturerResult.created}; existing {manufacturerResult.existing}; skipped {manufacturerResult.skipped}.</p>}
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6">
+        <h2 className="font-headline-sm text-[#111c2d] mb-1">Starter Product Catalogue</h2>
+        <p className="font-body-sm text-[#44474d] mb-4">Load up to 50 real, in-stock DigiKey products into each public main category. Product provenance, images and datasheets are retained.</p>
+        <button type="button" onClick={handleStarterCatalogImport} disabled={starterLoading} className="flex items-center gap-2 bg-[#1769E0] text-white px-4 py-2 rounded font-label-md text-sm disabled:opacity-50">
+          {starterLoading ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
+          {starterLoading ? "Importing starter catalogue…" : "Import 50 products per category"}
+        </button>
+        {starterError && <p role="alert" className="mt-3 font-body-sm text-[#B42318]">{starterError}</p>}
+        {starterResult && <p className="mt-3 font-body-sm text-[#067647]">Created {starterResult.itemsCreated}; updated {starterResult.itemsUpdated}; failed {starterResult.itemsFailed}.</p>}
       </div>
 
       <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6">

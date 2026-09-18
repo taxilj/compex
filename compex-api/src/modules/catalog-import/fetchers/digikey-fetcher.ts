@@ -59,6 +59,11 @@ export interface DigiKeyManufacturer {
   name: string;
 }
 
+export interface DigiKeyStarterCatalogTarget {
+  categoryName: string;
+  keywords: string;
+}
+
 // Module-level token cache — a client-credentials token is valid for the
 // whole process, not per-request; refetching on every lookup would burn
 // rate limit for no reason. Cleared (implicitly) on process restart.
@@ -173,6 +178,59 @@ export function createDigiKeyFetcher(mpn: string): CatalogFetcher {
         .filter((item) => item.mpn.length > 0 && normalizeMpn(item.mpn) === requestedMpn)
         .slice(0, 1);
       return { items };
+    },
+  };
+}
+
+// A bounded, category-aligned import for an initially empty COMPEX catalogue.
+// DigiKey's API is a search API, not a licensed full-catalog dump: each request
+// returns at most 50 records. Keeping the import page-bounded makes its API
+// usage explicit and prevents an accidental attempt to crawl millions of SKUs.
+export function createDigiKeyStarterCatalogFetcher(
+  target: DigiKeyStarterCatalogTarget,
+  pages: number,
+): CatalogFetcher {
+  return {
+    source: "DIGIKEY",
+    async fetch(cursor?: string): Promise<{ items: RawCatalogItem[]; nextCursor?: string }> {
+      const page = cursor ? Number.parseInt(cursor, 10) : 0;
+      if (!Number.isInteger(page) || page < 0 || page >= pages) return { items: [] };
+
+      const token = await getAccessToken();
+      const res = await fetch(KEYWORD_SEARCH_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-DIGIKEY-Client-Id": env.DIGIKEY_CLIENT_ID ?? "",
+          "X-DIGIKEY-Locale-Site": "IN",
+          "X-DIGIKEY-Locale-Language": "en",
+          "X-DIGIKEY-Locale-Currency": "INR",
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          Keywords: target.keywords,
+          Limit: 50,
+          Offset: page * 50,
+          FilterOptionsRequest: {
+            SearchOptions: ["InStock", "HasDatasheet", "HasProductPhoto"],
+            MarketPlaceFilter: "ExcludeMarketPlace",
+          },
+        }),
+      });
+
+      if (res.status === 429) throw Errors.rateLimited();
+      if (!res.ok) throw Errors.serviceUnavailable(`DigiKey starter catalogue API request failed with status ${res.status}`);
+
+      const body = (await res.json()) as DigiKeyKeywordSearchResponse;
+      const items = (body.Products ?? [])
+        .map((product) => ({ ...mapDigiKeyProduct(toDigiKeyProduct(product)), category: target.categoryName }))
+        .filter((item) => item.mpn.length > 0);
+
+      return {
+        items,
+        nextCursor: items.length === 50 && page + 1 < pages ? String(page + 1) : undefined,
+      };
     },
   };
 }

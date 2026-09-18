@@ -12,6 +12,7 @@ import { createMouserFetcher } from "./fetchers/mouser-fetcher.js";
 import { createElement14Fetcher } from "./fetchers/element14-fetcher.js";
 import { createDigiKeyFetcher } from "./fetchers/digikey-fetcher.js";
 import { DIGIKEY_MANUFACTURER_IMPORT_SOURCE, importDigiKeyManufacturers } from "./digikey-manufacturer-import.js";
+import { importDigiKeyStarterCatalog } from "./digikey-starter-catalog-import.js";
 import { runImport } from "./run-import.js";
 import { PRODUCT_INCLUDE } from "../catalog/product-search.js";
 
@@ -145,6 +146,28 @@ export async function adminCatalogImportRoutes(app: FastifyInstance): Promise<vo
         },
       });
       return reply.status(502).send(ok({ run: failed, result: null }));
+    }
+  });
+
+  app.post("/digikey/starter-catalog", async (req, reply) => {
+    const { pagesPerCategory } = z.object({ pagesPerCategory: z.coerce.number().int().min(1).max(4).default(1) }).parse(req.body ?? {});
+
+    try {
+      const result = await importDigiKeyStarterCatalog(pagesPerCategory);
+      audit({
+        userId: req.user!.id,
+        action: "catalog.digikey_starter_imported",
+        entityType: "catalog_import_run",
+        entityId: result.runIds[0] ?? "",
+        newValue: result,
+      });
+      return reply.status(201).send(ok(result));
+    } catch (err) {
+      req.log.error({ err }, "DigiKey starter catalogue import failed");
+      return reply.status(502).send({
+        success: false,
+        error: { code: "DIGIKEY_STARTER_IMPORT_FAILED", message: "DigiKey starter catalogue import failed. Check the approved DigiKey API configuration and retry." },
+      });
     }
   });
 
