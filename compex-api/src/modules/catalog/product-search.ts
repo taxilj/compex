@@ -7,6 +7,22 @@ export const PRODUCT_INCLUDE = {
   category: true,
 } satisfies Prisma.ProductInclude;
 
+// List rows skip `specifications` (the largest JSON column): list/table views
+// never render it, only the detail page does.
+export const PRODUCT_LIST_SELECT = {
+  id: true,
+  mpn: true,
+  name: true,
+  description: true,
+  packageType: true,
+  mountingType: true,
+  lifecycleStatus: true,
+  datasheetUrl: true,
+  images: true,
+  manufacturer: true,
+  category: true,
+} satisfies Prisma.ProductSelect;
+
 export interface ProductListFilters {
   q?: string;
   categoryId?: string;
@@ -17,6 +33,7 @@ export interface ProductListFilters {
   isActive?: boolean;
   page: number;
   limit: number;
+  lean?: boolean;
 }
 
 // Exact-MPN-first search: Postgres ILIKE is sufficient at current catalog
@@ -26,7 +43,9 @@ export interface ProductListFilters {
 // ordered by name. Upgrade point: swap to a trigram/full-text index + rank()
 // if `contains` scans become a bottleneck.
 export async function searchProducts(filters: ProductListFilters) {
-  const { q, categoryId, manufacturerId, packageType, lifecycleStatus, importStatus, isActive, page, limit } = filters;
+  const { q, categoryId, manufacturerId, packageType, lifecycleStatus, importStatus, isActive, page, limit, lean } = filters;
+  // Lean rows are a strict subset of the full shape; typed as full so callers keep one row type.
+  const shape = (lean ? { select: PRODUCT_LIST_SELECT } : { include: PRODUCT_INCLUDE }) as { include: typeof PRODUCT_INCLUDE };
 
   const baseWhere: Prisma.ProductWhereInput = {
     ...(isActive !== undefined && { isActive }),
@@ -39,7 +58,7 @@ export async function searchProducts(filters: ProductListFilters) {
 
   if (!q) {
     const [data, total] = await prisma.$transaction([
-      prisma.product.findMany({ where: baseWhere, include: PRODUCT_INCLUDE, orderBy: { mpn: "asc" }, skip: (page - 1) * limit, take: limit }),
+      prisma.product.findMany({ where: baseWhere, ...shape, orderBy: [{ mpn: "asc" }, { id: "asc" }], skip: (page - 1) * limit, take: limit }),
       prisma.product.count({ where: baseWhere }),
     ]);
     return { data, total };
@@ -47,7 +66,7 @@ export async function searchProducts(filters: ProductListFilters) {
 
   const exactMatch = await prisma.product.findFirst({
     where: { ...baseWhere, normalizedMpn: normalizeMpn(q) },
-    include: PRODUCT_INCLUDE,
+    ...shape,
   });
 
   const containsWhere: Prisma.ProductWhereInput = {
@@ -70,8 +89,8 @@ export async function searchProducts(filters: ProductListFilters) {
 
   const rest = await prisma.product.findMany({
     where: containsWhere,
-    include: PRODUCT_INCLUDE,
-    orderBy: { name: "asc" },
+    ...shape,
+    orderBy: [{ name: "asc" }, { id: "asc" }],
     skip,
     take,
   });

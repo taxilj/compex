@@ -4,6 +4,7 @@ import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { toPublicManufacturer, toPublicProduct } from "./public-dto.js";
+import { PUBLIC_CACHE_CONTROL, cachedCatalog, catalogKey } from "./catalog-cache.js";
 
 // Public catalogue DTOs are mapped through toPublicManufacturer()/
 // toPublicProduct() (Phase 10 privacy fix) -- never send the raw Prisma row,
@@ -13,17 +14,19 @@ import { toPublicManufacturer, toPublicProduct } from "./public-dto.js";
 export async function manufacturersRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async (req, reply) => {
     const q = z.object({ page: z.coerce.number().int().positive().default(1), limit: z.coerce.number().int().positive().max(100).default(100) }).parse(req.query);
-    const skip = (q.page - 1) * q.limit;
-    const [data, total] = await prisma.$transaction([
-      prisma.manufacturer.findMany({
-        skip,
-        take: q.limit,
-        orderBy: { name: "asc" },
-        include: { _count: { select: { products: { where: { isActive: true } } } } },
-      }),
-      prisma.manufacturer.count(),
-    ]);
-    const publicData = data.map((manufacturer) => ({ ...toPublicManufacturer(manufacturer), _count: manufacturer._count }));
+    const { publicData, total } = await cachedCatalog(catalogKey("manufacturers", q), async () => {
+      const [data, count] = await prisma.$transaction([
+        prisma.manufacturer.findMany({
+          skip: (q.page - 1) * q.limit,
+          take: q.limit,
+          orderBy: { name: "asc" },
+          include: { _count: { select: { products: { where: { isActive: true } } } } },
+        }),
+        prisma.manufacturer.count(),
+      ]);
+      return { publicData: data.map((manufacturer) => ({ ...toPublicManufacturer(manufacturer), _count: manufacturer._count })), total: count };
+    });
+    reply.header("Cache-Control", PUBLIC_CACHE_CONTROL);
     return reply.send(paginated(publicData, total, q.page, q.limit));
   });
 

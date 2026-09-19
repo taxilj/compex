@@ -849,6 +849,9 @@ model Product {
   @@index([name])
   @@index([manufacturerId])
   @@index([categoryId])
+  @@index([isActive, mpn])
+  @@index([isActive, categoryId])
+  @@index([isActive, manufacturerId])
   @@map("products")
 }
 

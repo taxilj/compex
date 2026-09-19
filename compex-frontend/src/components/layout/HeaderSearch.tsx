@@ -52,6 +52,7 @@ export default function HeaderSearch({ className, onNavigate, categories = [] }:
   useEffect(() => {
     const term = query.trim();
     let cancelled = false;
+    const controller = new AbortController();
     if (term.length < MIN_QUERY_LENGTH) {
       const resetTimer = setTimeout(() => {
         if (cancelled) return;
@@ -69,7 +70,7 @@ export default function HeaderSearch({ className, onNavigate, categories = [] }:
       const requestId = ++requestIdRef.current;
       setLoading(true);
       setError(null);
-      listProducts({ q: term, categoryId: selectedCategoryId || undefined, limit: MAX_RESULTS })
+      listProducts({ q: term, categoryId: selectedCategoryId || undefined, limit: MAX_RESULTS }, controller.signal)
         .then((res) => {
           if (cancelled || requestIdRef.current !== requestId) return;
           setResults(res.data);
@@ -87,6 +88,7 @@ export default function HeaderSearch({ className, onNavigate, categories = [] }:
     }, DEBOUNCE_MS);
     return () => {
       cancelled = true;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [query, retryToken, selectedCategoryId]);

@@ -35,6 +35,6 @@ function ImageWithFallbackInner({ src, alt, fallback, className }: ImageWithFall
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
+    <img src={src} alt={alt} className={className} loading="lazy" decoding="async" onError={() => setFailed(true)} />
   );
 }

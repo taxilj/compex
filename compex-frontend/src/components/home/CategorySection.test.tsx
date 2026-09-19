@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { ApiError } from "@/lib/api/client";
 import { CategorySection } from "./CategorySection";
-import { listCategories, type CategoryWithChildren } from "@/lib/api/products";
+import { listCategories, peekCategories, type CategoryWithChildren } from "@/lib/api/products";
 
 vi.mock("@/lib/api/products", () => ({
   listCategories: vi.fn(),
+  peekCategories: vi.fn(() => null),
 }));
 
 function makeCategory(overrides: Partial<CategoryWithChildren> = {}): CategoryWithChildren {
@@ -20,6 +22,7 @@ function makeCategory(overrides: Partial<CategoryWithChildren> = {}): CategoryWi
 
 beforeEach(() => {
   vi.mocked(listCategories).mockReset();
+  vi.mocked(peekCategories).mockReturnValue(null);
 });
 
 describe("CategorySection", () => {
@@ -127,5 +130,42 @@ describe("CategorySection", () => {
 
     expect(await screen.findByText("Microcontrollers")).toBeInTheDocument();
     expect(screen.getByText("42 products")).toBeInTheDocument();
+  });
+
+  it("shows a real error with Retry when the API request times out (never an endless spinner)", async () => {
+    vi.mocked(listCategories).mockRejectedValue(new ApiError(0, "TIMEOUT", "The server took too long to respond"));
+
+    render(<CategorySection />);
+
+    expect(await screen.findByText(/Categories temporarily unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Loading categories/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("paints cached categories immediately and keeps them when the background refresh fails", async () => {
+    vi.mocked(peekCategories).mockReturnValue([makeCategory({ name: "Cached Passives" })]);
+    vi.mocked(listCategories).mockRejectedValue(new Error("offline"));
+
+    render(<CategorySection />);
+
+    expect(screen.getByText("Cached Passives")).toBeInTheDocument();
+    expect(screen.queryByText(/Loading categories/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(listCategories).toHaveBeenCalled());
+    expect(screen.getByText("Cached Passives")).toBeInTheDocument();
+    expect(screen.queryByText(/Categories temporarily unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it("explains a slow (cold-starting) backend instead of looking frozen", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(listCategories).mockReturnValue(new Promise(() => {}));
+      render(<CategorySection />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4_500);
+      });
+      expect(screen.getByText(/may be waking up/i)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

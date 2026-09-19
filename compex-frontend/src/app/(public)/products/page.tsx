@@ -38,11 +38,12 @@ function ProductSearchContent() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     queueMicrotask(() => {
       if (cancelled) return;
       setLoading(true);
       setError(null);
-      listProducts({ q: query || undefined, manufacturerId, categoryId, page, limit: PAGE_SIZE })
+      listProducts({ q: query || undefined, manufacturerId, categoryId, page, limit: PAGE_SIZE }, controller.signal)
         .then((r) => {
           if (cancelled) return;
           setProducts(r.data);
@@ -57,6 +58,7 @@ function ProductSearchContent() {
     });
     return () => {
       cancelled = true;
+      controller.abort(); // cancel the superseded request, not just ignore it
     };
   }, [query, manufacturerId, categoryId, page]);
 
