@@ -179,9 +179,31 @@ describe("HeaderSearch", () => {
 
     fireEvent.change(screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" }), { target: { value: "transistor" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Search category" }), { target: { value: "semiconductors" } });
-    await waitFor(() => expect(listProducts).toHaveBeenLastCalledWith({ q: "transistor", categoryId: "semiconductors", limit: 8 }));
+    await waitFor(() => expect(listProducts).toHaveBeenLastCalledWith({ q: "transistor", categoryId: "semiconductors", limit: 8 }, expect.any(AbortSignal)));
 
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(pushMock).toHaveBeenCalledWith("/products?q=transistor&categoryId=semiconductors");
+  });
+
+  it("aborts the in-flight request when a newer query supersedes it", async () => {
+    vi.mocked(listProducts).mockImplementation(() => new Promise(() => {}));
+    render(<HeaderSearch />);
+    const input = screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" });
+
+    fireEvent.change(input, { target: { value: "first" } });
+    await waitFor(() => expect(listProducts).toHaveBeenCalledTimes(1));
+    const firstSignal = vi.mocked(listProducts).mock.calls[0][1] as AbortSignal;
+    expect(firstSignal.aborted).toBe(false);
+
+    fireEvent.change(input, { target: { value: "second" } });
+    await waitFor(() => expect(listProducts).toHaveBeenCalledTimes(2));
+    expect(firstSignal.aborted).toBe(true);
+  });
+
+  it("does not call the API while the user is still below the minimum query length", async () => {
+    render(<HeaderSearch />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Search products by MPN, description, or manufacturer" }), { target: { value: "a" } });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(listProducts).not.toHaveBeenCalled();
   });
 });

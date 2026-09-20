@@ -8,6 +8,7 @@ import { anyPrimaryConfigured, searchMpnAcrossProviders } from "./mpn-search-orc
 import { toPublicProduct } from "./public-dto.js";
 import { resolveUnknownMpn } from "./product-on-demand.js";
 import { normalizeMpn } from "../catalog-import/normalizer.js";
+import { PUBLIC_CACHE_CONTROL, bumpCatalogVersion, cachedCatalog, catalogKey } from "./catalog-cache.js";
 
 const ProductListQuery = z.object({
   q: z.string().max(200).optional(),
@@ -61,8 +62,13 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
   // unfiltered specifications.
   app.get("/", async (req, reply) => {
     const query = ProductListQuery.parse(req.query);
-    const result = await searchProducts({ ...query, isActive: true });
-    return reply.send(paginated(result.data.map(toPublicProduct), result.total, query.page, query.limit));
+    const result = await cachedCatalog(catalogKey("products", query), async () => {
+      const { data, total } = await searchProducts({ ...query, isActive: true, lean: true });
+      // Lean rows omit `specifications`; the DTO filter treats that as empty.
+      return { data: data.map((row) => toPublicProduct(row as Parameters<typeof toPublicProduct>[0])), total };
+    });
+    reply.header("Cache-Control", PUBLIC_CACHE_CONTROL);
+    return reply.send(paginated(result.data, result.total, query.page, query.limit));
   });
 
   app.get("/:mpn", async (req, reply) => {
@@ -96,6 +102,8 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
     const { mpn } = ProductMpnParams.parse(req.params);
     const { manufacturerId } = ProductDetailQuery.parse(req.query);
     const result = await resolveUnknownMpn(mpn, manufacturerId);
+    // sources is empty when the product was already catalogued: nothing changed.
+    if (result.product && result.sources.length > 0) await bumpCatalogVersion();
     return reply.send(ok(result));
   });
 }

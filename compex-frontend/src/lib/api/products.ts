@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchPaginated, apiFetchPublic } from "./client";
+import { ApiError, apiFetch, apiFetchPaginated, apiFetchPublic } from "./client";
 
 export interface BackendManufacturer {
   id: string;
@@ -77,8 +77,23 @@ function buildQuery(params: Record<string, string | number | undefined>): string
   return qs ? `?${qs}` : "";
 }
 
-export function listProducts(params?: ProductListParams) {
-  return apiFetchPaginated<BackendProduct>(`/products${buildQuery({ ...params })}`);
+// One bounded retry for idempotent public reads: a network failure or 5xx
+// (typically a cold-starting backend) gets a second attempt. Timeouts, caller
+// aborts and 4xx are never retried -- a timeout already spent its full budget,
+// and retrying it would double the time before the user sees an error.
+async function retryRead<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    const retryable = (err instanceof ApiError && err.statusCode >= 500) || err instanceof TypeError;
+    if (!retryable) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return run();
+  }
+}
+
+export function listProducts(params?: ProductListParams, signal?: AbortSignal) {
+  return retryRead(() => apiFetchPaginated<BackendProduct>(`/products${buildQuery({ ...params })}`, { signal }));
 }
 
 export function getProduct(mpn: string, manufacturerId?: string) {
@@ -114,6 +129,34 @@ export interface CategoryWithChildren extends BackendCategory {
   _count: { products: number };
 }
 
-export function listCategories() {
-  return apiFetch<CategoryWithChildren[]>("/categories");
+// Category tree cache (stale-while-revalidate): the tree changes rarely and is
+// read by the header, home page, products filter and categories page, so one
+// shared in-flight request serves them all and the last good copy can be
+// painted instantly while a refresh runs.
+const CATEGORY_FRESH_MS = 30_000;
+let categoryCache: { data: CategoryWithChildren[]; at: number } | null = null;
+let categoryInflight: Promise<CategoryWithChildren[]> | null = null;
+
+export function peekCategories(): CategoryWithChildren[] | null {
+  return categoryCache?.data ?? null;
+}
+
+export function listCategories(options?: { force?: boolean }): Promise<CategoryWithChildren[]> {
+  if (!options?.force && categoryCache && Date.now() - categoryCache.at < CATEGORY_FRESH_MS) {
+    return Promise.resolve(categoryCache.data);
+  }
+  categoryInflight ??= retryRead(() => apiFetch<CategoryWithChildren[]>("/categories"))
+    .then((data) => {
+      categoryCache = { data, at: Date.now() };
+      return data;
+    })
+    .finally(() => {
+      categoryInflight = null;
+    });
+  return categoryInflight;
+}
+
+export function resetCategoryCache(): void {
+  categoryCache = null;
+  categoryInflight = null;
 }

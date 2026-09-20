@@ -100,3 +100,14 @@ describe("public exact-MPN lookup and on-demand resolver", () => {
     expect(valid.json().data.mpn).toBe("STM32F103C8T6");
   });
 });
+
+describe("catalogue cache invalidation by the public resolver", () => {
+  it("does not flush the catalogue cache when a resolve imports nothing (cache-flush DoS guard)", async () => {
+    const { cacheGet } = await import("../../src/lib/cache.js");
+    const before = await cacheGet("catalog", "version");
+    const res = await app.inject({ method: "POST", url: "/api/v1/products/NOPE-FLUSH-1/resolve" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.product).toBeNull();
+    expect(await cacheGet("catalog", "version")).toEqual(before);
+  });
+});

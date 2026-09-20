@@ -39,7 +39,7 @@ export function ProductCard({ product }: ProductCardProps) {
           </p>
         </div>
       </Link>
-      <div className="px-4 pb-4 pt-2 flex items-center justify-between gap-2">
+      <div className="px-4 pb-4 pt-2 flex flex-wrap items-center justify-between gap-2">
         <Link href={detailHref} className="font-label-md text-[#1769E0] text-sm hover:underline">
           View Product
         </Link>

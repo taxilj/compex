@@ -15,6 +15,40 @@ export class ApiError extends Error {
   }
 }
 
+// No request may hang forever (e.g. Render free-tier cold start or a stalled
+// upstream): every call is bounded and surfaces a real TIMEOUT error the UI
+// can render with a Retry. Uploads get a longer budget.
+export const REQUEST_TIMEOUT_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 120_000;
+
+// fetch() with a timeout that also honours a caller-supplied AbortSignal
+// (stale-request cancellation). A caller abort rethrows as-is (AbortError);
+// only our own timeout becomes ApiError(TIMEOUT).
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const timeoutMs = init.body instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const onCallerAbort = () => controller.abort();
+  if (init.signal?.aborted) controller.abort();
+  else init.signal?.addEventListener("abort", onCallerAbort, { once: true });
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    // Headers can arrive and the body still stall: read it while the timer runs.
+    if (!res.body || res.status === 204 || res.status === 205 || res.status === 304) return res;
+    return new Response(await res.arrayBuffer(), { status: res.status, statusText: res.statusText, headers: res.headers });
+  } catch (err) {
+    if (timedOut) throw new ApiError(0, "TIMEOUT", "The server took too long to respond");
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    init.signal?.removeEventListener("abort", onCallerAbort);
+  }
+}
+
 async function parseJson<T>(res: Response): Promise<T> {
   if (res.status === 204) return {} as T;
   let json: Record<string, unknown>;
@@ -33,7 +67,7 @@ async function parseJson<T>(res: Response): Promise<T> {
 let pendingRefresh: Promise<void> | null = null;
 
 async function doRefresh(): Promise<void> {
-  const res = await fetch(`${API_URL}/auth/refresh`, { method: "POST", credentials: "include" });
+  const res = await fetchWithTimeout(`${API_URL}/auth/refresh`, { method: "POST", credentials: "include" });
   if (!res.ok) throw new ApiError(401, "UNAUTHORIZED", "Session expired");
 }
 
@@ -48,7 +82,7 @@ function buildHeaders(init?: RequestInit): HeadersInit {
 
 async function fetchWithRefresh(path: string, init?: RequestInit): Promise<Response> {
   const makeReq = () =>
-    fetch(`${API_URL}${path}`, { ...init, credentials: "include", headers: buildHeaders(init) });
+    fetchWithTimeout(`${API_URL}${path}`, { ...init, credentials: "include", headers: buildHeaders(init) });
 
   let res = await makeReq();
 
@@ -76,7 +110,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 // prevents product lookup from inheriting authenticated refresh/redirect
 // behaviour and keeps its browser URL at /api/products/lookup.
 export async function apiFetchPublic<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { ...init, credentials: "same-origin", headers: buildHeaders(init) });
+  const res = await fetchWithTimeout(path, { ...init, credentials: "same-origin", headers: buildHeaders(init) });
   return parseJson<T>(res);
 }
 

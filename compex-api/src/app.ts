@@ -24,12 +24,24 @@ import { manufacturersRoutes } from "./modules/catalog/manufacturers.routes.js";
 import { categoriesRoutes } from "./modules/catalog/categories.routes.js";
 import { adminProductsRoutes } from "./modules/admin/admin.products.routes.js";
 import { adminCategoriesRoutes } from "./modules/admin/admin.categories.routes.js";
+import { bumpCatalogVersion } from "./modules/catalog/catalog-cache.js";
 import { adminCatalogImportRoutes } from "./modules/catalog-import/admin.catalog-import.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
   await registerPlugins(app);
+
+  // Any successful catalogue write (admin CRUD, imports) invalidates the cached
+  // public catalogue responses. The public resolve route is deliberately not
+  // here: it returns 200 even when nothing was imported, so any visitor could
+  // flush the cache. It bumps itself, only after a real import.
+  app.addHook("onResponse", async (req, reply) => {
+    if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS" || reply.statusCode >= 400) return;
+    if (/^\/api\/v1\/(admin\/(products|categories|manufacturers|catalog-import))/.test(req.url)) {
+      await bumpCatalogVersion();
+    }
+  });
 
   // Routes
   await app.register(authRoutes, { prefix: "/api/v1/auth" });
