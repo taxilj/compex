@@ -12,6 +12,7 @@ import { accountSetupEmail, sendEmail } from "../../lib/email.js";
 import { env } from "../../config/env.js";
 import { hashToken } from "../../lib/jwt.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
+import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
 
 // Never selects passwordHash -- this shape is reused for list/get/create/
 // update responses and audit oldValue/newValue snapshots alike, so leaving
@@ -62,7 +63,11 @@ const UpdateUserBody = CreateUserBody.omit({ role: true }).partial().extend({
   status: z.enum(["ACTIVE", "SUSPENDED"]).optional(),
 });
 
-async function validateUserRefs(body: { position?: string; department?: string; organizationId?: string | null }): Promise<void> {
+const REQUIRED_KEYS = ["email", "firstName", "lastName", "role", "status"] as const;
+
+async function validateUserRefs(
+  body: { position?: string; department?: string; organizationId?: string | null },
+): Promise<void> {
   await assertValidSettingValues([
     { category: "POSITION", value: body.position },
     { category: "DEPARTMENT", value: body.department },
@@ -110,7 +115,8 @@ export async function adminUsersRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/", async (req, reply) => {
-    const body = CreateUserBody.parse(req.body);
+    const { clean } = splitBlanks(req.body, Object.keys(CreateUserBody.shape), REQUIRED_KEYS);
+    const body = CreateUserBody.parse(clean);
     // A STAFF caller can invite STAFF/CUSTOMER accounts but not ADMIN --
     // creating an ADMIN is a privilege grant and must itself come from an
     // existing ADMIN, the same boundary PATCH already enforces by omitting
@@ -135,12 +141,18 @@ export async function adminUsersRoutes(app: FastifyInstance): Promise<void> {
     try {
       const actionUrl = `${env.CORS_ORIGIN}/setup-account?token=${encodeURIComponent(setupToken)}`;
       await sendEmail({ to: body.email, subject: "Set up your Compex Solution account", html: accountSetupEmail(setupToken, env.CORS_ORIGIN), testActionUrl: actionUrl });
-    } catch {
-      await prisma.$transaction([
-        prisma.accountSetupToken.deleteMany({ where: { userId: user.id } }),
-        prisma.user.delete({ where: { id: user.id } }),
-      ]);
-      throw Errors.serviceUnavailable("Account invitation could not be delivered because email is not configured");
+    } catch (sendErr) {
+      req.log.error({ err: sendErr, userId: user.id }, "account invitation email failed; rolling back invited user");
+      try {
+        await prisma.$transaction([
+          prisma.accountSetupToken.deleteMany({ where: { userId: user.id } }),
+          prisma.user.delete({ where: { id: user.id } }),
+        ]);
+      } catch (rollbackErr) {
+        // Never let a failed rollback replace the real error; surface it to operators instead.
+        req.log.error({ err: rollbackErr, userId: user.id }, "rollback of invited user FAILED; orphaned PENDING_VERIFICATION user needs manual cleanup");
+      }
+      throw Errors.serviceUnavailable("Account invitation could not be delivered. Check the email provider configuration and try again.");
     }
 
     return reply.status(201).send(ok(user));
@@ -150,14 +162,19 @@ export async function adminUsersRoutes(app: FastifyInstance): Promise<void> {
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
     const existing = await prisma.user.findUnique({ where: { id }, select: UserSelect });
     if (!existing) throw Errors.notFound("User");
-    const body = UpdateUserBody.parse(req.body);
+    // A STAFF caller must not edit an ADMIN account: changing an admin's
+    // email (then resetting the password) or suspending them is the same
+    // privilege boundary as creating an ADMIN.
+    if (existing.role === "ADMIN" && req.user!.role !== "ADMIN") throw Errors.forbidden();
+    const { clean, cleared } = splitBlanks(req.body, Object.keys(UpdateUserBody.shape), REQUIRED_KEYS);
+    const body = UpdateUserBody.parse(clean);
     await validateUserRefs(body);
     if (body.email && body.email !== existing.email) {
       const emailOwner = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
       if (emailOwner && emailOwner.id !== id) throw Errors.conflict("An account with this email already exists");
     }
     const user = await prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({ where: { id }, data: body, select: UserSelect });
+      const updated = await tx.user.update({ where: { id }, data: withCleared(body, cleared), select: UserSelect });
       await auditInTx(tx, { userId: req.user!.id, action: "user.updated", entityType: "user", entityId: id, oldValue: existing, newValue: updated });
       return updated;
     });

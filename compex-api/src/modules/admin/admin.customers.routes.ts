@@ -13,6 +13,7 @@ import { prisma } from "../../lib/prisma.js";
 import { ok, paginated } from "../../lib/response.js";
 import { hashToken } from "../../lib/jwt.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
+import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
 
 const ContactEntry = z.object({
   name: z.string().trim().min(1).max(200),
@@ -152,6 +153,8 @@ function companyData(body: Partial<CustomerBodyShape>) {
 // real, currently-active Setting value for that category. Real User
 // references (sales person/coordinator/sourcing owner) are checked for
 // existence separately since they are FKs, not Settings values.
+const CUSTOMER_REQUIRED_KEYS = ["companyName", "firstName", "lastName", "email"] as const;
+
 async function validateCustomerRefs(body: Partial<CustomerBodyShape>): Promise<void> {
   await assertValidSettingValues([
     { category: "COUNTRY", value: body.country },
@@ -209,7 +212,8 @@ export async function adminCustomersRoutes(app: FastifyInstance): Promise<void> 
   });
 
   app.post("/", async (req, reply) => {
-    const body = CustomerBody.parse(req.body);
+    const { clean } = splitBlanks(req.body, Object.keys(CustomerBody.shape), CUSTOMER_REQUIRED_KEYS);
+    const body = CustomerBody.parse(clean);
     const existing = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
     if (existing) throw Errors.conflict("An account with this email already exists");
     await validateCustomerRefs(body);
@@ -228,16 +232,22 @@ export async function adminCustomersRoutes(app: FastifyInstance): Promise<void> 
     try {
       const actionUrl = `${env.CORS_ORIGIN}/setup-account?token=${encodeURIComponent(setupToken)}`;
       await sendEmail({ to: body.email, subject: "Set up your Compex Solution customer account", html: accountSetupEmail(setupToken, env.CORS_ORIGIN), testActionUrl: actionUrl });
-    } catch {
+    } catch (sendErr) {
+      req.log.error({ err: sendErr, customerId: customer.id }, "customer invitation email failed; rolling back invited customer");
       // This request created the exact customer below; it has no RFQs,
       // quotations, or documents. Clean only those known IDs on delivery failure.
-      await prisma.$transaction([
-        prisma.accountSetupToken.deleteMany({ where: { userId: customer.user.id } }),
-        prisma.customer.delete({ where: { id: customer.id } }),
-        prisma.user.delete({ where: { id: customer.user.id } }),
-        prisma.company.delete({ where: { id: customer.company.id } }),
-      ]);
-      throw Errors.serviceUnavailable("Customer invitation could not be delivered because email is not configured");
+      try {
+        await prisma.$transaction([
+          prisma.accountSetupToken.deleteMany({ where: { userId: customer.user.id } }),
+          prisma.customer.delete({ where: { id: customer.id } }),
+          prisma.user.delete({ where: { id: customer.user.id } }),
+          prisma.company.delete({ where: { id: customer.company.id } }),
+        ]);
+      } catch (rollbackErr) {
+        // Never let a failed rollback replace the real error; surface it to operators instead.
+        req.log.error({ err: rollbackErr, customerId: customer.id }, "rollback of invited customer FAILED; orphaned pending customer needs manual cleanup");
+      }
+      throw Errors.serviceUnavailable("Customer invitation could not be delivered. Check the email provider configuration and try again.");
     }
 
     return reply.status(201).send(ok(customer));
@@ -245,7 +255,8 @@ export async function adminCustomersRoutes(app: FastifyInstance): Promise<void> 
 
   app.patch("/:id", async (req, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-    const body = CustomerBody.partial().parse(req.body);
+    const { clean, cleared } = splitBlanks(req.body, Object.keys(CustomerBody.shape), CUSTOMER_REQUIRED_KEYS);
+    const body = CustomerBody.partial().parse(clean);
     const existing = await prisma.customer.findUnique({ where: { id }, select: CustomerSelect });
     if (!existing) throw Errors.notFound("Customer");
     if (body.email && body.email !== existing.user.email) {
@@ -253,10 +264,16 @@ export async function adminCustomersRoutes(app: FastifyInstance): Promise<void> 
       if (emailOwner && emailOwner.id !== existing.user.id) throw Errors.conflict("An account with this email already exists");
     }
     await validateCustomerRefs(body);
+    // Body key `phone` is the portal login's User.phone; `companyPhone` is the
+    // Company.phone column (see companyData). Every other clearable key is a
+    // Company column with the same name.
+    const { phone: phoneCleared, companyPhone: companyPhoneCleared, ...otherCleared } = cleared;
+    const phoneIsCleared = phoneCleared === null;
+    const companyCleared = { ...otherCleared, ...(companyPhoneCleared === null ? { phone: null } : {}) };
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.company.update({ where: { id: existing.company.id }, data: companyData(body) });
-      if (body.email || body.firstName || body.lastName || body.phone !== undefined) {
-        await tx.user.update({ where: { id: existing.user.id }, data: { email: body.email, firstName: body.firstName, lastName: body.lastName, phone: body.phone } });
+      await tx.company.update({ where: { id: existing.company.id }, data: withCleared(companyData(body), companyCleared) });
+      if (body.email || body.firstName || body.lastName || body.phone !== undefined || phoneIsCleared) {
+        await tx.user.update({ where: { id: existing.user.id }, data: { email: body.email, firstName: body.firstName, lastName: body.lastName, phone: phoneIsCleared ? null : body.phone } });
       }
       const result = await tx.customer.findUniqueOrThrow({ where: { id }, select: CustomerSelect });
       await auditInTx(tx, { userId: req.user!.id, action: "customer.updated", entityType: "customer", entityId: id, oldValue: toAuditValue(existing), newValue: toAuditValue(result) });

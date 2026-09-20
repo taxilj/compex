@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Loader2, Plus, X } from "lucide-react";
 import { listVendors, createVendor, updateVendor, deactivateVendor, activateVendor, type Vendor, type VendorInput } from "@/lib/api/admin";
-import { ApiError } from "@/lib/api/client";
+import { apiErrorMessage } from "@/lib/api/error-message";
+import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
 
@@ -13,9 +14,9 @@ function formFor(v: Vendor): VendorInput {
     name: v.name, contactEmail: v.contactEmail, contactPhone: v.contactPhone ?? "", address: v.address ?? "", notes: v.notes ?? "",
     contactName: v.contactName ?? "", vendorCode: v.vendorCode ?? "", billToAddress: v.billToAddress ?? "", shipToAddress: v.shipToAddress ?? "",
     country: v.country ?? "", telephone: v.telephone ?? "", fax: v.fax ?? "", mobile: v.mobile ?? "", website: v.website ?? "",
-    otherOffices: v.otherOffices ?? "", mov: v.mov ? Number(v.mov) : undefined, paymentCurrency: v.paymentCurrency ?? "",
+    otherOffices: v.otherOffices ?? "", mov: v.mov ? Number(v.mov) : null, paymentCurrency: v.paymentCurrency ?? "",
     paymentTerms: v.paymentTerms ?? "", shippingAccount: v.shippingAccount ?? "", bankDetails: v.bankDetails ?? "",
-    creditLimit: v.creditLimit ? Number(v.creditLimit) : undefined, industrySegment: v.industrySegment ?? "",
+    creditLimit: v.creditLimit ? Number(v.creditLimit) : null, industrySegment: v.industrySegment ?? "",
     businessType: v.businessType ?? "", speciality: v.speciality ?? "", gstOrRegistrationNumber: v.gstOrRegistrationNumber ?? "",
   };
 }
@@ -32,12 +33,16 @@ export default function AdminVendorsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Only the newest request may write state, so a slow earlier search (or a
+  // reload racing a debounced one) can never overwrite fresher results.
+  const latestRequest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latestRequest.current;
     setLoading(true);
     listVendors({ search: search || undefined, limit: 100 })
-      .then((res) => { setVendors(res.data); setTotal(res.total); setError(null); })
-      .catch(() => setError("Failed to load vendors."))
-      .finally(() => setLoading(false));
+      .then((res) => { if (request === latestRequest.current) { setVendors(res.data); setTotal(res.total); setError(null); } })
+      .catch(() => { if (request === latestRequest.current) setError("Failed to load vendors."); })
+      .finally(() => { if (request === latestRequest.current) setLoading(false); });
   }, [search]);
 
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
@@ -51,25 +56,26 @@ export default function AdminVendorsPage() {
     setSaving(true);
     setFormError(null);
     try {
-      const payload: VendorInput = { ...form };
-      for (const key of Object.keys(payload) as (keyof VendorInput)[]) {
-        const v = payload[key];
-        if (typeof v === "string" && v.trim() === "") (payload as Record<string, unknown>)[key] = undefined;
-      }
-      if (editing) await updateVendor(editing.id, payload);
-      else await createVendor(payload);
+      // Update sends only changed fields (null = cleared); create omits blanks.
+      if (editing) await updateVendor(editing.id, updatePayload(form, formFor(editing)));
+      else await createVendor(createPayload(form));
       setShowModal(false);
       load();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Failed to save vendor.");
+      setFormError(apiErrorMessage(err, "Failed to save vendor."));
     } finally {
       setSaving(false);
     }
   }
 
   async function toggleActive(v: Vendor) {
-    await (v.isActive ? deactivateVendor(v.id) : activateVendor(v.id));
-    load();
+    setError(null);
+    try {
+      await (v.isActive ? deactivateVendor(v.id) : activateVendor(v.id));
+      load();
+    } catch (err) {
+      setError(apiErrorMessage(err, `Failed to ${v.isActive ? "deactivate" : "activate"} ${v.name}.`));
+    }
   }
 
   return (
@@ -160,8 +166,8 @@ export default function AdminVendorsPage() {
                 <SettingsSelect category="INDUSTRY_SEGMENT" label="Industry segment" value={form.industrySegment ?? ""} onChange={(v) => setForm({ ...form, industrySegment: v })} />
                 <SettingsSelect category="PAYMENT_TERMS" label="Payment terms" value={form.paymentTerms ?? ""} onChange={(v) => setForm({ ...form, paymentTerms: v })} />
                 <SettingsSelect category="CURRENCY" label="Payment currency" value={form.paymentCurrency ?? ""} onChange={(v) => setForm({ ...form, paymentCurrency: v })} />
-                <Field label="MOV" value={form.mov != null ? String(form.mov) : ""} onChange={(v) => setForm({ ...form, mov: v === "" ? undefined : Number(v) })} type="number" />
-                <Field label="Credit limit" value={form.creditLimit != null ? String(form.creditLimit) : ""} onChange={(v) => setForm({ ...form, creditLimit: v === "" ? undefined : Number(v) })} type="number" />
+                <Field label="MOV" value={form.mov != null ? String(form.mov) : ""} onChange={(v) => setForm({ ...form, mov: v === "" ? null : Number(v) })} type="number" />
+                <Field label="Credit limit" value={form.creditLimit != null ? String(form.creditLimit) : ""} onChange={(v) => setForm({ ...form, creditLimit: v === "" ? null : Number(v) })} type="number" />
                 <Field label="Shipping account" value={form.shippingAccount ?? ""} onChange={(v) => setForm({ ...form, shippingAccount: v })} />
               </div>
               <Field label="Bill-to address" value={form.billToAddress ?? ""} onChange={(v) => setForm({ ...form, billToAddress: v })} textarea />

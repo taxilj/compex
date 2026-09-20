@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Loader2, Plus, Search, X } from "lucide-react";
-import { ApiError } from "@/lib/api/client";
+import { apiErrorMessage } from "@/lib/api/error-message";
+import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { createCustomer, getCustomer, listCustomers, listUsers, updateCustomer, type AdminCustomer, type AdminCustomerInput, type AdminUser } from "@/lib/api/admin";
 import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
@@ -24,7 +25,7 @@ function formFor(customer: AdminCustomer): AdminCustomerInput {
     shortName: c.shortName ?? "", billToAddress: c.billToAddress ?? "", shipToAddress: c.shipToAddress ?? "",
     state: c.state ?? "", country: c.country ?? "", relationshipType: c.relationshipType ?? "", customerType: c.customerType ?? "",
     website: c.website ?? "", fax: c.fax ?? "", primaryContact: c.primaryContact ?? "", contactEmail: c.contactEmail ?? "",
-    authorisedPerson: c.authorisedPerson ?? "", paymentTerms: c.paymentTerms ?? "", creditLimit: c.creditLimit ? Number(c.creditLimit) : undefined,
+    authorisedPerson: c.authorisedPerson ?? "", paymentTerms: c.paymentTerms ?? "", creditLimit: c.creditLimit ? Number(c.creditLimit) : null,
     region: c.region ?? "", industrySegment: c.industrySegment ?? "", internalAccountNumber: c.internalAccountNumber ?? "",
     shippingAccount: c.shippingAccount ?? "", bankDetails: c.bankDetails ?? "", remarks: c.remarks ?? "",
     salesPersonId: c.salesPerson?.id ?? null, salesCoordinatorId: c.salesCoordinator?.id ?? null, sourcingOwnerId: c.sourcingOwner?.id ?? null,
@@ -61,7 +62,11 @@ export default function AdminCustomersPage() {
 
   useEffect(() => {
     let active = true;
-    listUsers({ role: "STAFF", limit: 100 }).then((r) => { if (active) setStaff(r.data); }).catch(() => {});
+    // The backend accepts STAFF or ADMIN as sales person / coordinator / sourcing
+    // owner, so both must be selectable (an ADMIN owner would otherwise show as "—").
+    Promise.all([listUsers({ role: "STAFF", limit: 100 }), listUsers({ role: "ADMIN", limit: 100 })])
+      .then(([staffUsers, adminUsers]) => { if (active) setStaff([...staffUsers.data, ...adminUsers.data]); })
+      .catch(() => { if (active) setError("Couldn't load sales-owner options; the Sales person / coordinator / sourcing owner dropdowns may be incomplete."); });
     return () => { active = false; };
   }, []);
 
@@ -85,23 +90,15 @@ export default function AdminCustomersPage() {
     setSaving(true);
     setError(null);
     try {
-      const input: AdminCustomerInput = { ...form };
-      for (const key of Object.keys(input) as (keyof AdminCustomerInput)[]) {
-        const v = input[key];
-        if (typeof v === "string" && v.trim() === "") (input as unknown as Record<string, unknown>)[key] = undefined;
-      }
-      const original = editing ? formFor(editing) : null;
-      const changed = original
-        ? Object.fromEntries(Object.entries(input).filter(([key, value]) => value !== (original as unknown as Record<string, unknown>)[key])) as Partial<AdminCustomerInput>
-        : input;
-      if (editing) await updateCustomer(editing.id, changed);
-      else await createCustomer(input);
+      // Update sends only changed fields (null = cleared); create omits blanks.
+      if (editing) await updateCustomer(editing.id, updatePayload(form, formFor(editing)));
+      else await createCustomer(createPayload(form));
       close();
       setLoading(true);
       setPage(1);
       setRetryKey((current) => current + 1);
     } catch (exception) {
-      setError(exception instanceof ApiError ? exception.message : "Unable to save customer.");
+      setError(apiErrorMessage(exception, "Unable to save customer."));
     } finally {
       setSaving(false);
     }
@@ -158,7 +155,7 @@ function CustomerDialog({ customer, form, saving, staff, onChange, onClose, onSu
             <SettingsSelect category="CUSTOMER_TYPE" label="Customer type" value={form.customerType ?? ""} onChange={(v) => set("customerType", v)} />
             <SettingsSelect category="PAYMENT_TERMS" label="Payment terms" value={form.paymentTerms ?? ""} onChange={(v) => set("paymentTerms", v)} />
             <SettingsSelect category="INDUSTRY_SEGMENT" label="Industry segment" value={form.industrySegment ?? ""} onChange={(v) => set("industrySegment", v)} />
-            <Field label="Credit limit / MOV" value={form.creditLimit != null ? String(form.creditLimit) : ""} onChange={(v) => set("creditLimit", v === "" ? undefined : Number(v))} type="number" />
+            <Field label="Credit limit / MOV" value={form.creditLimit != null ? String(form.creditLimit) : ""} onChange={(v) => set("creditLimit", v === "" ? null : Number(v))} type="number" />
             <Field label="Primary contact" value={form.primaryContact ?? ""} onChange={(v) => set("primaryContact", v)} />
             <Field label="Contact email" value={form.contactEmail ?? ""} onChange={(v) => set("contactEmail", v)} type="email" />
             <Field label="Authorised person" value={form.authorisedPerson ?? ""} onChange={(v) => set("authorisedPerson", v)} />

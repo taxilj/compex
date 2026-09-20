@@ -25,6 +25,19 @@ describe("SettingsSelect", () => {
     expect(screen.getByRole("option", { name: "India" })).toBeInTheDocument();
   });
 
+  it("does not call an active current value inactive while the options are still loading", async () => {
+    let resolveSettings: (rows: Awaited<ReturnType<typeof listSettings>>) => void = () => {};
+    vi.mocked(listSettings).mockImplementation(() => new Promise((resolve) => { resolveSettings = resolve; }));
+    render(<SettingsSelect category="COUNTRY" label="Country" value="India" onChange={() => {}} />);
+
+    expect(await screen.findByRole("option", { name: "India" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /inactive/i })).not.toBeInTheDocument();
+
+    resolveSettings([{ id: "active", category: "COUNTRY", value: "India", sortOrder: 1, isEditable: true, isActive: true, createdAt: "", updatedAt: "" }]);
+    await screen.findByRole("combobox");
+    expect(screen.queryByRole("option", { name: /inactive/i })).not.toBeInTheDocument();
+  });
+
   it("lets the admin retry after a failed load, then shows the options", async () => {
     vi.mocked(listSettings)
       .mockRejectedValueOnce(new Error("network down"))

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { Factory, Loader2, Search, Plus, X } from "lucide-react";
 import { listManufacturers, createManufacturer, updateManufacturer, deactivateManufacturer, activateManufacturer, type Manufacturer, type ManufacturerInput } from "@/lib/api/admin";
-import { ApiError } from "@/lib/api/client";
+import { apiErrorMessage } from "@/lib/api/error-message";
+import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { Field } from "@/components/admin/Field";
 
 const emptyForm: ManufacturerInput = { name: "", slug: "" };
@@ -16,6 +17,8 @@ function formFor(m: Manufacturer): ManufacturerInput {
     suffixInformation: m.suffixInformation ?? "",
   };
 }
+
+const PAGE_SIZE = 48;
 
 function slugify(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -33,13 +36,18 @@ export default function AdminManufacturersPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+  // Only the newest request may write state, so a slow earlier search (or a
+  // reload racing a debounced one) can never overwrite fresher results.
+  const latestRequest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latestRequest.current;
     setLoading(true);
-    listManufacturers({ search: search || undefined, limit: 100 })
-      .then((result) => { setManufacturers(result.data); setTotal(result.total); setError(null); })
-      .catch(() => setError("Failed to load manufacturers."))
-      .finally(() => setLoading(false));
-  }, [search]);
+    listManufacturers({ search: search || undefined, page, limit: PAGE_SIZE })
+      .then((result) => { if (request === latestRequest.current) { setManufacturers(result.data); setTotal(result.total); setError(null); } })
+      .catch(() => { if (request === latestRequest.current) setError("Failed to load manufacturers."); })
+      .finally(() => { if (request === latestRequest.current) setLoading(false); });
+  }, [search, page]);
 
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
 
@@ -52,25 +60,26 @@ export default function AdminManufacturersPage() {
     setSaving(true);
     setFormError(null);
     try {
-      const payload: ManufacturerInput = { ...form };
-      for (const key of Object.keys(payload) as (keyof ManufacturerInput)[]) {
-        const v = payload[key];
-        if (typeof v === "string" && v.trim() === "" && key !== "name" && key !== "slug") (payload as Record<string, unknown>)[key] = undefined;
-      }
-      if (editing) await updateManufacturer(editing.id, payload);
-      else await createManufacturer(payload);
+      // Update sends only changed fields (null = cleared); create omits blanks.
+      if (editing) await updateManufacturer(editing.id, updatePayload(form, formFor(editing)));
+      else await createManufacturer(createPayload(form));
       setShowModal(false);
       load();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Failed to save manufacturer.");
+      setFormError(apiErrorMessage(err, "Failed to save manufacturer."));
     } finally {
       setSaving(false);
     }
   }
 
   async function toggleActive(m: Manufacturer) {
-    await (m.isActive ? deactivateManufacturer(m.id) : activateManufacturer(m.id));
-    load();
+    setError(null);
+    try {
+      await (m.isActive ? deactivateManufacturer(m.id) : activateManufacturer(m.id));
+      load();
+    } catch (err) {
+      setError(apiErrorMessage(err, `Failed to ${m.isActive ? "deactivate" : "activate"} ${m.name}.`));
+    }
   }
 
   return (
@@ -81,7 +90,7 @@ export default function AdminManufacturersPage() {
           <Plus size={15} /> Add Manufacturer
         </button>
       </div>
-      <div className="relative max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search manufacturers" placeholder="Search name or slug…" className="w-full rounded border border-[#E4E7EC] bg-white py-2.5 pl-9 pr-4 focus:outline-none focus:ring-2 focus:ring-[#1769E0]" /></div>
+      <div className="relative max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" size={16} /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} aria-label="Search manufacturers" placeholder="Search name or slug…" className="w-full rounded border border-[#E4E7EC] bg-white py-2.5 pl-9 pr-4 focus:outline-none focus:ring-2 focus:ring-[#1769E0]" /></div>
       {error && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
       <div className="overflow-hidden rounded-xl border border-[#E4E7EC] bg-white shadow-sm">
         {loading ? <div className="flex items-center justify-center py-16 text-[#44474d]"><Loader2 className="mr-2 animate-spin" size={20} /> Loading manufacturers…</div> :
@@ -106,6 +115,16 @@ export default function AdminManufacturersPage() {
             ))}
           </div>}
       </div>
+
+      {total > PAGE_SIZE && (
+        <nav aria-label="Manufacturer pages" className="flex items-center justify-between text-sm text-[#44474d]">
+          <span>Page {page} of {Math.ceil(total / PAGE_SIZE)}</span>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading} className="rounded border border-[#E4E7EC] px-3 py-1.5 disabled:opacity-40">Previous</button>
+            <button type="button" onClick={() => setPage((p) => p + 1)} disabled={page >= Math.ceil(total / PAGE_SIZE) || loading} className="rounded border border-[#E4E7EC] px-3 py-1.5 disabled:opacity-40">Next</button>
+          </div>
+        </nav>
+      )}
 
       {showModal && (
         <div role="dialog" aria-modal="true" aria-label={editing ? "Edit manufacturer" : "Add manufacturer"} className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={close}>

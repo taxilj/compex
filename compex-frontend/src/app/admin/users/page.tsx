@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Plus, Search, X } from "lucide-react";
 import { createUser, listOrganizations, listUsers, updateUser, type AdminUser, type CreateUserInput, type Organization, type UpdateUserInput } from "@/lib/api/admin";
-import { ApiError } from "@/lib/api/client";
+import { apiErrorMessage } from "@/lib/api/error-message";
+import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
 
@@ -12,7 +13,7 @@ const emptyForm: CreateUserInput = { email: "", firstName: "", lastName: "", rol
 function formFor(u: AdminUser): CreateUserInput & { status?: "ACTIVE" | "SUSPENDED" } {
   return {
     email: u.email, firstName: u.firstName, lastName: u.lastName, role: u.role,
-    screenName: u.screenName ?? "", organizationId: u.organizationId ?? undefined, position: u.position ?? "",
+    screenName: u.screenName ?? "", organizationId: u.organizationId ?? null, position: u.position ?? "",
     department: u.department ?? "", mobile: u.mobile ?? "", phone: u.phone ?? "", address: u.address ?? "",
     skype: u.skype ?? "", remarks: u.remarks ?? "", status: u.status === "PENDING_VERIFICATION" ? undefined : u.status,
   };
@@ -37,12 +38,16 @@ export default function AdminUsersPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Only the newest request may write state, so a slow earlier search (or a
+  // reload racing a debounced one) can never overwrite fresher results.
+  const latestRequest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latestRequest.current;
     setLoading(true);
     listUsers({ search: search || undefined, limit: 100 })
-      .then((r) => { setUsers(r.data); setTotal(r.total); setError(null); })
-      .catch(() => setError("Failed to load users."))
-      .finally(() => setLoading(false));
+      .then((r) => { if (request === latestRequest.current) { setUsers(r.data); setTotal(r.total); setError(null); } })
+      .catch(() => { if (request === latestRequest.current) setError("Failed to load users."); })
+      .finally(() => { if (request === latestRequest.current) setLoading(false); });
   }, [search]);
 
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
@@ -57,27 +62,13 @@ export default function AdminUsersPage() {
     setSaving(true);
     setFormError(null);
     try {
-      if (editing) {
-        const { role, ...rest } = form;
-        void role;
-        const payload: UpdateUserInput = { ...rest };
-        for (const key of Object.keys(payload) as (keyof UpdateUserInput)[]) {
-          const v = payload[key];
-          if (typeof v === "string" && v.trim() === "") (payload as unknown as Record<string, unknown>)[key] = undefined;
-        }
-        await updateUser(editing.id, payload);
-      } else {
-        const payload: CreateUserInput = { ...form };
-        for (const key of Object.keys(payload) as (keyof CreateUserInput)[]) {
-          const v = payload[key];
-          if (typeof v === "string" && v.trim() === "") (payload as unknown as Record<string, unknown>)[key] = undefined;
-        }
-        await createUser(payload);
-      }
+      // Update sends only changed fields (null = cleared); create omits blanks.
+      if (editing) await updateUser(editing.id, updatePayload(form, formFor(editing)) as UpdateUserInput);
+      else await createUser(createPayload(form));
       setShowModal(false);
       load();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Failed to save user.");
+      setFormError(apiErrorMessage(err, "Failed to save user."));
     } finally {
       setSaving(false);
     }
@@ -176,7 +167,7 @@ export default function AdminUsersPage() {
                 )}
                 <div>
                   <label className="block font-label-md text-[#44474d] mb-1.5 text-sm">Organization</label>
-                  <select value={form.organizationId ?? ""} onChange={(e) => setForm({ ...form, organizationId: e.target.value || undefined })} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm">
+                  <select value={form.organizationId ?? ""} onChange={(e) => setForm({ ...form, organizationId: e.target.value || null })} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm">
                     <option value="">—</option>
                     {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.shortName || organization.companyName}</option>)}
                   </select>

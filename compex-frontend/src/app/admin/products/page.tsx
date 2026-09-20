@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Search, Plus, Package, X } from "lucide-react";
 import {
   listAdminProducts,
@@ -15,6 +15,10 @@ import {
 } from "@/lib/api/admin";
 import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
+import { apiErrorMessage } from "@/lib/api/error-message";
+import { createPayload, updatePayload } from "@/lib/api/form-payload";
+
+const PAGE_SIZE = 50;
 
 const importStatusBadge: Record<string, string> = {
   MANUAL: "bg-[#44474d]/10 text-[#44474d]",
@@ -24,6 +28,28 @@ const importStatusBadge: Record<string, string> = {
 };
 
 const emptyForm: AdminProductInput = { mpn: "", name: "", description: "", packageType: "", lifecycleStatus: "", datasheetUrl: "" };
+
+function productForm(p: AdminProduct): AdminProductInput {
+  return {
+    mpn: p.mpn,
+    name: p.name ?? "",
+    description: p.description ?? "",
+    manufacturerId: p.manufacturerId ?? null,
+    categoryId: p.categoryId ?? null,
+    packageType: p.packageType ?? "",
+    lifecycleStatus: p.lifecycleStatus ?? "",
+    datasheetUrl: p.datasheetUrl ?? "",
+    productCode: p.productCode ?? "",
+    spq: p.spq ?? null,
+    packaging: p.packaging ?? "",
+    uom: p.uom ?? "",
+    hsCode: p.hsCode ?? "",
+    hsDescription: p.hsDescription ?? "",
+    productGroup: p.productGroup ?? "",
+    eccn: p.eccn ?? "",
+    availableStock: p.availableStock ?? null,
+  };
+}
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<AdminProduct[]>([]);
@@ -42,20 +68,31 @@ export default function AdminProductsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+  const [lookupWarning, setLookupWarning] = useState<string | null>(null);
+
+  // Only the newest request may write state, so a slow earlier keystroke's
+  // response can never overwrite the results for what's currently typed.
+  const latestRequest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latestRequest.current;
     setLoading(true);
     setError(null);
-    listAdminProducts({ q: search || undefined, categoryId: categoryId || undefined, limit: 100 })
-      .then((r) => { setProducts(r.data); setTotal(r.total); })
-      .catch(() => setError("Failed to load products."))
-      .finally(() => setLoading(false));
-  }, [search, categoryId]);
+    listAdminProducts({ q: search || undefined, categoryId: categoryId || undefined, page, limit: PAGE_SIZE })
+      .then((r) => { if (request === latestRequest.current) { setProducts(r.data); setTotal(r.total); } })
+      .catch(() => { if (request === latestRequest.current) setError("Failed to load products."); })
+      .finally(() => { if (request === latestRequest.current) setLoading(false); });
+  }, [search, categoryId, page]);
 
-  useEffect(() => { queueMicrotask(() => load()); }, [load]);
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
 
   useEffect(() => {
-    listManufacturers().then((r) => setManufacturers(r.data)).catch(() => {});
-    listAdminCategories().then(setCategories).catch(() => {});
+    let active = true;
+    listManufacturers({ limit: 100 }).then((r) => { if (active) setManufacturers(r.data); })
+      .catch(() => { if (active) setLookupWarning("Couldn't load manufacturers; the Manufacturer dropdown may be incomplete."); });
+    listAdminCategories().then((c) => { if (active) setCategories(c); })
+      .catch(() => { if (active) setLookupWarning("Couldn't load categories; the Category dropdown may be incomplete."); });
+    return () => { active = false; };
   }, []);
 
   const handleOpenCreate = () => {
@@ -67,25 +104,7 @@ export default function AdminProductsPage() {
 
   const handleOpenEdit = (p: AdminProduct) => {
     setEditing(p);
-    setForm({
-      mpn: p.mpn,
-      name: p.name ?? "",
-      description: p.description ?? "",
-      manufacturerId: p.manufacturerId ?? undefined,
-      categoryId: p.categoryId ?? undefined,
-      packageType: p.packageType ?? "",
-      lifecycleStatus: p.lifecycleStatus ?? "",
-      datasheetUrl: p.datasheetUrl ?? "",
-      productCode: p.productCode ?? "",
-      spq: p.spq ?? undefined,
-      packaging: p.packaging ?? "",
-      uom: p.uom ?? "",
-      hsCode: p.hsCode ?? "",
-      hsDescription: p.hsDescription ?? "",
-      productGroup: p.productGroup ?? "",
-      eccn: p.eccn ?? "",
-      availableStock: p.availableStock ?? undefined,
-    });
+    setForm(productForm(p));
     setFormError(null);
     setShowModal(true);
   };
@@ -97,28 +116,26 @@ export default function AdminProductsPage() {
     setSaving(true);
     setFormError(null);
     try {
-      const payload: AdminProductInput = {
-        ...form,
-        name: form.name || undefined,
-        description: form.description || undefined,
-        packageType: form.packageType || undefined,
-        lifecycleStatus: form.lifecycleStatus || undefined,
-        datasheetUrl: form.datasheetUrl || undefined,
-      };
-      if (editing) await updateProduct(editing.id, payload);
-      else await createProduct(payload);
+      // Update sends only changed fields (null = cleared); create omits blanks.
+      if (editing) await updateProduct(editing.id, updatePayload(form, productForm(editing)));
+      else await createProduct(createPayload(form));
       setShowModal(false);
       load();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to save product");
+      setFormError(apiErrorMessage(err, "Failed to save product"));
     } finally {
       setSaving(false);
     }
   };
 
   const toggleActive = async (p: AdminProduct) => {
-    await updateProduct(p.id, { isActive: !p.isActive });
-    load();
+    setError(null);
+    try {
+      await updateProduct(p.id, { isActive: !p.isActive });
+      load();
+    } catch (err) {
+      setError(apiErrorMessage(err, `Failed to ${p.isActive ? "hide" : "unhide"} ${p.mpn}.`));
+    }
   };
 
   return (
@@ -134,13 +151,14 @@ export default function AdminProductsPage() {
       </div>
 
       {error && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
+      {lookupWarning && <p role="status" className="rounded border border-[#F79009]/30 bg-[#FFFAEB] px-4 py-3 text-[#9A6700] text-sm">{lookupWarning}</p>}
 
       <div className="bg-[#f0f3ff] rounded-lg p-4 flex flex-wrap gap-4 items-center">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#44474d]" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search MPN, name, or description..." className="w-full pl-9 pr-4 py-2 bg-white border border-[#E4E7EC] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]" />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search MPN, name, or description..." className="w-full pl-9 pr-4 py-2 bg-white border border-[#E4E7EC] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#1769E0]" />
         </div>
-        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="px-3 py-2 bg-white border border-[#E4E7EC] rounded text-sm focus:outline-none">
+        <select value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setPage(1); }} className="px-3 py-2 bg-white border border-[#E4E7EC] rounded text-sm focus:outline-none">
           <option value="">All Categories</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
@@ -196,8 +214,18 @@ export default function AdminProductsPage() {
         {!loading && products.length === 0 && <p className="py-16 text-center text-[#667085]">No products found.</p>}
       </div>
 
+      {total > PAGE_SIZE && (
+        <nav aria-label="Product pages" className="flex items-center justify-between text-sm text-[#44474d]">
+          <span>Page {page} of {Math.ceil(total / PAGE_SIZE)}</span>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading} className="rounded border border-[#E4E7EC] px-3 py-1.5 disabled:opacity-40">Previous</button>
+            <button type="button" onClick={() => setPage((p) => p + 1)} disabled={page >= Math.ceil(total / PAGE_SIZE) || loading} className="rounded border border-[#E4E7EC] px-3 py-1.5 disabled:opacity-40">Next</button>
+          </div>
+        </nav>
+      )}
+
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={handleClose}>
+        <div role="dialog" aria-modal="true" aria-label={editing ? "Edit product" : "Add product"} className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={handleClose}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E7EC]">
               <h2 className="font-headline-sm text-[#111c2d]">{editing ? "Edit Product" : "Add Product"}</h2>
@@ -211,14 +239,17 @@ export default function AdminProductsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block font-label-md text-[#44474d] mb-1.5 text-sm">Manufacturer</label>
-                  <select value={form.manufacturerId ?? ""} onChange={(e) => setForm({ ...form, manufacturerId: e.target.value || undefined })} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm">
+                  <select value={form.manufacturerId ?? ""} onChange={(e) => setForm({ ...form, manufacturerId: e.target.value || null })} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm">
                     <option value="">—</option>
+                    {editing?.manufacturer && form.manufacturerId === editing.manufacturer.id && !manufacturers.some((m) => m.id === editing.manufacturer!.id) && (
+                      <option value={editing.manufacturer.id}>{editing.manufacturer.name}</option>
+                    )}
                     {manufacturers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block font-label-md text-[#44474d] mb-1.5 text-sm">Category</label>
-                  <select value={form.categoryId ?? ""} onChange={(e) => setForm({ ...form, categoryId: e.target.value || undefined })} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm">
+                  <select value={form.categoryId ?? ""} onChange={(e) => setForm({ ...form, categoryId: e.target.value || null })} className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm">
                     <option value="">—</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -231,8 +262,8 @@ export default function AdminProductsPage() {
               <Field label="Datasheet URL" value={form.datasheetUrl ?? ""} onChange={(v) => setForm({ ...form, datasheetUrl: v })} />
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Product code" value={form.productCode ?? ""} onChange={(v) => setForm({ ...form, productCode: v })} />
-                <Field label="SPQ" value={form.spq != null ? String(form.spq) : ""} onChange={(v) => setForm({ ...form, spq: v === "" ? undefined : Number(v) })} />
-                <Field label="Available stock" value={form.availableStock != null ? String(form.availableStock) : ""} onChange={(v) => setForm({ ...form, availableStock: v === "" ? undefined : Number(v) })} />
+                <Field label="SPQ" value={form.spq != null ? String(form.spq) : ""} onChange={(v) => setForm({ ...form, spq: v === "" ? null : Number(v) })} />
+                <Field label="Available stock" value={form.availableStock != null ? String(form.availableStock) : ""} onChange={(v) => setForm({ ...form, availableStock: v === "" ? null : Number(v) })} />
                 <SettingsSelect category="PACKAGING" label="Packaging" value={form.packaging ?? ""} onChange={(v) => setForm({ ...form, packaging: v })} />
                 <SettingsSelect category="UOM" label="UOM" value={form.uom ?? ""} onChange={(v) => setForm({ ...form, uom: v })} />
                 <SettingsSelect category="PRODUCT_GROUP" label="Product group" value={form.productGroup ?? ""} onChange={(v) => setForm({ ...form, productGroup: v })} />

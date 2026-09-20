@@ -10,6 +10,7 @@ import { auditInTx } from "../../lib/audit.js";
 import { PRODUCT_INCLUDE, searchProducts } from "../catalog/product-search.js";
 import { normalizeMpn } from "../catalog-import/normalizer.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
+import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
 
 const HttpUrl = z.string().url().refine((u) => /^https?:\/\//i.test(u), "Must be an http(s) URL");
 
@@ -41,11 +42,17 @@ const ProductBody = z.object({
   availableStock: z.number().int().nonnegative().max(1_000_000_000).optional(),
 });
 
-async function validateProductRefs(body: Partial<z.infer<typeof ProductBody>>): Promise<void> {
+const PRODUCT_REQUIRED_KEYS = ["mpn"] as const;
+
+async function validateProductRefs(
+  body: Partial<z.infer<typeof ProductBody>>,
+): Promise<void> {
   await assertValidSettingValues([
     { category: "PACKAGING", value: body.packaging },
     { category: "UOM", value: body.uom },
     { category: "PRODUCT_GROUP", value: body.productGroup },
+    { category: "HSN_CODE", value: body.hsCode },
+    { category: "SUB_CATEGORY_HS_DESC", value: body.hsDescription },
   ]);
   const [manufacturer, category] = await Promise.all([
     body.manufacturerId ? prisma.manufacturer.findUnique({ where: { id: body.manufacturerId }, select: { id: true } }) : undefined,
@@ -139,7 +146,8 @@ export async function adminProductsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/", async (req, reply) => {
-    const body = ProductBody.parse(req.body);
+    const { clean } = splitBlanks(req.body, Object.keys(ProductBody.shape), PRODUCT_REQUIRED_KEYS);
+    const body = ProductBody.parse(clean);
     await validateProductRefs(body);
     const normalizedMpn = normalizeMpn(body.mpn);
     // Manufacturer-aware clash check — matches the import pipeline's
@@ -165,11 +173,13 @@ export async function adminProductsRoutes(app: FastifyInstance): Promise<void> {
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
     const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) throw Errors.notFound("Product");
-    const body = ProductBody.partial().parse(req.body);
+    const { clean, cleared } = splitBlanks(req.body, Object.keys(ProductBody.shape), PRODUCT_REQUIRED_KEYS);
+    const body = ProductBody.partial().parse(clean);
     await validateProductRefs(body);
 
-    if (body.mpn !== undefined || body.manufacturerId !== undefined) {
-      const targetManufacturerId = body.manufacturerId !== undefined ? body.manufacturerId : existing.manufacturerId;
+    const manufacturerCleared = "manufacturerId" in cleared;
+    if (body.mpn !== undefined || body.manufacturerId !== undefined || manufacturerCleared) {
+      const targetManufacturerId = manufacturerCleared ? null : body.manufacturerId !== undefined ? body.manufacturerId : existing.manufacturerId;
       const clash = await prisma.product.findFirst({
         where: { normalizedMpn: normalizeMpn(body.mpn ?? existing.mpn), manufacturerId: targetManufacturerId ?? null, id: { not: id } },
       });
@@ -180,7 +190,7 @@ export async function adminProductsRoutes(app: FastifyInstance): Promise<void> {
       const p = await tx.product.update({
         where: { id },
         data: {
-          ...body,
+          ...withCleared(body, cleared),
           ...(body.mpn ? { normalizedMpn: normalizeMpn(body.mpn) } : {}),
           specifications: body.specifications as Prisma.InputJsonValue | undefined,
         },

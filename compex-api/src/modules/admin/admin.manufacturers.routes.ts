@@ -6,6 +6,7 @@ import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { auditInTx } from "../../lib/audit.js";
+import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
 
 const ManufacturerBody = z.object({
   name: z.string().min(1).max(200),
@@ -50,8 +51,10 @@ export async function adminManufacturersRoutes(app: FastifyInstance): Promise<vo
   });
 
   app.post("/", async (req, reply) => {
+    const { clean } = splitBlanks(req.body, Object.keys(ManufacturerBody.shape), ["name", "slug"]);
+    const body = ManufacturerBody.parse(clean);
     const mfr = await prisma.$transaction(async (tx) => {
-      const m = await tx.manufacturer.create({ data: ManufacturerBody.parse(req.body) });
+      const m = await tx.manufacturer.create({ data: body });
       await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.created", entityType: "manufacturer", entityId: m.id, newValue: m });
       return m;
     });
@@ -62,8 +65,10 @@ export async function adminManufacturersRoutes(app: FastifyInstance): Promise<vo
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
     const existing = await prisma.manufacturer.findUnique({ where: { id } });
     if (!existing) throw Errors.notFound("Manufacturer");
+    const { clean, cleared } = splitBlanks(req.body, Object.keys(ManufacturerBody.shape), ["name", "slug"]);
+    const body = ManufacturerBody.partial().parse(clean);
     const mfr = await prisma.$transaction(async (tx) => {
-      const m = await tx.manufacturer.update({ where: { id }, data: ManufacturerBody.partial().parse(req.body) });
+      const m = await tx.manufacturer.update({ where: { id }, data: withCleared(body, cleared) });
       await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.updated", entityType: "manufacturer", entityId: id, oldValue: existing, newValue: m });
       return m;
     });

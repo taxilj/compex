@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, Plus, Trash2, Lock, Check, X } from "lucide-react";
 import { listSettingCategories, listSettings, createSetting, updateSetting, deleteSetting, deactivateSetting, activateSetting, type Setting } from "@/lib/api/admin";
+import { apiErrorMessage } from "@/lib/api/error-message";
 
 function formatCategoryLabel(category: string): string {
   return category.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
@@ -59,8 +60,8 @@ export default function AdminSettingsPage() {
       setNewValue("");
       loadValues(activeCategory);
       flashSaved();
-    } catch {
-      setError("Failed to add value. It may already exist for this category.");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to add value."));
     } finally {
       setSaving(false);
     }
@@ -75,8 +76,8 @@ export default function AdminSettingsPage() {
       setEditingId(null);
       if (activeCategory) loadValues(activeCategory);
       flashSaved();
-    } catch {
-      setError("Failed to save. This value may be read-only.");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to save value."));
     } finally {
       setSaving(false);
     }
@@ -89,8 +90,8 @@ export default function AdminSettingsPage() {
       await (s.isActive ? deactivateSetting(s.id) : activateSetting(s.id));
       if (activeCategory) loadValues(activeCategory);
       flashSaved();
-    } catch {
-      setError(s.isActive ? "Failed to deactivate value." : "Failed to reactivate value.");
+    } catch (err) {
+      setError(apiErrorMessage(err, s.isActive ? "Failed to deactivate value." : "Failed to reactivate value."));
     } finally {
       setSaving(false);
     }
@@ -104,8 +105,8 @@ export default function AdminSettingsPage() {
       await deleteSetting(id);
       if (activeCategory) loadValues(activeCategory);
       flashSaved();
-    } catch {
-      setError("Failed to delete. This value may be read-only.");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to delete value."));
     } finally {
       setSaving(false);
     }

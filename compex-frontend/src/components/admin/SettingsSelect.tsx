@@ -46,7 +46,10 @@ export function SettingsSelect({
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   const knownValues = options?.map((o) => o.value) ?? [];
+  // Only call a value "(inactive)" once the active list has actually loaded and
+  // it is genuinely absent -- while loading we can't know, so show it plainly.
   const showCurrentValue = value && !knownValues.includes(value);
+  const currentValueLabel = options ? `${value} (inactive)` : value;
 
   return (
     <div>
@@ -69,7 +72,7 @@ export function SettingsSelect({
           className="w-full border border-[#E4E7EC] rounded px-3 py-2 text-sm disabled:bg-[#f9f9ff]"
         >
           <option value="">{options ? placeholder : "Loading…"}</option>
-          {showCurrentValue && <option value={value}>{value} (inactive)</option>}
+          {showCurrentValue && <option value={value}>{currentValueLabel}</option>}
           {options?.map((o) => (
             <option key={o.id} value={o.value}>{o.value}</option>
           ))}

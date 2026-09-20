@@ -87,8 +87,8 @@ export interface Vendor {
 export type VendorInput = Partial<Omit<Vendor, "id" | "createdAt" | "updatedAt" | "isActive" | "mov" | "creditLimit">> & {
   name: string;
   contactEmail: string;
-  mov?: number;
-  creditLimit?: number;
+  mov?: number | null;
+  creditLimit?: number | null;
 };
 
 export interface Manufacturer {
@@ -161,8 +161,8 @@ export interface AdminProductInput {
   mpn: string;
   name?: string;
   description?: string;
-  manufacturerId?: string;
-  categoryId?: string;
+  manufacturerId?: string | null;
+  categoryId?: string | null;
   specifications?: Record<string, unknown>;
   packageType?: string;
   mountingType?: string;
@@ -171,14 +171,14 @@ export interface AdminProductInput {
   images?: string[];
   isActive?: boolean;
   productCode?: string;
-  spq?: number;
+  spq?: number | null;
   packaging?: string;
   uom?: string;
   hsCode?: string;
   hsDescription?: string;
   productGroup?: string;
   eccn?: string;
-  availableStock?: number;
+  availableStock?: number | null;
 }
 
 export interface ProductHistory {
@@ -273,7 +273,7 @@ export interface AdminCustomerInput {
   contactEmail?: string;
   authorisedPerson?: string;
   paymentTerms?: string;
-  creditLimit?: number;
+  creditLimit?: number | null;
   region?: string;
   salesPersonId?: string | null;
   salesCoordinatorId?: string | null;

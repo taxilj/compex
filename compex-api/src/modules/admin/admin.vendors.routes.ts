@@ -7,6 +7,7 @@ import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { auditInTx } from "../../lib/audit.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
+import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
 
 const ContactEntry = z.object({
   name: z.string().trim().min(1).max(200),
@@ -47,7 +48,11 @@ const VendorBody = z.object({
   contacts: z.array(ContactEntry).max(50).optional(),
 });
 
-async function validateVendorRefs(body: Partial<z.infer<typeof VendorBody>>): Promise<void> {
+const VENDOR_REQUIRED_KEYS = ["name", "contactEmail"] as const;
+
+async function validateVendorRefs(
+  body: Partial<z.infer<typeof VendorBody>>,
+): Promise<void> {
   await assertValidSettingValues([
     { category: "COUNTRY", value: body.country },
     { category: "CURRENCY", value: body.paymentCurrency },
@@ -90,7 +95,8 @@ export async function adminVendorsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/", async (req, reply) => {
-    const body = VendorBody.parse(req.body);
+    const { clean } = splitBlanks(req.body, Object.keys(VendorBody.shape), VENDOR_REQUIRED_KEYS);
+    const body = VendorBody.parse(clean);
     await validateVendorRefs(body);
     if (body.vendorCode) {
       const clash = await prisma.vendor.findUnique({ where: { vendorCode: body.vendorCode }, select: { id: true } });
@@ -109,14 +115,15 @@ export async function adminVendorsRoutes(app: FastifyInstance): Promise<void> {
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
     const existing = await prisma.vendor.findUnique({ where: { id } });
     if (!existing) throw Errors.notFound("Vendor");
-    const body = VendorBody.partial().parse(req.body);
+    const { clean, cleared } = splitBlanks(req.body, Object.keys(VendorBody.shape), VENDOR_REQUIRED_KEYS);
+    const body = VendorBody.partial().parse(clean);
     await validateVendorRefs(body);
     if (body.vendorCode && body.vendorCode !== existing.vendorCode) {
       const clash = await prisma.vendor.findUnique({ where: { vendorCode: body.vendorCode }, select: { id: true } });
       if (clash) throw Errors.conflict("A vendor with this vendor code already exists");
     }
     const vendor = await prisma.$transaction(async (tx) => {
-      const v = await tx.vendor.update({ where: { id }, data: body });
+      const v = await tx.vendor.update({ where: { id }, data: withCleared(body, cleared) });
       const { bankDetails: _oldBank, ...safeOld } = existing;
       const { bankDetails: _newBank, ...safeNew } = v;
       await auditInTx(tx, { userId: req.user!.id, action: "vendor.updated", entityType: "vendor", entityId: id, oldValue: safeOld, newValue: safeNew });
