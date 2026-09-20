@@ -23,12 +23,31 @@ const inflight = new Map<string, Promise<unknown>>();
 // null = version unknown (Redis failed): callers bypass the cache rather than
 // risk serving entries from before an invalidation.
 async function currentVersion(): Promise<string | null> {
+  if (Date.now() < skipRedisUntil) return null;
   try {
     const entry = await withTimeout(cacheGet<number>(NAMESPACE, VERSION_KEY), REDIS_BUDGET_MS, "catalog version");
     return String(entry?.value ?? 0);
-  } catch {
+  } catch (err) {
+    tripBreaker(err);
     return null;
   }
+}
+
+// A Redis that is unreachable or slower than the budget would otherwise add the
+// full budget to EVERY request (worse than no cache). After one failure, skip
+// Redis for a cool-down and serve straight from the database.
+const BREAKER_COOLDOWN_MS = 30_000;
+let skipRedisUntil = 0;
+
+function tripBreaker(err: unknown): void {
+  if (Date.now() >= skipRedisUntil) {
+    console.warn(`[catalog-cache] Redis slow or unavailable (${err instanceof Error ? err.message : err}); serving from the database for ${BREAKER_COOLDOWN_MS / 1000}s`);
+  }
+  skipRedisUntil = Date.now() + BREAKER_COOLDOWN_MS;
+}
+
+export function resetCatalogBreaker(): void {
+  skipRedisUntil = 0;
 }
 
 export async function bumpCatalogVersion(): Promise<void> {
@@ -46,8 +65,8 @@ export async function cachedCatalog<T>(key: string, load: () => Promise<T>, ttlS
   try {
     const hit = await withTimeout(cacheGet<T>(NAMESPACE, fullKey), REDIS_BUDGET_MS, "catalog get");
     if (hit) return hit.value;
-  } catch {
-    // treat as a miss
+  } catch (err) {
+    tripBreaker(err); // treat as a miss
   }
 
   // Coalesce concurrent misses for the same key into one database query.
@@ -57,7 +76,7 @@ export async function cachedCatalog<T>(key: string, load: () => Promise<T>, ttlS
   // Bounded so one hung query can't pin this key (and every coalesced waiter) forever.
   const promise = withTimeout(load(), LOAD_BUDGET_MS, "catalog load")
     .then(async (value) => {
-      await withTimeout(cacheSet(NAMESPACE, fullKey, value, ttlSeconds), REDIS_BUDGET_MS, "catalog set").catch(() => undefined);
+      await withTimeout(cacheSet(NAMESPACE, fullKey, value, ttlSeconds), REDIS_BUDGET_MS, "catalog set").catch(tripBreaker);
       return value;
     })
     .finally(() => inflight.delete(fullKey));

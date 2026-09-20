@@ -15,9 +15,10 @@ vi.mock("../../src/lib/cache.js", () => ({
   }),
 }));
 
-import { bumpCatalogVersion, cachedCatalog, catalogKey } from "../../src/modules/catalog/catalog-cache.js";
+import { bumpCatalogVersion, cachedCatalog, catalogKey, resetCatalogBreaker } from "../../src/modules/catalog/catalog-cache.js";
 
 beforeEach(() => {
+  resetCatalogBreaker();
   store.map.clear();
   store.fail = false;
   store.hang = false;
@@ -94,5 +95,20 @@ describe("cachedCatalog loader budget", () => {
       vi.useRealTimers();
     }
     expect(await cachedCatalog("hang", async () => ["recovered"])).toEqual(["recovered"]);
+  });
+});
+
+describe("slow Redis circuit breaker", () => {
+  it("pays the Redis budget once, then skips Redis for a cool-down instead of on every request", async () => {
+    const { cacheGet } = await import("../../src/lib/cache.js");
+    store.hang = true;
+    const load = vi.fn(async () => ["db"]);
+    expect(await cachedCatalog("breaker-1", load)).toEqual(["db"]); // pays the 300ms budget
+    const callsAfterFirst = vi.mocked(cacheGet).mock.calls.length;
+
+    const started = Date.now();
+    expect(await cachedCatalog("breaker-2", load)).toEqual(["db"]);
+    expect(Date.now() - started).toBeLessThan(150);
+    expect(vi.mocked(cacheGet).mock.calls.length).toBe(callsAfterFirst); // Redis not consulted again
   });
 });
