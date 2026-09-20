@@ -24,7 +24,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   // Settings management page itself passes includeInactive=true so an admin
   // can see (and reactivate) retired values.
   app.get("/", async (req, reply) => {
-    const q = z.object({ category: z.string().max(100).optional(), includeInactive: z.coerce.boolean().default(false) }).parse(req.query);
+    const q = z.object({ category: z.string().max(100).optional(), includeInactive: z.enum(["true", "false"]).default("false").transform((v) => v === "true") }).parse(req.query);
     const settings = await prisma.setting.findMany({
       where: { ...(q.category ? { category: q.category } : {}), ...(q.includeInactive ? {} : { isActive: true }) },
       orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { value: "asc" }],

@@ -50,6 +50,13 @@ const VendorBody = z.object({
 
 const VENDOR_REQUIRED_KEYS = ["name", "contactEmail"] as const;
 
+// Audit history has a wider retention/reader surface than the admin API, so it
+// never records bank, credit, or shipping-account data (same policy as customers).
+function toAuditValue<T extends { bankDetails: unknown; creditLimit: unknown; shippingAccount: unknown }>(vendor: T) {
+  const { bankDetails: _bank, creditLimit: _credit, shippingAccount: _shipping, ...safe } = vendor;
+  return safe;
+}
+
 async function validateVendorRefs(
   body: Partial<z.infer<typeof VendorBody>>,
 ): Promise<void> {
@@ -104,8 +111,7 @@ export async function adminVendorsRoutes(app: FastifyInstance): Promise<void> {
     }
     const vendor = await prisma.$transaction(async (tx) => {
       const v = await tx.vendor.create({ data: body });
-      const { bankDetails: _bankDetails, ...safeValue } = v;
-      await auditInTx(tx, { userId: req.user!.id, action: "vendor.created", entityType: "vendor", entityId: v.id, newValue: safeValue });
+      await auditInTx(tx, { userId: req.user!.id, action: "vendor.created", entityType: "vendor", entityId: v.id, newValue: toAuditValue(v) });
       return v;
     });
     return reply.status(201).send(ok(vendor));
@@ -124,9 +130,7 @@ export async function adminVendorsRoutes(app: FastifyInstance): Promise<void> {
     }
     const vendor = await prisma.$transaction(async (tx) => {
       const v = await tx.vendor.update({ where: { id }, data: withCleared(body, cleared) });
-      const { bankDetails: _oldBank, ...safeOld } = existing;
-      const { bankDetails: _newBank, ...safeNew } = v;
-      await auditInTx(tx, { userId: req.user!.id, action: "vendor.updated", entityType: "vendor", entityId: id, oldValue: safeOld, newValue: safeNew });
+      await auditInTx(tx, { userId: req.user!.id, action: "vendor.updated", entityType: "vendor", entityId: id, oldValue: toAuditValue(existing), newValue: toAuditValue(v) });
       return v;
     });
     return reply.send(ok(vendor));
@@ -142,7 +146,7 @@ export async function adminVendorsRoutes(app: FastifyInstance): Promise<void> {
     if (!existing) throw Errors.notFound("Vendor");
     const vendor = await prisma.$transaction(async (tx) => {
       const v = await tx.vendor.update({ where: { id }, data: { isActive: false } });
-      await auditInTx(tx, { userId: req.user!.id, action: "vendor.deactivated", entityType: "vendor", entityId: id });
+      await auditInTx(tx, { userId: req.user!.id, action: "vendor.deactivated", entityType: "vendor", entityId: id, oldValue: { isActive: existing.isActive }, newValue: { isActive: false } });
       return v;
     });
     return reply.send(ok(vendor));
@@ -154,7 +158,7 @@ export async function adminVendorsRoutes(app: FastifyInstance): Promise<void> {
     if (!existing) throw Errors.notFound("Vendor");
     const vendor = await prisma.$transaction(async (tx) => {
       const v = await tx.vendor.update({ where: { id }, data: { isActive: true } });
-      await auditInTx(tx, { userId: req.user!.id, action: "vendor.activated", entityType: "vendor", entityId: id });
+      await auditInTx(tx, { userId: req.user!.id, action: "vendor.activated", entityType: "vendor", entityId: id, oldValue: { isActive: existing.isActive }, newValue: { isActive: true } });
       return v;
     });
     return reply.send(ok(vendor));

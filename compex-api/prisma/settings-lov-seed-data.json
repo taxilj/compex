@@ -270,19 +270,9 @@
     "Both"
   ],
   "INDUSTRY_SEGMENT": [
-    "Aerospace",
-    "Automotive",
-    "Industrial",
-    "Medical",
-    "Telecom",
-    "Consumer Electronics",
     "EDITABLE"
   ],
   "BUSINESS_TYPE": [
-    "Manufacturer",
-    "Distributor",
-    "Broker",
-    "Trader",
     "EDITABLE"
   ]
 }

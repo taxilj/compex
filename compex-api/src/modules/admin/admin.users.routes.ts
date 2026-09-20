@@ -147,6 +147,8 @@ export async function adminUsersRoutes(app: FastifyInstance): Promise<void> {
         await prisma.$transaction([
           prisma.accountSetupToken.deleteMany({ where: { userId: user.id } }),
           prisma.user.delete({ where: { id: user.id } }),
+          // "user.invited" was committed with the user; record that the invite did not stick.
+          prisma.auditLog.create({ data: { userId: req.user!.id, action: "user.invite_failed", entityType: "user", entityId: user.id } }),
         ]);
       } catch (rollbackErr) {
         // Never let a failed rollback replace the real error; surface it to operators instead.

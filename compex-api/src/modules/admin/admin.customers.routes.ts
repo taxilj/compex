@@ -242,6 +242,7 @@ export async function adminCustomersRoutes(app: FastifyInstance): Promise<void> 
           prisma.customer.delete({ where: { id: customer.id } }),
           prisma.user.delete({ where: { id: customer.user.id } }),
           prisma.company.delete({ where: { id: customer.company.id } }),
+          prisma.auditLog.create({ data: { userId: req.user!.id, action: "customer.invite_failed", entityType: "customer", entityId: customer.id } }),
         ]);
       } catch (rollbackErr) {
         // Never let a failed rollback replace the real error; surface it to operators instead.

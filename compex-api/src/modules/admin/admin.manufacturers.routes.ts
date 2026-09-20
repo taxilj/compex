@@ -81,7 +81,7 @@ export async function adminManufacturersRoutes(app: FastifyInstance): Promise<vo
     if (!existing) throw Errors.notFound("Manufacturer");
     const mfr = await prisma.$transaction(async (tx) => {
       const m = await tx.manufacturer.update({ where: { id }, data: { isActive: false } });
-      await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.deactivated", entityType: "manufacturer", entityId: id });
+      await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.deactivated", entityType: "manufacturer", entityId: id, oldValue: { isActive: existing.isActive }, newValue: { isActive: false } });
       return m;
     });
     return reply.send(ok(mfr));
@@ -93,7 +93,7 @@ export async function adminManufacturersRoutes(app: FastifyInstance): Promise<vo
     if (!existing) throw Errors.notFound("Manufacturer");
     const mfr = await prisma.$transaction(async (tx) => {
       const m = await tx.manufacturer.update({ where: { id }, data: { isActive: true } });
-      await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.activated", entityType: "manufacturer", entityId: id });
+      await auditInTx(tx, { userId: req.user!.id, action: "manufacturer.activated", entityType: "manufacturer", entityId: id, oldValue: { isActive: existing.isActive }, newValue: { isActive: true } });
       return m;
     });
     return reply.send(ok(mfr));

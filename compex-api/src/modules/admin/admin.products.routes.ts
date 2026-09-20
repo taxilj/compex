@@ -69,7 +69,8 @@ const ProductListQuery = z.object({
   packageType: z.string().max(100).optional(),
   lifecycleStatus: z.string().max(50).optional(),
   importStatus: z.string().max(50).optional(),
-  isActive: z.coerce.boolean().optional(),
+  // z.coerce.boolean() would turn the string "false" into true.
+  isActive: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(50),
 });
