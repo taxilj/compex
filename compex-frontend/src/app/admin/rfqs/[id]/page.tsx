@@ -31,6 +31,19 @@ const NEXT_SOURCING_STATUSES: Record<SourcingStatus, SourcingStatus[]> = {
   ORDER_PROCUREMENT: [],
 };
 
+const BOM_WORKFLOW = [
+  { status: "NEW" as SourcingStatus, label: "Enquiry created and BOM parsed" },
+  { status: "REVIEWING" as SourcingStatus, label: "MPN normalization and manufacturer matching" },
+  { status: "SOURCING" as SourcingStatus, label: "Inventory and supplier API search" },
+  { status: "SUPPLIER_QUOTES_PENDING" as SourcingStatus, label: "Vendor RFQ and draft email" },
+  { status: "SUPPLIER_QUOTES_RECEIVED" as SourcingStatus, label: "Supplier quotes received" },
+  { status: "COMPARE" as SourcingStatus, label: "Price comparison, landed cost and margin" },
+  { status: "CUSTOMER_QUOTE_READY" as SourcingStatus, label: "Customer quotation prepared" },
+  { status: "QUOTE_SENT" as SourcingStatus, label: "Customer approval pending" },
+  { status: "ACCEPTED" as SourcingStatus, label: "Sales order and purchase order" },
+  { status: "ORDER_PROCUREMENT" as SourcingStatus, label: "Import, logistics and delivery" },
+];
+
 type AdminRfqDetail = AdminRfq & { items: BackendRfqItem[]; documents: unknown[] };
 
 export default function AdminRfqDetailPage() {
@@ -56,6 +69,7 @@ export default function AdminRfqDetailPage() {
 
   const allowed = useMemo(() => rfq ? NEXT_STATUSES[rfq.status] : [], [rfq]);
   const allowedSourcing = useMemo(() => !rfq ? [] : rfq.sourcingStatus ? NEXT_SOURCING_STATUSES[rfq.sourcingStatus] : ["NEW" as SourcingStatus], [rfq]);
+  const workflowIndex = rfq?.sourcingStatus ? BOM_WORKFLOW.findIndex((step) => step.status === rfq.sourcingStatus) : -1;
 
   async function saveStatus() {
     if (!rfq || !nextStatus) return;
@@ -140,6 +154,13 @@ export default function AdminRfqDetailPage() {
           <div className="mt-6 border-t border-[#E4E7EC] pt-5">
             <h3 className="font-headline-sm text-[#111c2d]">Internal sourcing</h3>
             <p className="mt-1 font-body-sm text-[#667085]">{rfq.sourcingStatus?.replaceAll("_", " ") ?? "Legacy RFQ — not initialized"}</p>
+            <ol className="mt-4 space-y-2" aria-label="BOM workflow">
+              {BOM_WORKFLOW.map((step, index) => (
+                <li key={step.status} className={`rounded px-3 py-2 text-xs ${index === workflowIndex ? "bg-[#e8eeff] font-semibold text-[#1769E0]" : index < workflowIndex ? "text-[#087443]" : "text-[#667085]"}`}>
+                  <span className="mr-2 font-mono">{String(index + 1).padStart(2, "0")}</span>{step.label}
+                </li>
+              ))}
+            </ol>
             {allowedSourcing.length > 0 ? <>
               <label className="mt-4 block font-label-sm text-[#44474d]" htmlFor="next-sourcing-status">Next internal state</label>
               <select id="next-sourcing-status" value={nextSourcingStatus} onChange={(e) => setNextSourcingStatus(e.target.value as SourcingStatus | "")} className="mt-1 w-full rounded border border-[#E4E7EC] px-3 py-2"><option value="">Select a valid transition</option>{allowedSourcing.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select>

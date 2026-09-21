@@ -76,6 +76,17 @@ describe("bom-processor worker", () => {
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
   });
 
+  it("accepts the owner-provided Sample-BOM column names", async () => {
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-sample", storageKey: "bom/cust-1/rfq-1/sample.csv" });
+    mocks.readFile.mockResolvedValue(Buffer.from("RFQPartNo,Make,Qty,TP\nSSHL-003T-P0.2,JST COMPONENTS,50,1.25\n"));
+
+    await process({ data: { documentId: "doc-sample", rfqId: "rfq-1" } });
+
+    const [{ data }] = mocks.rfqItemCreateMany.mock.calls[0];
+    expect(data[0]).toEqual(expect.objectContaining({ mpn: "SSHL-003T-P0.2", manufacturer: "JST COMPONENTS", quantity: 50 }));
+    expect(data[0].targetPriceUsd.toString()).toBe("1.25");
+  });
+
   it("marks the document FAILED and never claims success when neither rfqId nor leadId is present, without leaking the internal error to the public status field", async () => {
     mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-3", storageKey: "bom/orphan/x.csv" });
 
