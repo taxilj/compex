@@ -1,56 +1,16 @@
-﻿"use client";
-import { useState } from "react";
+"use client";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { invoices } from "@/data/mock/invoices";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Loader2 } from "lucide-react";
+import { ApiError } from "@/lib/api/client";
+import { listCustomerInvoices, type Invoice } from "@/lib/api/orders";
 
-const tabs = ["All", "Paid", "Pending", "Overdue"];
-
+const tabs = ["All", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE"] as const;
+function money(value: string | number, currency: string) { return `${currency} ${Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`; }
 export default function InvoicesPage() {
-  const [activeTab, setActiveTab] = useState("All");
-  const filtered = activeTab === "All" ? invoices : invoices.filter((i) => i.status === activeTab.toLowerCase());
-
-  return (
-    <div className="max-w-[1280px] mx-auto space-y-6">
-      <div>
-        <h1 className="font-headline-lg text-[#111c2d]">Invoices</h1>
-        <p className="font-body-md text-[#44474d] mt-1">{invoices.length} total invoices</p>
-      </div>
-      <div className="flex gap-1 bg-[#f0f3ff] rounded-lg p-1 w-fit">
-        {tabs.map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded font-label-md text-sm transition-colors ${activeTab === tab ? "bg-white text-[#0B1F3A] shadow-sm" : "text-[#44474d] hover:text-[#111c2d]"}`}
-          >{tab}</button>
-        ))}
-      </div>
-      <div className="bg-white rounded-lg border border-[#E4E7EC] shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[700px]">
-            <thead>
-              <tr className="bg-[#f0f3ff]">
-                {["Invoice #", "Date", "Order", "Amount", "Due Date", "Status", ""].map((h) => (
-                  <th key={h} className="py-3 px-5 font-label-sm text-[#44474d] uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E4E7EC]">
-              {filtered.map((inv) => (
-                <tr key={inv.id} className={`hover:bg-[#f0f3ff]/50 transition-colors ${inv.status === "overdue" ? "bg-[#F04438]/5" : ""}`}>
-                  <td className="py-3 px-5">
-                    <Link href={`/portal/invoices/${inv.id}`} className="font-mono-label text-[#1769E0] hover:underline font-medium">{inv.number}</Link>
-                  </td>
-                  <td className="py-3 px-5 font-body-sm text-[#44474d]">{inv.invoiceDate}</td>
-                  <td className="py-3 px-5 font-mono-label text-[#44474d]">{inv.orderNumber}</td>
-                  <td className="py-3 px-5 font-mono-label text-[#111c2d] font-medium">₹{inv.grandTotal.toLocaleString()}</td>
-                  <td className="py-3 px-5 font-body-sm text-[#44474d]">{inv.dueDate}</td>
-                  <td className="py-3 px-5"><StatusBadge status={inv.status} /></td>
-                  <td className="py-3 px-5"><Link href={`/portal/invoices/${inv.id}`} className="font-label-sm text-[#1769E0] hover:underline text-xs">View</Link></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  const [invoices, setInvoices] = useState<Invoice[]>([]); const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("All"); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => { setLoading(true); listCustomerInvoices({ status: activeTab === "All" ? undefined : activeTab, limit: 50 }).then((r) => { setInvoices(r.data); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Unable to load invoices.")).finally(() => setLoading(false)); }, [activeTab]);
+  useEffect(() => { load(); }, [load]);
+  return <div className="max-w-[1280px] mx-auto space-y-6"><div><h1 className="font-headline-lg text-[#111c2d]">Invoices</h1><p className="font-body-md text-[#44474d] mt-1">{loading ? "Loading…" : `${invoices.length} live invoices`}</p></div><div className="flex gap-1 bg-[#f0f3ff] rounded-lg p-1 w-fit overflow-x-auto">{tabs.map((tab) => <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded font-label-md text-sm transition-colors whitespace-nowrap ${activeTab === tab ? "bg-white text-[#0B1F3A] shadow-sm" : "text-[#44474d] hover:text-[#111c2d]"}`}>{tab === "All" ? tab : tab.replaceAll("_", " ")}</button>)}</div>{error && <div role="alert" className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318] flex justify-between"><span>{error}</span><button onClick={load} className="font-label-sm underline">Retry</button></div>}{loading && <div className="flex justify-center py-16 text-[#44474d]"><Loader2 size={22} className="animate-spin mr-2" /> Loading invoices…</div>}{!loading && !error && <div className="bg-white rounded-lg border border-[#E4E7EC] shadow-sm overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-left min-w-[700px]"><thead><tr className="bg-[#f0f3ff]">{["Invoice #", "Date", "Order", "Amount", "Due Date", "Status", ""].map((h) => <th key={h} className="py-3 px-5 font-label-sm text-[#44474d] uppercase tracking-wider">{h}</th>)}</tr></thead><tbody className="divide-y divide-[#E4E7EC]">{invoices.map((inv) => <tr key={inv.id} className="hover:bg-[#f0f3ff]/50 transition-colors"><td className="py-3 px-5"><Link href={`/portal/invoices/${inv.id}`} className="font-mono-label text-[#1769E0] hover:underline font-medium">{inv.invoiceNumber}</Link></td><td className="py-3 px-5 font-body-sm text-[#44474d]">{(inv.issuedAt ?? inv.createdAt).split("T")[0]}</td><td className="py-3 px-5 font-mono-label text-[#44474d]">{inv.salesOrder?.orderNumber ?? "—"}</td><td className="py-3 px-5 font-mono-label text-[#111c2d] font-medium">{money(inv.total, inv.currency)}</td><td className="py-3 px-5 font-body-sm text-[#44474d]">{inv.dueDate?.split("T")[0] ?? "—"}</td><td className="py-3 px-5"><StatusBadge status={inv.status.toLowerCase()} /></td><td className="py-3 px-5"><Link href={`/portal/invoices/${inv.id}`} className="font-label-sm text-[#1769E0] hover:underline text-xs">View</Link></td></tr>)}{invoices.length === 0 && <tr><td colSpan={7} className="py-12 text-center font-body-md text-[#44474d]">No invoices found.</td></tr>}</tbody></table></div></div>}</div>;
 }

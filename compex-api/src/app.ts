@@ -26,6 +26,8 @@ import { adminProductsRoutes } from "./modules/admin/admin.products.routes.js";
 import { adminCategoriesRoutes } from "./modules/admin/admin.categories.routes.js";
 import { bumpCatalogVersion } from "./modules/catalog/catalog-cache.js";
 import { adminCatalogImportRoutes } from "./modules/catalog-import/admin.catalog-import.routes.js";
+import { adminOrdersRoutes, adminPurchaseOrdersRoutes, adminShipmentsRoutes, adminInvoicesRoutes } from "./modules/admin/admin.orders.routes.js";
+import { customerOrdersRoutes, customerShipmentsRoutes, customerInvoicesRoutes } from "./modules/orders/customer.orders.routes.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -65,6 +67,13 @@ export async function buildApp() {
   await app.register(adminProductsRoutes, { prefix: "/api/v1/admin/products" });
   await app.register(adminCategoriesRoutes, { prefix: "/api/v1/admin/categories" });
   await app.register(adminCatalogImportRoutes, { prefix: "/api/v1/admin/catalog-import" });
+  await app.register(adminOrdersRoutes, { prefix: "/api/v1/admin/orders" });
+  await app.register(adminPurchaseOrdersRoutes, { prefix: "/api/v1/admin/purchase-orders" });
+  await app.register(adminShipmentsRoutes, { prefix: "/api/v1/admin/shipments" });
+  await app.register(adminInvoicesRoutes, { prefix: "/api/v1/admin/invoices" });
+  await app.register(customerOrdersRoutes, { prefix: "/api/v1/orders" });
+  await app.register(customerShipmentsRoutes, { prefix: "/api/v1/shipments" });
+  await app.register(customerInvoicesRoutes, { prefix: "/api/v1/invoices" });
   if (env.NODE_ENV === "test") {
     await app.register(testEmailRoutes, { prefix: "/api/v1/test" });
   }

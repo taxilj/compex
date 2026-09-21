@@ -35,6 +35,13 @@ export async function cleanDb() {
   await prisma.testEmail.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.catalogImportRun.deleteMany();
+  await prisma.invoiceItem.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.shipment.deleteMany();
+  await prisma.purchaseOrderItem.deleteMany();
+  await prisma.purchaseOrder.deleteMany();
+  await prisma.salesOrderItem.deleteMany();
+  await prisma.salesOrder.deleteMany();
   await prisma.quotationItem.deleteMany();
   await prisma.quotation.deleteMany();
   await prisma.landedCost.deleteMany();

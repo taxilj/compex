@@ -93,17 +93,68 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
     const customerId = await getCustomerIdForUser(req.user!.id);
 
-    const q = await prisma.quotation.findUnique({ where: { id }, select: { id: true, status: true, customerId: true, rfqId: true } });
+    const q = await prisma.quotation.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        customerId: true,
+        rfqId: true,
+        currency: true,
+        subtotal: true,
+        tax: true,
+        total: true,
+        items: { orderBy: { lineNumber: "asc" as const } },
+      },
+    });
     if (!q) throw Errors.notFound("Quotation");
     if (q.customerId !== customerId) throw Errors.forbidden();
     if (q.status !== "SENT" && q.status !== "VIEWED") {
       throw Errors.unprocessable("Only SENT or VIEWED quotations can be accepted");
     }
 
-    const updated = await prisma.quotation.update({
-      where: { id },
-      data: { status: "ACCEPTED", respondedAt: new Date() },
-      select: CUSTOMER_QUOTE_SELECT,
+    // Acceptance is the commercial hand-off. The unique quotationId on
+    // SalesOrder prevents duplicate orders if concurrent requests race;
+    // sequential repeats are still rejected by the quotation state machine.
+    const updated = await prisma.$transaction(async (tx) => {
+      const existingOrder = await tx.salesOrder.findUnique({ where: { quotationId: id }, select: { id: true } });
+      if (!existingOrder) {
+        const row = await tx.$queryRaw<[{ nextval: bigint }]>`SELECT nextval('sales_order_counter_seq')`;
+        await tx.salesOrder.create({
+          data: {
+            orderNumber: `SO-${new Date().getFullYear()}-${String(row[0].nextval).padStart(6, "0")}`,
+            quotationId: id,
+            rfqId: q.rfqId,
+            customerId: q.customerId,
+            status: "CONFIRMED",
+            currency: q.currency,
+            subtotal: q.subtotal,
+            tax: q.tax,
+            total: q.total,
+            confirmedAt: new Date(),
+            items: {
+              create: q.items.map((item) => ({
+                quotationItemId: item.id,
+                lineNumber: item.lineNumber,
+                mpn: item.mpn,
+                manufacturer: item.manufacturer,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                taxRate: item.taxRate,
+                taxAmount: item.taxAmount,
+                lineTotal: item.lineTotal,
+              })),
+            },
+          },
+        });
+        await tx.rfq.update({ where: { id: q.rfqId }, data: { sourcingStatus: "ORDER_PROCUREMENT" } });
+      }
+      return tx.quotation.update({
+        where: { id },
+        data: { status: "ACCEPTED", respondedAt: new Date() },
+        select: CUSTOMER_QUOTE_SELECT,
+      });
     });
 
     cancelFollowUps(q.rfqId).catch((err) => console.error("[FOLLOWUP] Cancel after accept failed:", err));

@@ -1,50 +1,14 @@
-﻿import Link from "next/link";
-import { shipments } from "@/data/mock/shipments";
+"use client";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Package, MapPin, Calendar, ArrowRight } from "lucide-react";
+import { Loader2, MapPin, Calendar, ArrowRight, Package } from "lucide-react";
+import { ApiError } from "@/lib/api/client";
+import { listCustomerShipments, type Shipment } from "@/lib/api/orders";
 
 export default function ShipmentsPage() {
-  return (
-    <div className="max-w-[1280px] mx-auto space-y-6">
-      <div>
-        <h1 className="font-headline-lg text-[#111c2d]">Shipments</h1>
-        <p className="font-body-md text-[#44474d] mt-1">{shipments.length} total shipments</p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {shipments.map((shp) => (
-          <div key={shp.id} className="bg-white rounded-lg border border-[#E4E7EC] p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="font-mono-label text-[#0B1F3A] font-medium">{shp.trackingNumber}</p>
-                <p className="font-body-sm text-[#44474d]">Order: {shp.orderNumber}</p>
-              </div>
-              <StatusBadge status={shp.status} />
-            </div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex items-center gap-1 font-body-sm text-[#44474d]">
-                <MapPin size={14} /> {shp.origin}
-              </div>
-              <ArrowRight size={16} className="text-[#E4E7EC] shrink-0" />
-              <div className="flex items-center gap-1 font-body-sm text-[#111c2d]">
-                <MapPin size={14} /> {shp.destination}
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 font-body-sm text-[#44474d]">
-                <Calendar size={14} /> ETA: {shp.eta}
-              </div>
-              <div className="flex items-center gap-1 font-body-sm text-[#44474d]">
-                <Package size={14} /> {shp.carrier}
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-[#E4E7EC]">
-              <Link href={`/portal/shipments/${shp.id}`} className="font-label-md text-[#1769E0] hover:underline text-sm flex items-center gap-1">
-                Track Shipment <ArrowRight size={14} />
-              </Link>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  const [shipments, setShipments] = useState<Shipment[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => { setLoading(true); listCustomerShipments({ limit: 50 }).then((r) => { setShipments(r.data); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Unable to load shipments.")).finally(() => setLoading(false)); }, []);
+  useEffect(() => { load(); }, [load]);
+  return <div className="max-w-[1280px] mx-auto space-y-6"><div><h1 className="font-headline-lg text-[#111c2d]">Shipments</h1><p className="font-body-md text-[#44474d] mt-1">{loading ? "Loading…" : `${shipments.length} live shipments`}</p></div>{error && <div role="alert" className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318] flex justify-between"><span>{error}</span><button onClick={load} className="font-label-sm underline">Retry</button></div>}{loading && <div className="flex justify-center py-16 text-[#44474d]"><Loader2 size={22} className="animate-spin mr-2" /> Loading shipments…</div>}{!loading && !error && <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{shipments.map((shp) => <div key={shp.id} className="bg-white rounded-lg border border-[#E4E7EC] p-6 hover:shadow-md transition-shadow"><div className="flex items-start justify-between mb-4"><div><p className="font-mono-label text-[#0B1F3A] font-medium">{shp.trackingNumber ?? shp.shipmentNumber}</p><p className="font-body-sm text-[#44474d]">Order: {shp.salesOrder?.orderNumber ?? "—"}</p></div><StatusBadge status={shp.status.toLowerCase()} /></div><div className="flex items-center gap-3 mb-4"><div className="flex items-center gap-1 font-body-sm text-[#44474d]"><MapPin size={14} /> {shp.origin ?? "—"}</div><ArrowRight size={16} className="text-[#E4E7EC] shrink-0" /><div className="flex items-center gap-1 font-body-sm text-[#111c2d]"><MapPin size={14} /> {shp.destination ?? "—"}</div></div><div className="flex items-center justify-between"><div className="flex items-center gap-1 font-body-sm text-[#44474d]"><Calendar size={14} /> ETA: {shp.eta?.split("T")[0] ?? "—"}</div><div className="flex items-center gap-1 font-body-sm text-[#44474d]"><Package size={14} /> {shp.carrier ?? "—"}</div></div><div className="mt-4 pt-4 border-t border-[#E4E7EC]"><Link href={`/portal/shipments/${shp.id}`} className="font-label-md text-[#1769E0] hover:underline text-sm flex items-center gap-1">Track Shipment <ArrowRight size={14} /></Link></div></div>)}{shipments.length === 0 && <div className="md:col-span-2 py-12 text-center font-body-md text-[#44474d]">No shipments found.</div>}</div>}</div>;
 }

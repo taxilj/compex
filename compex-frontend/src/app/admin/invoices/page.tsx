@@ -1,85 +1,23 @@
-﻿"use client";
-import { useState, useMemo } from "react";
-import { invoices } from "@/data/mock/invoices";
+"use client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Search, Download, Loader2 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Search, Download, Plus } from "lucide-react";
+import { ApiError } from "@/lib/api/client";
+import { listAdminInvoices, type Invoice, type InvoiceStatus } from "@/lib/api/orders";
 
-const TAB_FILTERS = ["All", "paid", "pending", "overdue"];
+const TABS: ("All" | InvoiceStatus)[] = ["All", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"];
+function money(value: string | number, currency: string) { return `${currency} ${Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`; }
 
 export default function AdminInvoicesPage() {
-  const [tab, setTab] = useState("All");
-  const [search, setSearch] = useState("");
+  const [invoices, setInvoices] = useState<Invoice[]>([]); const [tab, setTab] = useState<"All" | InvoiceStatus>("All"); const [search, setSearch] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => { setLoading(true); listAdminInvoices({ status: tab === "All" ? undefined : tab, limit: 100 }).then((r) => { setInvoices(r.data); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Unable to load invoices.")).finally(() => setLoading(false)); }, [tab]);
+  useEffect(() => { load(); }, [load]);
+  const filtered = useMemo(() => { const q = search.toLowerCase(); return invoices.filter((i) => !q || i.invoiceNumber.toLowerCase().includes(q) || i.customer?.company.name.toLowerCase().includes(q)); }, [invoices, search]);
 
-  const filtered = useMemo(() =>
-    invoices.filter((inv) => {
-      const q = search.toLowerCase();
-      const matchQ = !q || inv.number.toLowerCase().includes(q) || inv.customerName.toLowerCase().includes(q);
-      const matchT = tab === "All" || inv.status === tab;
-      return matchQ && matchT;
-    }), [search, tab]);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="font-headline-lg text-[#111c2d]">Invoices</h1>
-          <p className="font-body-md text-[#44474d]">Manage all customer invoices and payment status.</p>
-        </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 border border-[#E4E7EC] bg-white text-[#111c2d] px-4 py-2 rounded font-label-md hover:bg-[#f0f3ff]">
-            <Download size={15} /> Export
-          </button>
-          <button className="flex items-center gap-2 bg-[#0B1F3A] text-white px-4 py-2 rounded font-label-md hover:bg-[#0B1F3A]/90">
-            <Plus size={15} /> New Invoice
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-[#f0f3ff] p-1 rounded-lg w-fit">
-        {TAB_FILTERS.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-1.5 rounded font-label-md text-sm capitalize transition-colors ${tab === t ? "bg-white text-[#111c2d] shadow-sm" : "text-[#44474d] hover:text-[#111c2d]"}`}>
-            {t === "All" ? "All" : t}
-          </button>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-[#E4E7EC] overflow-hidden">
-        <div className="px-5 py-3 border-b border-[#E4E7EC] flex items-center gap-3">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#44474d]" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoice or customer..." className="pl-8 pr-4 py-1.5 border border-[#E4E7EC] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#1769E0] w-64" />
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left whitespace-nowrap">
-            <thead>
-              <tr className="bg-[#f0f3ff] border-b border-[#E4E7EC]">
-                {["Invoice #", "Customer", "Order", "Amount", "GST", "Total", "Due Date", "Status", ""].map((h) => (
-                  <th key={h} className="px-5 py-3.5 font-label-sm text-[#44474d] uppercase tracking-wider text-xs">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E4E7EC]">
-              {filtered.map((inv) => (
-                <tr key={inv.id} className="hover:bg-[#f0f3ff]/40 transition-colors cursor-pointer">
-                  <td className="px-5 py-4 font-mono-label text-[#1769E0] font-medium text-sm hover:underline">{inv.number}</td>
-                  <td className="px-5 py-4 font-body-sm text-[#111c2d] text-sm">{inv.customerName}</td>
-                  <td className="px-5 py-4 font-mono-label text-[#44474d] text-sm">{inv.orderNumber}</td>
-                  <td className="px-5 py-4 font-mono-label text-[#111c2d] text-sm">₹{(inv.subtotal / 100).toFixed(2)}</td>
-                  <td className="px-5 py-4 font-mono-label text-[#111c2d] text-sm">₹{(inv.gstAmount / 100).toFixed(2)}</td>
-                  <td className="px-5 py-4 font-mono-label text-[#111c2d] font-medium text-sm">₹{(inv.grandTotal / 100).toFixed(2)}</td>
-                  <td className="px-5 py-4 font-mono-label text-[#44474d] text-xs">{inv.dueDate}</td>
-                  <td className="px-5 py-4"><StatusBadge status={inv.status} /></td>
-                  <td className="px-5 py-4">
-                    <button className="font-label-sm text-[#1769E0] hover:underline text-xs">View</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="space-y-6"><div className="flex items-end justify-between"><div><h1 className="font-headline-lg text-[#111c2d]">Invoices</h1><p className="font-body-md text-[#44474d]">{loading ? "Loading…" : `${invoices.length} live invoices`}</p></div><button className="flex items-center gap-2 border border-[#E4E7EC] bg-white text-[#111c2d] px-4 py-2 rounded font-label-md hover:bg-[#f0f3ff]"><Download size={15} /> Export</button></div>
+    <div className="flex flex-wrap gap-3 items-center"><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#44474d]" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoice or customer..." className="pl-8 pr-4 py-2 border border-[#E4E7EC] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#1769E0] w-64" /></div><div className="flex gap-1 bg-[#f0f3ff] p-1 rounded-lg overflow-x-auto">{TABS.map((t) => <button key={t} onClick={() => setTab(t)} className={`px-3 py-1.5 rounded font-label-sm text-xs whitespace-nowrap ${tab === t ? "bg-white text-[#111c2d] shadow-sm" : "text-[#44474d]"}`}>{t === "All" ? t : t.replaceAll("_", " ")}</button>)}</div></div>
+    {error && <div role="alert" className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318] flex justify-between"><span>{error}</span><button onClick={load} className="font-label-sm underline">Retry</button></div>}
+    {loading && <div className="flex justify-center py-16 text-[#44474d]"><Loader2 size={22} className="animate-spin mr-2" /> Loading invoices…</div>}
+    {!loading && !error && <div className="bg-white rounded-xl shadow-sm border border-[#E4E7EC] overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-left whitespace-nowrap"><thead><tr className="bg-[#f0f3ff] border-b border-[#E4E7EC]">{["Invoice #", "Customer", "Order", "Subtotal", "Tax", "Total", "Due Date", "Status"].map((h) => <th key={h} className="px-5 py-3.5 font-label-sm text-[#44474d] uppercase tracking-wider text-xs">{h}</th>)}</tr></thead><tbody className="divide-y divide-[#E4E7EC]">{filtered.map((inv) => <tr key={inv.id} className="hover:bg-[#f0f3ff]/40 transition-colors"><td className="px-5 py-4 font-mono-label text-[#1769E0] font-medium text-sm">{inv.invoiceNumber}</td><td className="px-5 py-4 font-body-sm text-[#111c2d] text-sm">{inv.customer?.company.name ?? "—"}</td><td className="px-5 py-4 font-mono-label text-[#44474d] text-sm">{inv.salesOrder?.orderNumber ?? "—"}</td><td className="px-5 py-4 font-mono-label text-sm">{money(inv.subtotal, inv.currency)}</td><td className="px-5 py-4 font-mono-label text-sm">{money(inv.tax, inv.currency)}</td><td className="px-5 py-4 font-mono-label text-[#111c2d] font-medium text-sm">{money(inv.total, inv.currency)}</td><td className="px-5 py-4 font-mono-label text-[#44474d] text-xs">{inv.dueDate?.split("T")[0] ?? "—"}</td><td className="px-5 py-4"><StatusBadge status={inv.status.toLowerCase()} /></td></tr>)}{filtered.length === 0 && <tr><td colSpan={8} className="py-12 text-center font-body-md text-[#44474d]">No invoices found.</td></tr>}</tbody></table></div></div>}
+  </div>;
 }

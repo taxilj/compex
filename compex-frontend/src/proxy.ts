@@ -18,11 +18,10 @@ export function proxy(request: NextRequest) {
   // that was a bug hiding working functionality, not an unbuilt page.
   const { pathname } = request.nextUrl;
   const unsupportedAdminRoutes = [
-    "/admin/invoices", "/admin/orders",
-    "/admin/purchase-orders", "/admin/reports", "/admin/shipments",
+    "/admin/reports",
   ];
   const unsupportedPortalPrefixes = [
-    "/portal/invoices", "/portal/orders", "/portal/saved", "/portal/shipments",
+    "/portal/saved",
   ];
 
   if (unsupportedAdminRoutes.includes(pathname)) return NextResponse.redirect(new URL("/admin", request.url));

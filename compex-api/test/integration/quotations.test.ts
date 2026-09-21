@@ -94,6 +94,17 @@ describe("Customer quotation view, accept, reject", () => {
     const accept = await app.inject({ method: "POST", url: `/api/v1/quotes/${quotationId}/accept`, headers: { authorization: `Bearer ${customerToken}` } });
     expect(accept.statusCode).toBe(200);
     expect(accept.json().data.status).toBe("ACCEPTED");
+
+    const order = await prisma.salesOrder.findUnique({ where: { quotationId }, include: { items: true } });
+    expect(order).not.toBeNull();
+    expect(order?.status).toBe("CONFIRMED");
+    expect(order?.items).toHaveLength(1);
+
+    // A second acceptance is rejected by the quotation state machine, and the
+    // unique quotationId still guarantees no duplicate order was created.
+    const retry = await app.inject({ method: "POST", url: `/api/v1/quotes/${quotationId}/accept`, headers: { authorization: `Bearer ${customerToken}` } });
+    expect(retry.statusCode).toBe(422);
+    expect(await prisma.salesOrder.count({ where: { quotationId } })).toBe(1);
   });
 
   it("customer can reject a sent quotation with a reason, and the reason is stored", async () => {
@@ -113,6 +124,7 @@ describe("Customer quotation view, accept, reject", () => {
     await app.inject({ method: "POST", url: `/api/v1/quotes/${quotationId}/accept`, headers: { authorization: `Bearer ${customerToken}` } });
     const second = await app.inject({ method: "POST", url: `/api/v1/quotes/${quotationId}/accept`, headers: { authorization: `Bearer ${customerToken}` } });
     expect(second.statusCode).toBe(422);
+    expect(await prisma.salesOrder.count({ where: { quotationId } })).toBe(1);
   });
 
   it("customer cannot modify quotation internal fields (no PATCH route exposed to customers)", async () => {
