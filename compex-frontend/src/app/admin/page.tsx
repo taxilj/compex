@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { ArrowUpRight, Building, ClipboardList, FileText, Settings, Users } from "lucide-react";
+import { ArrowUpRight, Building, FileText, Settings, Users } from "lucide-react";
 import { RecentRfqsTable } from "./RecentRfqsTable";
 
 const liveAreas = [
-  { href: "/admin/rfqs", label: "RFQ Management", description: "Review submitted requirements and move valid RFQs into sourcing.", icon: FileText },
-  { href: "/admin/leads", label: "Website Enquiries", description: "Review persisted contact, quote, and BOM enquiries.", icon: ClipboardList },
-  { href: "/admin/quotes", label: "Customer Quotations", description: "Review quotations created from approved sourcing data.", icon: ClipboardList },
+  { href: "/admin/rfqs", label: "Enquiry List", description: "Review submitted customer enquiries and move valid requests into sourcing.", icon: FileText },
   { href: "/admin/vendors", label: "Vendors", description: "View the live sourcing-vendor directory.", icon: Users },
   { href: "/admin/organization", label: "Organization", description: "Maintain legal, banking, and document-prefix master data.", icon: Building },
   { href: "/admin/settings", label: "Settings", description: "Maintain editable master-data values.", icon: Settings },

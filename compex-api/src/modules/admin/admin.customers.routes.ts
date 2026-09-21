@@ -13,7 +13,6 @@ import { prisma } from "../../lib/prisma.js";
 import { ok, paginated } from "../../lib/response.js";
 import { hashToken } from "../../lib/jwt.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
-import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
 import { ContactEntry } from "./contact.schemas.js";
 
 const CustomerBody = z.object({

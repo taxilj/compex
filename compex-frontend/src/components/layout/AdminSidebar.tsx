@@ -6,8 +6,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   FileText,
-  ClipboardList,
-  Send,
   Users,
   Settings,
   Building,
@@ -24,10 +22,7 @@ const navGroups = [
     label: "Operations",
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { href: "/admin/rfqs", label: "RFQ Management", icon: FileText, disabled: false },
-      { href: "/admin/vendor-rfqs", label: "Sourcing", icon: Send, disabled: false },
-      { href: "/admin/leads", label: "Enquiries", icon: ClipboardList, disabled: false },
-      { href: "/admin/quotes", label: "Quotes", icon: ClipboardList, disabled: false },
+      { href: "/admin/rfqs", label: "Enquiry List", icon: FileText, disabled: false },
     ],
   },
   {

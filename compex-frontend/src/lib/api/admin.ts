@@ -30,7 +30,11 @@ export interface AdminRfq {
   customer: {
     id: string;
     accountNumber: string;
-    company: { id: string; name: string };
+    company: {
+      id: string;
+      name: string;
+      salesPerson: { id: string; firstName: string; lastName: string } | null;
+    };
     user: { email: string; firstName: string; lastName: string };
   };
   items?: BackendRfqItem[];
@@ -46,8 +50,14 @@ export interface PaginatedResponse<T> {
 
 export interface ContactEntry {
   name: string;
+  shortName?: string;
   email?: string;
   phone?: string;
+  mobile?: string;
+  status?: string;
+  division?: string;
+  position?: string;
+  remarks?: string;
   role?: string;
 }
 

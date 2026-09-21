@@ -7,7 +7,6 @@ import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { auditInTx } from "../../lib/audit.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
-import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
 import { ContactEntry } from "./contact.schemas.js";
 
 const VendorBody = z.object({

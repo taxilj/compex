@@ -47,9 +47,9 @@ export default function AdminRFQsPage() {
     <div className="space-y-0 h-full flex flex-col">
       <div className="bg-white border-b border-[#E4E7EC] px-0 py-5 mb-0 flex items-center justify-between -mx-8 -mt-8 px-8 sticky top-0 z-10">
         <div>
-          <h1 className="font-headline-lg text-[#111c2d]">Requests for Quotation</h1>
+          <h1 className="font-headline-lg text-[#111c2d]">Enquiry List</h1>
           <p className="font-body-sm text-[#44474d] mt-0.5">
-            {loading ? "Loading…" : `${total} total RFQs`}
+            {loading ? "Loading…" : `${total} total enquiries`}
           </p>
         </div>
       </div>
@@ -61,7 +61,7 @@ export default function AdminRFQsPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search RFQ or customer..."
+              placeholder="Search enquiry or customer..."
               className="pl-9 pr-4 py-1.5 rounded-lg border border-[#E4E7EC] bg-white text-sm focus:outline-none focus:border-[#1769E0] w-56"
             />
           </div>
@@ -105,7 +105,7 @@ export default function AdminRFQsPage() {
             <table className="w-full text-left whitespace-nowrap">
               <thead className="bg-[#f0f3ff] border-b border-[#E4E7EC]">
                 <tr>
-                  {["RFQ #", "Customer", "Company", "Items", "Status", "Priority", "Date", ""].map((h) => (
+                  {["Enquiry #", "Customer", "Company", "Sales Person", "Items", "Status", "Priority", "Required", "Date", ""].map((h) => (
                     <th key={h} className="px-4 py-3 font-label-md text-[#44474d] text-sm font-semibold">{h}</th>
                   ))}
                 </tr>
@@ -113,8 +113,8 @@ export default function AdminRFQsPage() {
               <tbody className="divide-y divide-[#E4E7EC]">
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-[#44474d] text-sm">
-                      No RFQs found.
+                    <td colSpan={10} className="px-4 py-12 text-center text-[#44474d] text-sm">
+                      No enquiries found.
                     </td>
                   </tr>
                 ) : filtered.map((r) => (
@@ -126,11 +126,17 @@ export default function AdminRFQsPage() {
                       {r.customer.user.firstName} {r.customer.user.lastName}
                     </td>
                     <td className="px-4 py-3 text-[#111c2d] text-sm">{r.customer.company.name}</td>
+                    <td className="px-4 py-3 text-[#111c2d] text-sm">
+                      {r.customer.company.salesPerson
+                        ? `${r.customer.company.salesPerson.firstName} ${r.customer.company.salesPerson.lastName}`
+                        : "—"}
+                    </td>
                     <td className="px-4 py-3 text-[#111c2d] text-sm font-mono">{r._count?.items ?? r.items?.length ?? 0}</td>
                     <td className="px-4 py-3"><StatusBadge status={r.status.toLowerCase()} /></td>
                     <td className="px-4 py-3">
                       <span className={`capitalize text-xs font-semibold ${PRIORITY_COLOR[r.priority] ?? ""}`}>{r.priority}</span>
                     </td>
+                    <td className="px-4 py-3 text-[#44474d] text-xs font-mono">{r.requiredDate?.split("T")[0] ?? "—"}</td>
                     <td className="px-4 py-3 text-[#44474d] text-xs font-mono">{r.createdAt.split("T")[0]}</td>
                     <td className="px-4 py-3">
                       <Link href={`/admin/rfqs/${r.id}`} className="text-[#1769E0] hover:underline text-xs">View</Link>

@@ -25,7 +25,13 @@ const RFQ_ADMIN_SELECT = {
     select: {
       id: true,
       accountNumber: true,
-      company: { select: { id: true, name: true } },
+      company: {
+        select: {
+          id: true,
+          name: true,
+          salesPerson: { select: { id: true, firstName: true, lastName: true } },
+        },
+      },
       user: { select: { email: true, firstName: true, lastName: true } },
     },
   },
