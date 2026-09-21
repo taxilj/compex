@@ -7,13 +7,8 @@ import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { auditInTx } from "../../lib/audit.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
-
-const ContactEntry = z.object({
-  name: z.string().trim().min(1).max(200),
-  email: z.string().trim().email().optional(),
-  phone: z.string().trim().max(50).optional(),
-  role: z.string().trim().max(100).optional(),
-});
+import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
+import { ContactEntry } from "./contact.schemas.js";
 
 const VendorBody = z.object({
   name: z.string().min(1).max(200),

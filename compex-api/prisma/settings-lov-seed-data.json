@@ -214,9 +214,11 @@
   ],
   "DEPARTMENT": [
     "Sales",
+    "Sourcing",
     "Purchase",
     "Account",
     "Logistic",
+    "Admin",
     "Management",
     "EDITABLE"
   ],

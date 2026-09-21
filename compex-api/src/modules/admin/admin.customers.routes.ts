@@ -13,13 +13,8 @@ import { prisma } from "../../lib/prisma.js";
 import { ok, paginated } from "../../lib/response.js";
 import { hashToken } from "../../lib/jwt.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
-
-const ContactEntry = z.object({
-  name: z.string().trim().min(1).max(200),
-  email: z.string().trim().email().optional(),
-  phone: z.string().trim().max(50).optional(),
-  role: z.string().trim().max(100).optional(),
-});
+import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
+import { ContactEntry } from "./contact.schemas.js";
 
 const CustomerBody = z.object({
   companyName: z.string().trim().min(2).max(200),
