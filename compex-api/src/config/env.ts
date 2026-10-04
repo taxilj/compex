@@ -18,6 +18,11 @@ const schema = z.object({
   S3_SECRET_KEY: z.string().optional(),
   S3_REGION: z.string().default("auto"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
+  // Number of reverse-proxy hops in front of this API whose X-Forwarded-For
+  // entries are trusted (0 = trust none; req.ip is the TCP peer). Set only after
+  // verifying the real chain with GET /api/v1/admin/settings/client-ip -- a hop
+  // count larger than the real chain lets a client spoof its IP.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
   // `test` is deliberately usable only with NODE_ENV=test. It stores mail in
   // the isolated test database so browser QA can follow a normal email link
   // without exposing verification tokens in application logs.
@@ -27,6 +32,8 @@ const schema = z.object({
   EMAIL_PROVIDER: z.enum(["log", "smtp", "resend", "test"]).default("log"),
   EMAIL_FROM: z.string().default("noreply@compexsolution.com"),
   ENQUIRY_NOTIFICATION_TO: z.string().email().default("sales@compexsolution.com"),
+  // Off by default: a public form that emails arbitrary addresses is an abuse vector.
+  ENQUIRY_ACK_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),

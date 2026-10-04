@@ -2,8 +2,11 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import { auditInTx } from "../../lib/audit.js";
-import { sendEmail, websiteEnquiryEmail } from "../../lib/email.js";
+import { describeEmailError, enquiryAcknowledgementEmail, sendEmailWithRetry, websiteEnquiryEmail } from "../../lib/email.js";
 import { prisma } from "../../lib/prisma.js";
+import { withTimeout } from "../../lib/async.js";
+
+const NOTIFICATION_BUDGET_MS = 45_000;
 
 const SOURCE_VALUES = ["CONTACT", "REQUEST_QUOTE", "BOM"] as const;
 
@@ -57,39 +60,6 @@ export function adminLeadUrl(): string {
 export function safeNotificationError(error: unknown): string {
   if (error instanceof Error && error.message === "Email provider is not configured") return error.message;
   return "Notification delivery failed";
-}
-
-// Diagnostic fields only -- deliberately excludes error.message/.hostname/.address/.port,
-// which can carry config values or provider response text on connection-level errors.
-// `command`/`responseCode` are retained from the old nodemailer/SMTP transport for
-// backward-compatible log shape; `statusCode` is the Resend HTTP transport's
-// equivalent (see EmailProviderError in lib/email.ts).
-interface EmailErrorDiagnostics {
-  errorName: string;
-  code?: string;
-  command?: string;
-  responseCode?: number;
-  statusCode?: number;
-  timeoutLikely: boolean;
-}
-
-function sanitizeEmailErrorForLogging(error: unknown): EmailErrorDiagnostics {
-  const details = error as { code?: unknown; command?: unknown; responseCode?: unknown; statusCode?: unknown } | undefined;
-  const code = typeof details?.code === "string" ? details.code : undefined;
-  const errorName = error instanceof Error ? error.name : "UnknownError";
-  return {
-    errorName,
-    code,
-    command: typeof details?.command === "string" ? details.command : undefined,
-    responseCode: typeof details?.responseCode === "number" ? details.responseCode : undefined,
-    statusCode: typeof details?.statusCode === "number" ? details.statusCode : undefined,
-    // nodemailer's smtp-connection only set code:'ETIMEDOUT' for its three timeout
-    // paths (connectionTimeout, greetingTimeout, socketTimeout); the Resend HTTPS
-    // transport instead throws an EmailProviderError with code:'ETIMEDOUT' (fetch
-    // AbortError) for the same case -- both are covered here. 'ESOCKET' and generic
-    // network error names are deliberately excluded to keep this flag conservative.
-    timeoutLikely: code === "ETIMEDOUT",
-  };
 }
 
 export async function createWebsiteEnquiry(
@@ -146,9 +116,12 @@ export async function createWebsiteEnquiry(
 
   const sendStartedAt = Date.now();
   try {
-    const delivery = await sendEmail({
+    // Capped so slow SMTP retries cannot outlast the proxy timeout of the public
+    // request; the lead is already saved and a timeout is recorded as FAILED.
+    const delivery = await withTimeout(sendEmailWithRetry({
       to: env.ENQUIRY_NOTIFICATION_TO,
       replyTo: input.contactEmail,
+      idempotencyKey: `enquiry-notify/${lead.id}`,
       subject: input.source === "CONTACT"
         ? `New Website Enquiry — ${lead.referenceNumber}`
         : input.source === "BOM"
@@ -169,7 +142,7 @@ export async function createWebsiteEnquiry(
         items: lead.items,
         adminUrl: adminLeadUrl(),
       }),
-    });
+    }), NOTIFICATION_BUDGET_MS, "Enquiry notification");
     const elapsedMs = Date.now() - sendStartedAt;
     await prisma.lead.update({
       where: { id: lead.id },
@@ -180,6 +153,7 @@ export async function createWebsiteEnquiry(
       event: "website_enquiry_notification_sent",
       referenceNumber: lead.referenceNumber,
       status: "SENT",
+      attempts: delivery.attempts,
       elapsedMs,
       timestamp: new Date().toISOString(),
     }));
@@ -197,9 +171,32 @@ export async function createWebsiteEnquiry(
       status: "FAILED",
       elapsedMs,
       timestamp: new Date().toISOString(),
-      ...sanitizeEmailErrorForLogging(error),
+      ...describeEmailError(error),
     }));
   }
 
+  // Not awaited: the visitor's response must not wait on a second email.
+  if (env.ENQUIRY_ACK_ENABLED) void sendAcknowledgement(lead, input);
+
   return { lead, duplicate: false as const };
+}
+
+// Best-effort: the sales notification is the record of truth, so an ack failure is only logged.
+async function sendAcknowledgement(lead: { id: string; referenceNumber: string | null }, input: WebsiteEnquiryInput) {
+  try {
+    await sendEmailWithRetry({
+      to: input.contactEmail,
+      replyTo: env.ENQUIRY_NOTIFICATION_TO,
+      idempotencyKey: `enquiry-ack/${lead.id}`,
+      subject: `We received your enquiry — ${lead.referenceNumber}`,
+      html: enquiryAcknowledgementEmail(input.contactName, lead.referenceNumber!),
+    });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "website_enquiry_ack_failed",
+      referenceNumber: lead.referenceNumber,
+      timestamp: new Date().toISOString(),
+      ...describeEmailError(error),
+    }));
+  }
 }

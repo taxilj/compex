@@ -23,7 +23,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
   prisma: { testEmail: { create: vi.fn() } },
 }));
 
-import { sendEmail, EmailProviderError } from "../../src/lib/email.js";
+import { sendEmail, sendEmailWithRetry, EmailProviderError } from "../../src/lib/email.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -156,5 +156,40 @@ describe("sendEmail via the Resend HTTPS API", () => {
     expect(init.headers.Authorization).toBe(`Bearer ${RESEND_API_KEY}`);
     expect(init.headers.Authorization).not.toContain("secret-recipient@example.com");
     expect(init.headers.Authorization).not.toContain("very secret body");
+  });
+});
+
+describe("sendEmailWithRetry", () => {
+  const fetchMock = vi.fn();
+  const message = { to: "sales@compexsolution.com", subject: "s", html: "<p>h</p>", idempotencyKey: "enquiry-notify/lead-1" };
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  it("retries a transient 5xx and forwards the same Idempotency-Key on every attempt", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ name: "internal_server_error" }, 500))
+      .mockResolvedValueOnce(jsonResponse({ name: "rate_limit_exceeded" }, 429))
+      .mockResolvedValueOnce(jsonResponse({ id: "msg-3" }));
+
+    const result = await sendEmailWithRetry(message, [0, 0]);
+
+    expect(result).toEqual({ messageId: "msg-3", attempts: 3 });
+    const keys = fetchMock.mock.calls.map(([, init]) => (init as { headers: Record<string, string> }).headers["Idempotency-Key"]);
+    expect(keys).toEqual(["enquiry-notify/lead-1", "enquiry-notify/lead-1", "enquiry-notify/lead-1"]);
+  });
+
+  it("does not retry a permanent 4xx validation error", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ name: "validation_error" }, 422));
+    await expect(sendEmailWithRetry(message, [0, 0])).rejects.toBeInstanceOf(EmailProviderError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after the bounded number of attempts", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ name: "internal_server_error" }, 503));
+    await expect(sendEmailWithRetry(message, [0, 0])).rejects.toMatchObject({ statusCode: 503 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

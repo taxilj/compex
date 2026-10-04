@@ -9,7 +9,7 @@ import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { audit, auditInTx } from "../../lib/audit.js";
 import { nextVendorRfqNumber } from "./vendor-rfq-number.js";
-import { sendEmail, vendorRfqEmail } from "../../lib/email.js";
+import { describeEmailError, sendEmail, vendorRfqEmail } from "../../lib/email.js";
 
 const VENDOR_RFQ_SELECT = {
   id: true,
@@ -203,7 +203,7 @@ export async function adminVendorRfqsRoutes(app: FastifyInstance): Promise<void>
         vrfq.items.map((i) => ({ mpn: i.rfqItem.mpn, manufacturer: i.rfqItem.manufacturer, quantity: i.quantity })),
         vrfq.notes,
       ),
-    }).catch((err) => console.error("[EMAIL] Vendor RFQ send failed:", err));
+    }).catch((err) => console.error("[EMAIL] Vendor RFQ send failed:", describeEmailError(err)));
 
     return reply.send(ok(updated));
   });
