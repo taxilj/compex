@@ -8,6 +8,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { nextRfqItemLineNumber } from "../modules/rfqs/rfq-line-number.js";
 import { nextLeadItemLineNumber } from "../modules/leads/lead-line-number.js";
 import { readFirstSheetSafely, UnsafeWorkbookError } from "../lib/xlsx-safe.js";
+import { WORKER_IDLE_OPTIONS, WORKER_REDIS_OPTIONS, pauseOnRedisError } from "../lib/redis-options.js";
 
 // Marks a message as safe to show to the (possibly anonymous, unauthenticated)
 // caller of GET /leads/:leadId/bom. Everything else -- Prisma errors, raw
@@ -51,7 +52,7 @@ function parseRows(buffer: Buffer, ext: string): BomRow[] {
     // to_line bounds parsing cost for an oversized CSV: stop reading one row
     // past the cap (+1 for the header line) so an overflow is detectable
     // without ever materializing the full row set in memory.
-    const records = parse(buffer, { columns: true, skip_empty_lines: true, trim: true, to_line: MAX_CSV_ROWS + 2 });
+    const records = parse(buffer, { columns: true, skip_empty_lines: true, trim: true, to_line: MAX_CSV_ROWS + 2 }) as Record<string, string>[];
     if (records.length > MAX_CSV_ROWS) {
       throw new BomValidationError(`CSV exceeds the maximum of ${MAX_CSV_ROWS} rows`);
     }
@@ -81,7 +82,7 @@ function parseRows(buffer: Buffer, ext: string): BomRow[] {
 }
 
 export function startBomWorker() {
-  const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  const connection = new IORedis(env.REDIS_URL, WORKER_REDIS_OPTIONS);
 
   const worker = new Worker(
     "bom-processing",
@@ -165,8 +166,10 @@ export function startBomWorker() {
         throw err;
       }
     },
-    { connection, concurrency: 3 },
+    { connection, concurrency: 3, ...WORKER_IDLE_OPTIONS },
   );
+
+  pauseOnRedisError(worker, "bom-worker");
 
   worker.on("failed", (job, err) => {
     console.error(`[bom-worker] job ${job?.id} failed:`, err.message);

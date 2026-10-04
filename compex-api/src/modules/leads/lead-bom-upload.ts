@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { Errors } from "../../lib/errors.js";
 import { audit } from "../../lib/audit.js";
-import { getStorage, getBomQueue } from "../documents/documents.service.js";
+import { getStorage, enqueueBomJob } from "../documents/documents.service.js";
 import { ALLOWED_EXTS, ALLOWED_MIMES, MAX_BYTES } from "../documents/bom-upload.js";
 
 // Safe metadata only -- never storageKey, never raw file contents.
@@ -145,17 +145,9 @@ export async function leadBomUploadHandler(req: FastifyRequest, leadId: string) 
 
   audit({ action: "lead_bom.uploaded", entityType: "lead", entityId: leadId, ipAddress: req.ip, userAgent: req.headers["user-agent"] });
 
-  // Enqueue async processing. The file is already stored and the Document
-  // row already created, so a queue failure here must not hang the request
-  // indefinitely: fail fast with a clear 503 instead.
-  try {
-    const queue = getBomQueue();
-    await queue.add("parse-bom", { documentId: doc!.id, leadId });
-  } catch {
-    throw Errors.serviceUnavailable(
-      "BOM upload was saved but processing is temporarily unavailable. Please try again shortly.",
-    );
-  }
+  // Bounded enqueue; on failure the document is marked FAILED (so a retry can
+  // re-upload) and the caller gets a 503.
+  await enqueueBomJob(doc!.id, { documentId: doc!.id, leadId });
 
   return toResult(doc!, false);
 }

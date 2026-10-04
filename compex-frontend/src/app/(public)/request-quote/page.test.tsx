@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import RequestQuotePage from "./page";
+import { ApiError } from "@/lib/api/client";
 import { submitPublicLead, getBomCapability, uploadLeadBom, getLeadBomStatus } from "@/lib/api/leads";
 
 vi.mock("@/lib/api/leads", () => ({
@@ -48,6 +49,39 @@ describe("BOM upload tab", () => {
     fireEvent.click(screen.getByRole("button", { name: "BOM Enquiry" }));
 
     expect(await screen.findByText(/Secure file upload is temporarily unavailable/i)).toBeInTheDocument();
+  });
+
+  it("lets the visitor re-check capability and enables upload once processing recovers", async () => {
+    vi.mocked(getBomCapability).mockResolvedValueOnce({ available: false }).mockResolvedValueOnce({ available: true });
+    render(<RequestQuotePage />);
+    fireEvent.click(screen.getByRole("button", { name: "BOM Enquiry" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Check again" }));
+
+    await waitFor(() => expect(getBomCapability).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/Click to browse or drag and drop/)).toBeInTheDocument();
+    expect(screen.queryByText(/Secure file upload is temporarily unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the server's honest 'processing unavailable' message when the queue rejects the upload", async () => {
+    vi.mocked(getBomCapability).mockResolvedValue({ available: true });
+    vi.mocked(submitPublicLead).mockResolvedValue({ id: "lead-1", referenceNumber: "RFQ-2026-000003", source: "BOM" });
+    vi.mocked(uploadLeadBom).mockRejectedValue(
+      new ApiError(503, "SERVICE_UNAVAILABLE", "BOM processing is temporarily unavailable. Your enquiry has been saved; please try the upload again in a few minutes."),
+    );
+
+    render(<RequestQuotePage />);
+    fireEvent.click(screen.getByRole("button", { name: "BOM Enquiry" }));
+    await screen.findByText(/Click to browse or drag and drop/);
+    fillCompanyDetails();
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [makeFile("bom.csv", 2048)] } });
+    await screen.findByText("bom.csv");
+    fireEvent.click(screen.getByRole("button", { name: "Send BOM Enquiry" }));
+
+    await screen.findByText("Enquiry Received");
+    expect(await screen.findByText(/Your enquiry has been saved; please try the upload again/)).toBeInTheDocument();
+    expect(screen.getByText("Retry upload")).toBeInTheDocument();
+    expect(screen.queryByText(/BOM processed/)).not.toBeInTheDocument();
   });
 
   it("rejects an unsupported file extension client-side without uploading anything", async () => {
@@ -137,7 +171,7 @@ describe("BOM upload tab", () => {
 
     await screen.findByText("Enquiry Received");
     expect(await screen.findByText("No valid rows found in BOM (mpn + quantity required)", {}, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByText("Try a different file")).toBeInTheDocument();
+    expect(screen.getByText("Retry upload")).toBeInTheDocument();
     expect(screen.queryByText(/BOM processed/)).not.toBeInTheDocument();
   }, 10000);
 

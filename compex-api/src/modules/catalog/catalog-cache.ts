@@ -22,11 +22,19 @@ const inflight = new Map<string, Promise<unknown>>();
 
 // null = version unknown (Redis failed): callers bypass the cache rather than
 // risk serving entries from before an invalidation.
+// The version is re-read at most every few seconds instead of on every request,
+// halving catalogue Redis commands. Writes in this process update it at once;
+// writes elsewhere are picked up within VERSION_MEMO_MS.
+const VERSION_MEMO_MS = 5_000;
+let versionMemo: { value: string; readAt: number } | null = null;
+
 async function currentVersion(): Promise<string | null> {
   if (Date.now() < skipRedisUntil) return null;
+  if (versionMemo && Date.now() - versionMemo.readAt < VERSION_MEMO_MS) return versionMemo.value;
   try {
     const entry = await withTimeout(cacheGet<number>(NAMESPACE, VERSION_KEY), REDIS_BUDGET_MS, "catalog version");
-    return String(entry?.value ?? 0);
+    versionMemo = { value: String(entry?.value ?? 0), readAt: Date.now() };
+    return versionMemo.value;
   } catch (err) {
     tripBreaker(err);
     return null;
@@ -48,11 +56,14 @@ function tripBreaker(err: unknown): void {
 
 export function resetCatalogBreaker(): void {
   skipRedisUntil = 0;
+  versionMemo = null;
 }
 
 export async function bumpCatalogVersion(): Promise<void> {
+  const version = Date.now();
+  versionMemo = { value: String(version), readAt: Date.now() };
   try {
-    await withTimeout(cacheSet(NAMESPACE, VERSION_KEY, Date.now(), VERSION_TTL_SECONDS), REDIS_BUDGET_MS, "catalog version bump");
+    await withTimeout(cacheSet(NAMESPACE, VERSION_KEY, version, VERSION_TTL_SECONDS), REDIS_BUDGET_MS, "catalog version bump");
   } catch {
     // Redis unavailable: the TTL still bounds staleness.
   }

@@ -28,7 +28,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
 vi.mock("../../src/lib/audit.js", () => ({ audit: mocks.audit }));
 vi.mock("../../src/modules/documents/documents.service.js", () => ({
   getStorage: () => ({ put: mocks.storagePut, delete: mocks.storageDelete }),
-  getBomQueue: () => ({ add: mocks.queueAdd }),
+  enqueueBomJob: mocks.queueAdd,
 }));
 
 import { leadBomUploadHandler, getLeadBomStatus } from "../../src/modules/leads/lead-bom-upload.js";
@@ -91,7 +91,7 @@ describe("lead BOM upload", () => {
     expect(mocks.documentCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ leadId: "lead-1", documentType: "BOM", processingStatus: "UPLOADED" }),
     }));
-    expect(mocks.queueAdd).toHaveBeenCalledWith("parse-bom", { documentId: "doc-1", leadId: "lead-1" });
+    expect(mocks.queueAdd).toHaveBeenCalledWith("doc-1", { documentId: "doc-1", leadId: "lead-1" });
     expect(result).toEqual({
       documentId: "doc-1",
       fileName: "bom.xlsx",
@@ -238,7 +238,7 @@ describe("lead BOM upload", () => {
       processingError: null,
       fileSizeBytes: validXlsx.length,
     });
-    mocks.queueAdd.mockRejectedValue(new Error("redis down"));
+    mocks.queueAdd.mockRejectedValue(Object.assign(new Error("BOM processing is temporarily unavailable."), { statusCode: 503 }));
 
     await expect(leadBomUploadHandler(
       fakeRequest({ filename: "bom.xlsx", mimetype: "text/csv", buffer: validXlsx }),

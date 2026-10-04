@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ok } from "../../lib/response.js";
 import { createWebsiteEnquiry, WebsiteEnquirySchema } from "./website-enquiries.service.js";
-import { isDurableStorageAvailable } from "../documents/documents.service.js";
+import { isBomQueueAvailable, isDurableStorageAvailable } from "../documents/documents.service.js";
 import { leadBomUploadHandler, getLeadBomStatus } from "./lead-bom-upload.js";
 
 const IdempotencyKeySchema = z.string().uuid().optional();
@@ -30,7 +30,10 @@ export async function publicLeadsRoutes(app: FastifyInstance): Promise<void> {
   // Real, non-hardcoded readiness signal for the public BOM upload UI. Never
   // a destructive test -- see documents.service.ts#isDurableStorageAvailable.
   app.get("/bom-capability", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (_req, reply) => {
-    const available = await isDurableStorageAvailable();
+    // Uploads need both durable storage and a working processing queue; reporting
+    // only storage would offer an upload that can never be processed.
+    const [storage, queue] = await Promise.all([isDurableStorageAvailable(), isBomQueueAvailable()]);
+    const available = storage && queue;
     return reply.send(ok({ available }));
   });
 

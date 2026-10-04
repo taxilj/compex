@@ -1,5 +1,6 @@
 import IORedis from "ioredis";
 import { env } from "../config/env.js";
+import { FAIL_FAST_REDIS_OPTIONS } from "./redis-options.js";
 
 // Small shared cache helper backed by the same Redis instance already used
 // for BullMQ (env.REDIS_URL) -- see follow-up-scheduler.ts for the existing
@@ -23,11 +24,9 @@ let loggedConnectionError = false;
 function getClient(): IORedis | null {
   if (client) return client;
   try {
-    client = new IORedis(env.REDIS_URL, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 3000,
-      retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 1000)),
-      lazyConnect: false,
+    client = new IORedis(env.REDIS_URL, { ...FAIL_FAST_REDIS_OPTIONS, connectTimeout: 3000 });
+    client.on("ready", () => {
+      loggedConnectionError = false;
     });
     client.on("error", (err) => {
       // ioredis requires an 'error' listener or it throws; keep this a

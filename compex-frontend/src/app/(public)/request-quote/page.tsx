@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Upload, Plus, Trash2, CheckCircle, FileSpreadsheet, X, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { submitPublicLead, getBomCapability, uploadLeadBom, getLeadBomStatus } from "@/lib/api/leads";
+import { ApiError } from "@/lib/api/client";
 
 interface BOMItem {
   mpn: string;
@@ -126,9 +127,14 @@ export default function RequestQuotePage() {
         }
       }
       setBomUploadState("timeout");
-    } catch {
+    } catch (error) {
       setBomUploadState("failed");
-      setBomUploadError("We could not upload your BOM file. Please try again.");
+      // 503 = file stored but processing unavailable; the server message says so honestly.
+      setBomUploadError(
+        error instanceof ApiError && error.statusCode === 503
+          ? error.message
+          : "We could not upload your BOM file. Please try again.",
+      );
     }
   };
 
@@ -246,7 +252,7 @@ export default function RequestQuotePage() {
                       e.target.value = "";
                     }}
                   />
-                  Try a different file
+                  Retry upload
                 </label>
               </div>
             )}
@@ -389,6 +395,13 @@ export default function RequestQuotePage() {
                   {bomCapability === false && (
                     <div className="rounded-lg border border-[#FEDF89] bg-[#FFFAEB] px-4 py-3 font-body-sm text-[#93370D]">
                       Secure file upload is temporarily unavailable. You can still send your BOM enquiry now — sales will follow up with a secure upload or sign-in path.
+                      <button
+                        type="button"
+                        onClick={() => setBomCapability(null)}
+                        className="ml-2 font-label-md underline hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#93370D]"
+                      >
+                        Check again
+                      </button>
                     </div>
                   )}
 
