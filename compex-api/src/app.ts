@@ -17,6 +17,7 @@ import { adminCustomersRoutes } from "./modules/admin/admin.customers.routes.js"
 import { adminUsersRoutes } from "./modules/admin/admin.users.routes.js";
 import { testEmailRoutes } from "./modules/test-support/test-email.routes.js";
 import { env } from "./config/env.js";
+import { trustProxySetting } from "./lib/trust-proxy.js";
 import { quotesRoutes } from "./modules/quotes/quotes.routes.js";
 import { publicLeadsRoutes } from "./modules/leads/public-leads.routes.js";
 import { productsRoutes } from "./modules/catalog/products.routes.js";
@@ -28,7 +29,7 @@ import { bumpCatalogVersion } from "./modules/catalog/catalog-cache.js";
 import { adminCatalogImportRoutes } from "./modules/catalog-import/admin.catalog-import.routes.js";
 
 export async function buildApp() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: true, trustProxy: trustProxySetting(env.TRUST_PROXY_HOPS) });
 
   await registerPlugins(app);
 

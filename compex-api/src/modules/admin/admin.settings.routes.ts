@@ -6,6 +6,7 @@ import { ok } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { auditInTx } from "../../lib/audit.js";
+import { env } from "../../config/env.js";
 
 const SettingBody = z.object({
   category: z.string().min(1).max(100),
@@ -30,6 +31,19 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
       orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { value: "asc" }],
     });
     return reply.send(ok(settings));
+  });
+
+  // Admin-only diagnostic for choosing TRUST_PROXY_HOPS: shows the caller's own
+  // forwarding chain as this API sees it. Echoes only the caller's addresses.
+  app.get("/client-ip", { preHandler: requireRole("ADMIN") }, async (req, reply) => {
+    const forwardedFor = req.headers["x-forwarded-for"];
+    return reply.send(ok({
+      ip: req.ip,
+      ips: req.ips ?? [req.ip],
+      socketAddress: req.socket.remoteAddress ?? null,
+      forwardedFor: typeof forwardedFor === "string" ? forwardedFor.split(",").map((part) => part.trim()) : [],
+      trustProxyHops: env.TRUST_PROXY_HOPS,
+    }));
   });
 
   app.get("/categories", async (_req, reply) => {
