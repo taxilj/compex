@@ -17,6 +17,7 @@ vi.mock("bullmq", () => ({
   Queue: vi.fn().mockImplementation(() => ({
     add: mockAdd,
     getJob: mockGetJob,
+    on: vi.fn(),
   })),
 }));
 

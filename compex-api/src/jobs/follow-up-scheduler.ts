@@ -25,6 +25,7 @@ function getQueue(): Queue {
       retryStrategy: () => null,
     });
     followUpQueue = new Queue("follow-ups", { connection });
+    followUpQueue.on("error", () => console.error("[follow-up-queue] Redis unavailable; scheduling failed"));
   }
   return followUpQueue;
 }

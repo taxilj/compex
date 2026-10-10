@@ -168,6 +168,7 @@ export function startBomWorker() {
     { connection, concurrency: 3 },
   );
 
+  worker.on("error", () => console.error("[bom-worker] Redis unavailable; BOM processing is delayed"));
   worker.on("failed", (job, err) => {
     console.error(`[bom-worker] job ${job?.id} failed:`, err.message);
   });

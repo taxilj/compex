@@ -33,6 +33,7 @@ export function getBomQueue(): Queue {
       retryStrategy: () => null,
     });
     _bomQueue = new Queue("bom-processing", { connection });
+    _bomQueue.on("error", () => console.error("[bom-queue] Redis unavailable; BOM scheduling failed"));
   }
   return _bomQueue;
 }

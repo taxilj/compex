@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { sendEmail, followUpEmail } from "../lib/email.js";
 
 export function startFollowUpWorker() {
-  return new Worker(
+  const worker = new Worker(
     "follow-ups",
     async (job) => {
       const { followUpId, rfqId } = job.data as { followUpId: string; rfqId: string; type: string };
@@ -88,4 +88,6 @@ export function startFollowUpWorker() {
     },
     { connection: { url: env.REDIS_URL } },
   );
+  worker.on("error", () => console.error("[follow-up-worker] Redis unavailable; follow-ups are delayed"));
+  return worker;
 }
