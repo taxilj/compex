@@ -138,9 +138,14 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
   let leadId = "";
   const updated = await prisma.$transaction(async (tx) => {
     const rfq = await tx.rfq.update({
-      where: { id: rfqId },
+      where: { id: rfqId, status: "DRAFT" },
       data: { status: "SUBMITTED", sourcingStatus: "NEW", submittedAt: new Date() },
       select: { ...RFQ_SELECT, deliveryLocation: true },
+    }).catch((error: unknown) => {
+      if ((error as { code?: string })?.code === "P2025") {
+        throw Errors.unprocessable("Only DRAFT RFQs can be submitted");
+      }
+      throw error;
     });
     await tx.auditLog.create({
       data: {

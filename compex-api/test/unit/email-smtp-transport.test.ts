@@ -34,6 +34,7 @@ describe("sendEmail via the existing SMTP transport", () => {
       host: "smtp.example.test",
       port: 587,
       secure: false,
+      requireTLS: true,
       connectionTimeout: 10_000,
       greetingTimeout: 10_000,
       socketTimeout: 10_000,
@@ -43,5 +44,17 @@ describe("sendEmail via the existing SMTP transport", () => {
       to: "customer@example.com",
       subject: "RFQ",
     }));
+  });
+
+  it("discards SMTP response text and credentials while retaining safe diagnostics", async () => {
+    sendMail.mockRejectedValueOnce(Object.assign(new Error("AUTH synthetic-secret customer@example.com"), {
+      code: "EAUTH", responseCode: 535, response: "synthetic-secret", hostname: "private-host",
+    }));
+    const error = await sendEmail({ to: "customer@example.com", subject: "QA", html: "<p>QA</p>" }).catch((error) => error);
+    expect(error).toMatchObject({ message: "SMTP email delivery failed", code: "EAUTH", responseCode: 535 });
+    expect(error.cause).toBeUndefined();
+    expect(error.response).toBeUndefined();
+    expect(error.hostname).toBeUndefined();
+    expect(JSON.stringify(error)).not.toContain("synthetic-secret");
   });
 });

@@ -106,6 +106,7 @@ function getSmtpTransport() {
     host: env.SMTP_HOST,
     port: env.SMTP_PORT ?? 587,
     secure: (env.SMTP_PORT ?? 587) === 465,
+    requireTLS: true,
     auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
@@ -125,6 +126,13 @@ async function sendViaSmtp(opts: EmailOptions): Promise<{ messageId?: string }> 
     subject: opts.subject,
     html: opts.html,
     attachments: opts.attachments,
+  }).catch((error: unknown) => {
+    // SMTP responses can contain credentials or addresses; never retain the raw error.
+    const details = error as { code?: string; responseCode?: number } | null;
+    throw Object.assign(new Error("SMTP email delivery failed"), {
+      code: details?.code === "ETIMEDOUT" ? "ETIMEDOUT" : details?.code === "EAUTH" ? "EAUTH" : "ESMTP",
+      responseCode: typeof details?.responseCode === "number" ? details.responseCode : undefined,
+    });
   });
   return { messageId: result.messageId };
 }
