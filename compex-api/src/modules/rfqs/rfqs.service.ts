@@ -5,7 +5,7 @@ import { audit } from "../../lib/audit.js";
 import { env } from "../../config/env.js";
 import { nextRfqNumber } from "./rfq-number.js";
 import { nextRfqItemLineNumber } from "./rfq-line-number.js";
-import { sendEmail, rfqConfirmationEmail, websiteEnquiryEmail } from "../../lib/email.js";
+import { describeEmailError, sendEmail, sendEmailWithRetry, rfqConfirmationEmail, websiteEnquiryEmail } from "../../lib/email.js";
 import { scheduleFollowUps } from "../../jobs/follow-up-scheduler.js";
 import { adminLeadUrl, safeNotificationError } from "../leads/website-enquiries.service.js";
 import type {
@@ -15,6 +15,7 @@ import type {
   UpdateRfqItemInput,
   RfqListQuery,
 } from "./rfqs.schema.js";
+import { describeError } from "../../lib/safe-log.js";
 
 const RFQ_SELECT = {
   id: true,
@@ -189,14 +190,14 @@ export async function submitRfq(rfqId: string, customerId: string, userId: strin
       itemCount,
       updated.deliveryLocation,
     ),
-  }).catch((err) => console.error("[EMAIL] RFQ confirmation failed:", err));
+  }).catch((err) => console.error("[EMAIL] RFQ confirmation failed:", describeEmailError(err)));
 
   // Sales notification: same never-lose-the-record pattern as the public enquiry form —
   // the RFQ/Lead is already committed above, so an email failure only marks the Lead FAILED.
   notifySalesOfRfq(leadId, rfqId, customerRecord, updated.rfqNumber, updated.deliveryLocation)
-    .catch((err) => console.error("[EMAIL] Sales notification failed:", err));
+    .catch((err) => console.error("[EMAIL] Sales notification failed:", describeEmailError(err)));
 
-  scheduleFollowUps(rfqId).catch((err) => console.error("[FOLLOWUP] Schedule failed:", err));
+  scheduleFollowUps(rfqId).catch((err) => console.error(`[FOLLOWUP] Schedule failed: ${describeError(err)}`));
 
   return updated;
 }
@@ -214,9 +215,10 @@ async function notifySalesOfRfq(
     orderBy: { lineNumber: "asc" },
   });
   try {
-    const delivery = await sendEmail({
+    const delivery = await sendEmailWithRetry({
       to: env.ENQUIRY_NOTIFICATION_TO,
       replyTo: customerRecord.user.email,
+      idempotencyKey: `enquiry-notify/${leadId}`,
       subject: `New RFQ — ${rfqNumber}`,
       html: websiteEnquiryEmail({
         referenceNumber: rfqNumber,
@@ -240,7 +242,7 @@ async function notifySalesOfRfq(
     await prisma.lead.update({
       where: { id: leadId },
       data: { notificationStatus: "FAILED", notificationError: safeNotificationError(error) },
-    }).catch((updateError) => console.error("[rfq-notify] notification status update failed", updateError));
+    }).catch((updateError) => console.error(`[rfq-notify] notification status update failed: ${describeError(updateError)}`));
   }
 }
 

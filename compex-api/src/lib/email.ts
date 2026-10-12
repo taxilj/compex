@@ -10,6 +10,8 @@ interface EmailOptions {
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
   // Used only by the isolated test provider. Never log this value.
   testActionUrl?: string;
+  // Forwarded to Resend so retries of one logical email are delivered once.
+  idempotencyKey?: string;
 }
 
 const RESEND_API_URL = "https://api.resend.com/emails";
@@ -48,6 +50,7 @@ async function sendViaResend(opts: EmailOptions): Promise<{ messageId?: string }
         // Never logged: kept only in this request's Authorization header.
         Authorization: `Bearer ${env.RESEND_API_KEY}`,
         "Content-Type": "application/json",
+        ...(opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}),
       },
       body: JSON.stringify({
         from: `"Compex Solution" <${env.EMAIL_FROM}>`,
@@ -114,6 +117,21 @@ function getSmtpTransport() {
   });
 }
 
+export function smtpMessageId(idempotencyKey: string): string {
+  const domain = env.EMAIL_FROM.split("@")[1] ?? "compexsolution.com";
+  return `<${idempotencyKey.replace(/[^A-Za-z0-9.-]/g, ".")}@${domain}>`;
+}
+
+// Failures that provably happened BEFORE any message data was sent: refused or
+// unresolvable connections. Timeouts and resets are deliberately absent for SMTP:
+// nodemailer reports a timeout or reset while waiting for the reply to DATA as
+// command "CONN" too, so they cannot be told apart from a connect-phase failure and
+// the server may already have accepted the message (retrying would double-send).
+const TRANSIENT_NETWORK_CODES = new Set(["ECONNREFUSED", "EDNS", "EAI_AGAIN", "ENOTFOUND"]);
+const SMTP_ERROR_CODES = ["ETIMEDOUT", "ECONNECTION", "ECONNRESET", "ESOCKET"];
+const SAFE_SMTP_CODES = new Set([...TRANSIENT_NETWORK_CODES, ...SMTP_ERROR_CODES, "EAUTH", "EENVELOPE", "EMESSAGE", "ETLS", "ESTREAM", "EPROTOCOL"]);
+const SAFE_SMTP_COMMANDS = new Set(["CONN", "EHLO", "HELO", "STARTTLS", "AUTH", "AUTH PLAIN", "AUTH LOGIN", "MAIL FROM", "RCPT TO", "DATA", "QUIT"]);
+
 async function sendViaSmtp(opts: EmailOptions): Promise<{ messageId?: string }> {
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) {
     throw new Error("SMTP email provider is not configured");
@@ -121,16 +139,20 @@ async function sendViaSmtp(opts: EmailOptions): Promise<{ messageId?: string }> 
 
   const result = await getSmtpTransport().sendMail({
     from: `"Compex Solution" <${env.EMAIL_FROM}>`,
+    ...(opts.idempotencyKey ? { messageId: smtpMessageId(opts.idempotencyKey) } : {}),
     to: opts.to,
     replyTo: opts.replyTo,
     subject: opts.subject,
     html: opts.html,
     attachments: opts.attachments,
   }).catch((error: unknown) => {
-    // SMTP responses can contain credentials or addresses; never retain the raw error.
-    const details = error as { code?: string; responseCode?: number } | null;
+    // SMTP responses can contain credentials or addresses; never retain the raw
+    // error. Only whitelisted machine codes and SMTP command names survive, which
+    // is enough for retry classification (isTransientEmailError) and safe logs.
+    const details = error as { code?: string; command?: string; responseCode?: number } | null;
     throw Object.assign(new Error("SMTP email delivery failed"), {
-      code: details?.code === "ETIMEDOUT" ? "ETIMEDOUT" : details?.code === "EAUTH" ? "EAUTH" : "ESMTP",
+      code: details?.code && SAFE_SMTP_CODES.has(details.code) ? details.code : "ESMTP",
+      command: details?.command && SAFE_SMTP_COMMANDS.has(details.command.toUpperCase()) ? details.command.toUpperCase() : undefined,
       responseCode: typeof details?.responseCode === "number" ? details.responseCode : undefined,
     });
   });
@@ -166,6 +188,94 @@ export async function sendEmail(opts: EmailOptions): Promise<{ messageId?: strin
   }
 
   return sendViaResend(opts);
+}
+
+const RETRY_DELAYS_MS = [500, 2000];
+const RETRY_BUDGET_MS = 30_000;
+
+
+// Safe diagnostics only -- never error.message/.response/.hostname/.address,
+// which can echo recipients, message content or connection details.
+export interface EmailErrorDiagnostics {
+  errorName: string;
+  code?: string;
+  command?: string;
+  responseCode?: number;
+  statusCode?: number;
+  timeoutLikely: boolean;
+}
+
+export function describeEmailError(error: unknown): EmailErrorDiagnostics {
+  const details = error as { code?: unknown; command?: unknown; responseCode?: unknown; statusCode?: unknown } | undefined;
+  const code = typeof details?.code === "string" ? details.code : undefined;
+  return {
+    errorName: error instanceof Error ? error.name : "UnknownError",
+    code,
+    command: typeof details?.command === "string" ? details.command : undefined,
+    responseCode: typeof details?.responseCode === "number" ? details.responseCode : undefined,
+    statusCode: typeof details?.statusCode === "number" ? details.statusCode : undefined,
+    timeoutLikely: code === "ETIMEDOUT",
+  };
+}
+
+// Short, content-free reason suitable for storing on a record (e.g. FollowUp.failureReason).
+export function emailFailureReason(error: unknown): string {
+  const d = describeEmailError(error);
+  return [d.errorName, d.code, d.responseCode ?? d.statusCode].filter((part) => part !== undefined).join(" ");
+}
+
+// Transient = worth retrying the same message:
+// - Resend: timeout, network failure, 429, 5xx.
+// - SMTP: connect-phase failures (refused/unresolvable) and 4xx replies. SMTP 5xx is
+//   permanent; timeouts/resets are NOT retried (see TRANSIENT_NETWORK_CODES).
+export function isTransientEmailError(error: unknown): boolean {
+  if (error instanceof EmailProviderError) {
+    if (error.code === "ETIMEDOUT") return true;
+    const status = error.statusCode;
+    return status === undefined || status === 429 || status >= 500;
+  }
+  const d = describeEmailError(error);
+  if (d.responseCode !== undefined) return d.responseCode >= 400 && d.responseCode < 500;
+  return d.code !== undefined && TRANSIENT_NETWORK_CODES.has(d.code);
+}
+
+// Bounded retry (3 attempts total) for one logical notification. Pass
+// opts.idempotencyKey: Resend dedupes on it, and over SMTP it becomes a fixed
+// Message-ID, which Gmail uses to drop a duplicate delivery.
+export async function sendEmailWithRetry(
+  opts: EmailOptions,
+  delays: readonly number[] = RETRY_DELAYS_MS,
+): Promise<{ messageId?: string; attempts: number }> {
+  const startedAt = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return { ...(await sendEmail(opts)), attempts: attempt + 1 };
+    } catch (error) {
+      if (attempt >= delays.length || !isTransientEmailError(error)) throw error;
+      // The caller's own timeout cannot cancel this loop, so it stops itself: no new
+      // attempt may start once the budget would be exceeded.
+      if (Date.now() - startedAt + delays[attempt] > RETRY_BUDGET_MS) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+  }
+}
+
+export function enquiryAcknowledgementEmail(customerName: string, referenceNumber: string): string {
+  return `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+  <div style="background:#0B1F3A;padding:24px 32px">
+    <h1 style="color:#fff;margin:0;font-size:20px">Compex Solution</h1>
+  </div>
+  <div style="padding:32px">
+    <h2 style="color:#0B1F3A;margin-top:0">We received your enquiry — ${escapeHtml(referenceNumber)}</h2>
+    <p>Dear ${escapeHtml(customerName)},</p>
+    <p>Thank you for contacting Compex Solution. Our sales team will review your enquiry and reply within one business day.</p>
+    <p>Please quote <strong>${escapeHtml(referenceNumber)}</strong> in any follow-up. You can reply directly to this email.</p>
+  </div>
+  <div style="background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center">
+    Compex Solution Pvt. Ltd. &nbsp;|&nbsp; sales@compexsolution.com
+  </div>
+</div>`;
 }
 
 function escapeHtml(value?: string | null): string {

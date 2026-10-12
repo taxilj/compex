@@ -10,13 +10,19 @@ const mocks = vi.hoisted(() => ({
   sendEmail: vi.fn(),
   transaction: vi.fn(),
   websiteEnquiryEmail: vi.fn(() => "<html>message</html>"),
+  env: { CORS_ORIGIN: "https://compex-frontend.vercel.app", ENQUIRY_NOTIFICATION_TO: "sales@compexsolution.com", ENQUIRY_ACK_ENABLED: false },
 }));
 
 vi.mock("../../src/config/env.js", () => ({
-  env: { CORS_ORIGIN: "https://compex-frontend.vercel.app", ENQUIRY_NOTIFICATION_TO: "sales@compexsolution.com" },
+  env: mocks.env,
 }));
 vi.mock("../../src/lib/audit.js", () => ({ auditInTx: mocks.auditInTx }));
-vi.mock("../../src/lib/email.js", () => ({ sendEmail: mocks.sendEmail, websiteEnquiryEmail: mocks.websiteEnquiryEmail }));
+vi.mock("../../src/lib/email.js", async () => ({
+  describeEmailError: (await vi.importActual<typeof import("../../src/lib/email.js")>("../../src/lib/email.js")).describeEmailError,
+  sendEmailWithRetry: mocks.sendEmail,
+  websiteEnquiryEmail: mocks.websiteEnquiryEmail,
+  enquiryAcknowledgementEmail: vi.fn(() => "<html>ack</html>"),
+}));
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
     lead: { findUnique: mocks.findUnique, update: mocks.leadUpdate },
@@ -49,6 +55,7 @@ function record(source = "CONTACT") {
 describe("website enquiry intake", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.env.ENQUIRY_ACK_ENABLED = false;
     mocks.findUnique.mockResolvedValue(undefined);
     mocks.queryRaw.mockResolvedValue([{ nextval: 1n }]);
     mocks.leadCreate.mockResolvedValue(record());
@@ -260,5 +267,32 @@ describe("website enquiry intake", () => {
     expect(result.duplicate).toBe(true);
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("uses a per-lead idempotency key for the sales notification and sends no ack by default", async () => {
+    await createWebsiteEnquiry(WebsiteEnquirySchema.parse(contact), undefined, {});
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: "enquiry-notify/lead-1" }));
+  });
+
+  it("sends a customer acknowledgement from the company sender with Reply-To sales when enabled", async () => {
+    mocks.env.ENQUIRY_ACK_ENABLED = true;
+    await createWebsiteEnquiry(WebsiteEnquirySchema.parse(contact), undefined, {});
+    expect(mocks.sendEmail).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      to: "asha@example.com",
+      replyTo: "sales@compexsolution.com",
+      idempotencyKey: "enquiry-ack/lead-1",
+    }));
+  });
+
+  it("keeps the enquiry SENT when only the acknowledgement fails", async () => {
+    mocks.env.ENQUIRY_ACK_ENABLED = true;
+    mocks.sendEmail.mockResolvedValueOnce({ messageId: "m1" }).mockRejectedValueOnce(new Error("boom"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const result = await createWebsiteEnquiry(WebsiteEnquirySchema.parse(contact), undefined, {});
+    expect(result.duplicate).toBe(false);
+    expect(mocks.leadUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ notificationStatus: "SENT" }) }));
+    expect(errorSpy.mock.calls.flat().join(" ")).not.toContain("asha@example.com");
+    errorSpy.mockRestore();
   });
 });
