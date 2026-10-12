@@ -123,4 +123,3 @@ describe("rate-limit keys with authenticated users", () => {
     expect((await call(app, { "x-forwarded-for": "198.51.100.2" })).statusCode).toBe(200);
   });
 });
-
