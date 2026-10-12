@@ -4,8 +4,9 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { Errors } from "../../lib/errors.js";
 import { audit } from "../../lib/audit.js";
-import { getStorage, getBomQueue } from "../documents/documents.service.js";
+import { getStorage, enqueueBomJob } from "../documents/documents.service.js";
 import { ALLOWED_EXTS, ALLOWED_MIMES, MAX_BYTES } from "../documents/bom-upload.js";
+import { describeError } from "../../lib/safe-log.js";
 
 // Safe metadata only -- never storageKey, never raw file contents.
 const LEAD_DOCUMENT_SELECT = {
@@ -39,7 +40,7 @@ function toResult(doc: { id: string; fileName: string; processingStatus: string;
 
 async function deleteOrphan(storage: ReturnType<typeof getStorage>, key: string) {
   await storage.delete(key).catch((cleanupErr) =>
-    console.error("[lead-bom-upload] orphan cleanup failed:", cleanupErr instanceof Error ? cleanupErr.message : "Unknown error"),
+    console.error(`[lead-bom-upload] orphan cleanup failed: ${describeError(cleanupErr)}`),
   );
 }
 
@@ -69,6 +70,10 @@ export async function leadBomUploadHandler(req: FastifyRequest, leadId: string) 
     orderBy: { createdAt: "desc" },
   });
   if (preCheck && preCheck.processingStatus !== "FAILED") {
+    // An UPLOADED document may be one whose first enqueue failed (the upload is
+    // retained as "pending"). Re-enqueue the SAME document: the fixed jobId makes
+    // this a no-op when a job already exists, so it can never double-parse.
+    if (preCheck.processingStatus === "UPLOADED") await enqueueBomJob(preCheck.id, { documentId: preCheck.id, leadId });
     return toResult(preCheck, true);
   }
 
@@ -145,17 +150,9 @@ export async function leadBomUploadHandler(req: FastifyRequest, leadId: string) 
 
   audit({ action: "lead_bom.uploaded", entityType: "lead", entityId: leadId, ipAddress: req.ip, userAgent: req.headers["user-agent"] });
 
-  // Enqueue async processing. The file is already stored and the Document
-  // row already created, so a queue failure here must not hang the request
-  // indefinitely: fail fast with a clear 503 instead.
-  try {
-    const queue = getBomQueue();
-    await queue.add("parse-bom", { documentId: doc!.id, leadId });
-  } catch {
-    throw Errors.serviceUnavailable(
-      "BOM upload was saved but processing is temporarily unavailable. Please try again shortly.",
-    );
-  }
+  // Bounded, idempotent enqueue; on failure the upload is retained as pending (UPLOADED),
+  // retried on the next upload or by the recovery sweep, and the caller gets a 503.
+  await enqueueBomJob(doc!.id, { documentId: doc!.id, leadId });
 
   return toResult(doc!, false);
 }

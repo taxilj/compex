@@ -5,6 +5,9 @@ import { Errors } from "../../lib/errors.js";
 import { LocalStorageProvider, S3StorageProvider } from "../../lib/storage/index.js";
 import type { StorageProvider } from "../../lib/storage/index.js";
 import { env } from "../../config/env.js";
+import { withTimeout } from "../../lib/async.js";
+import { FAIL_FAST_REDIS_OPTIONS, describeRedisError, rateLimitedLogger } from "../../lib/redis-options.js";
+import { describeError } from "../../lib/safe-log.js";
 
 let _storage: StorageProvider | null = null;
 
@@ -27,15 +30,89 @@ export function getBomQueue(): Queue {
     // with a clear error instead of hanging forever when Redis is
     // unreachable. (Workers legitimately use maxRetriesPerRequest: null for
     // blocking commands -- this is the producer side only.)
-    const connection = new IORedis(env.REDIS_URL, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 5000,
-      retryStrategy: () => null,
-    });
+    const connection = new IORedis(env.REDIS_URL, FAIL_FAST_REDIS_OPTIONS);
     _bomQueue = new Queue("bom-processing", { connection });
-    _bomQueue.on("error", () => console.error("[bom-queue] Redis unavailable; BOM scheduling failed"));
+    _bomQueue.on("error", rateLimitedLogger("bom-queue"));
   }
   return _bomQueue;
+}
+
+const BOM_ENQUEUE_TIMEOUT_MS = 5000;
+const QUEUE_PROBE_TIMEOUT_MS = 3000;
+// Healthy answers are reused longer than unhealthy ones so recovery is noticed
+// quickly, while a busy upload page costs at most one Redis command per window.
+const QUEUE_HEALTHY_TTL_MS = 5 * 60_000;
+const QUEUE_UNHEALTHY_TTL_MS = 60_000;
+
+export const BOM_QUEUE_UNAVAILABLE_MESSAGE =
+  "Your BOM file was saved, but processing is temporarily unavailable. It will be processed automatically once the service recovers; you can also retry in a few minutes.";
+
+let _queueHealth: { available: boolean; checkedAt: number } | null = null;
+let _queueProbe: Promise<boolean> | null = null;
+
+function recordQueueHealth(available: boolean): boolean {
+  _queueHealth = { available, checkedAt: Date.now() };
+  return available;
+}
+
+// Test hook: forget the cached queue health.
+export function resetBomQueueHealth(): void {
+  _queueHealth = null;
+  _queueProbe = null;
+}
+
+// Real round trip (not PING, which a quota-exhausted Upstash still answers).
+export async function isBomQueueAvailable(): Promise<boolean> {
+  if (_queueHealth) {
+    const ttl = _queueHealth.available ? QUEUE_HEALTHY_TTL_MS : QUEUE_UNHEALTHY_TTL_MS;
+    if (Date.now() - _queueHealth.checkedAt < ttl) return _queueHealth.available;
+  }
+  _queueProbe ??= withTimeout(
+    getBomQueue().client.then((client) => client.hexists("bull:bom-processing:meta", "opts.maxLenEvents")),
+    QUEUE_PROBE_TIMEOUT_MS,
+    "BOM queue probe",
+  )
+    .then(() => recordQueueHealth(true))
+    .catch((error: unknown) => {
+      console.error(`[bom-queue] health probe failed: ${describeRedisError(error)}`);
+      return recordQueueHealth(false);
+    })
+    .finally(() => {
+      _queueProbe = null;
+    });
+  return _queueProbe;
+}
+
+// Bounded, idempotent enqueue. The jobId is derived from the document id, so a
+// retry (customer re-upload, recovery sweep, or a late-arriving first attempt)
+// can never create a second parsing job; the worker's UPLOADED -> PROCESSING
+// claim is a second guard.
+//
+// On failure the upload is RETAINED: the stored file and the Document row stay
+// UPLOADED, which is the "pending" state -- nothing is marked FAILED, so the same
+// document is re-enqueued later (see bom-recovery.ts) instead of the customer
+// having to upload it again. The queue is reported unavailable so the upload page
+// stops offering uploads until it recovers.
+export async function enqueueBomJob(
+  documentId: string,
+  data: { documentId: string; rfqId?: string; leadId?: string; customerId?: string },
+): Promise<void> {
+  try {
+    await withTimeout(
+      // removeOnFail/removeOnComplete: a finished or failed job must not leave its jobId
+      // behind, or a later re-add (recovery of a document stranded in PROCESSING) would be
+      // a silent no-op. Duplicate parsing stays impossible: the worker only claims an
+      // UPLOADED document and completes only a PROCESSING one.
+      getBomQueue().add("parse-bom", data, { jobId: `bom-${documentId}`, removeOnFail: true, removeOnComplete: true }),
+      BOM_ENQUEUE_TIMEOUT_MS,
+      "BOM enqueue",
+    );
+    recordQueueHealth(true);
+  } catch (error) {
+    recordQueueHealth(false);
+    console.error(`[bom-queue] enqueue failed for document ${documentId}: ${describeRedisError(error)}; upload retained as pending`);
+    throw Errors.serviceUnavailable(BOM_QUEUE_UNAVAILABLE_MESSAGE);
+  }
 }
 
 const STORAGE_CAPABILITY_CACHE_MS = 60_000;
@@ -61,7 +138,7 @@ export async function isDurableStorageAvailable(): Promise<boolean> {
     }
     available = true;
   } catch (error) {
-    console.error("[storage] capability check failed:", error instanceof Error ? error.message : "Unknown error");
+    console.error(`[storage] capability check failed: ${describeError(error)}`);
     available = false;
   }
 

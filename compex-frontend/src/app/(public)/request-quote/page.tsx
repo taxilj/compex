@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Upload, Plus, Trash2, CheckCircle, FileSpreadsheet, X, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { submitPublicLead, getBomCapability, uploadLeadBom, getLeadBomStatus } from "@/lib/api/leads";
+import { ApiError } from "@/lib/api/client";
 
 interface BOMItem {
   mpn: string;
@@ -30,7 +31,7 @@ function validateBomFile(file: File): string | null {
   return null;
 }
 
-type BomUploadState = "idle" | "uploading" | "processing" | "completed" | "failed" | "timeout";
+type BomUploadState = "idle" | "uploading" | "processing" | "completed" | "failed" | "pending" | "timeout";
 
 export default function RequestQuotePage() {
   const [items, setItems] = useState<BOMItem[]>(defaultItems);
@@ -126,7 +127,14 @@ export default function RequestQuotePage() {
         }
       }
       setBomUploadState("timeout");
-    } catch {
+    } catch (error) {
+      // 503 = file stored but processing unavailable: the upload is retained and is
+      // re-queued automatically, so this is "pending", not a failure.
+      if (error instanceof ApiError && error.statusCode === 503) {
+        setBomUploadState("pending");
+        setBomUploadError(error.message);
+        return;
+      }
       setBomUploadState("failed");
       setBomUploadError("We could not upload your BOM file. Please try again.");
     }
@@ -229,6 +237,23 @@ export default function RequestQuotePage() {
                 </p>
               </div>
             )}
+            {bomUploadState === "pending" && (
+              <div>
+                <div className="flex items-start gap-3 mb-3">
+                  <AlertCircle size={20} className="text-[#B54708] shrink-0 mt-0.5" />
+                  <p className="font-body-sm text-[#44474d]">{bomUploadError}</p>
+                </div>
+                {bomFile && bomLeadId && (
+                  <button
+                    type="button"
+                    onClick={() => void uploadAndTrackBom(bomLeadId, bomFile)}
+                    className="text-[#1769E0] font-label-md text-sm hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1769E0]"
+                  >
+                    Retry processing
+                  </button>
+                )}
+              </div>
+            )}
             {bomUploadState === "failed" && (
               <div>
                 <div className="flex items-start gap-3 mb-3">
@@ -246,7 +271,7 @@ export default function RequestQuotePage() {
                       e.target.value = "";
                     }}
                   />
-                  Try a different file
+                  Retry upload
                 </label>
               </div>
             )}
@@ -389,6 +414,13 @@ export default function RequestQuotePage() {
                   {bomCapability === false && (
                     <div className="rounded-lg border border-[#FEDF89] bg-[#FFFAEB] px-4 py-3 font-body-sm text-[#93370D]">
                       Secure file upload is temporarily unavailable. You can still send your BOM enquiry now — sales will follow up with a secure upload or sign-in path.
+                      <button
+                        type="button"
+                        onClick={() => setBomCapability(null)}
+                        className="ml-2 font-label-md underline hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#93370D]"
+                      >
+                        Check again
+                      </button>
                     </div>
                   )}
 

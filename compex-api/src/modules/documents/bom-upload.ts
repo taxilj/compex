@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { Errors } from "../../lib/errors.js";
 import { audit } from "../../lib/audit.js";
-import { getStorage, getBomQueue } from "./documents.service.js";
+import { getStorage, enqueueBomJob } from "./documents.service.js";
 
 export const ALLOWED_MIMES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -74,14 +74,7 @@ export async function bomUploadHandler(
   // Document row already created above, so a queue failure here must not
   // hang the HTTP request indefinitely (see getBomQueue): fail fast with a
   // clear 503 instead, so the customer isn't left on an infinite spinner.
-  try {
-    const queue = getBomQueue();
-    await queue.add("parse-bom", { documentId: doc.id, rfqId, customerId });
-  } catch (err) {
-    throw Errors.serviceUnavailable(
-      "BOM upload was saved but processing is temporarily unavailable. Please try again shortly or contact support.",
-    );
-  }
+  await enqueueBomJob(doc.id, { documentId: doc.id, rfqId, customerId });
 
   return { jobId: doc.id, message: "BOM uploaded and queued for processing" };
 }

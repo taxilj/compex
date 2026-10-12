@@ -1,5 +1,6 @@
 import IORedis from "ioredis";
 import { env } from "../config/env.js";
+import { FAIL_FAST_REDIS_OPTIONS, describeRedisError } from "./redis-options.js";
 
 // Small shared cache helper backed by the same Redis instance already used
 // for BullMQ (env.REDIS_URL) -- see follow-up-scheduler.ts for the existing
@@ -23,11 +24,9 @@ let loggedConnectionError = false;
 function getClient(): IORedis | null {
   if (client) return client;
   try {
-    client = new IORedis(env.REDIS_URL, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 3000,
-      retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 1000)),
-      lazyConnect: false,
+    client = new IORedis(env.REDIS_URL, { ...FAIL_FAST_REDIS_OPTIONS, connectTimeout: 3000 });
+    client.on("ready", () => {
+      loggedConnectionError = false;
     });
     client.on("error", (err) => {
       // ioredis requires an 'error' listener or it throws; keep this a
@@ -35,7 +34,7 @@ function getClient(): IORedis | null {
       // transient Redis blip.
       if (!loggedConnectionError) {
         loggedConnectionError = true;
-        console.error("[cache] Redis connection error (caching disabled until it recovers):", err.message);
+        console.error(`[cache] Redis ${describeRedisError(err)} (caching disabled until it recovers)`);
       }
     });
     return client;
@@ -59,7 +58,7 @@ export async function cacheGet<T>(namespace: string, key: string): Promise<Cache
     if (!raw) return null;
     return JSON.parse(raw) as CacheEntry<T>;
   } catch (err) {
-    console.error(`[cache] get failed for ${namespace}:${key}, treating as a miss:`, err instanceof Error ? err.message : err);
+    console.error(`[cache] get failed for ${namespace}, treating as a miss: ${describeRedisError(err)}`);
     return null;
   }
 }
@@ -74,7 +73,7 @@ export async function cacheSet<T>(namespace: string, key: string, value: T, ttlS
   } catch (err) {
     // A failed write just means the next lookup misses the cache -- never
     // let a caching problem surface as (or block) an application error.
-    console.error(`[cache] set failed for ${namespace}:${key}, continuing without caching this entry:`, err instanceof Error ? err.message : err);
+    console.error(`[cache] set failed for ${namespace}, continuing without caching this entry: ${describeRedisError(err)}`);
   }
 }
 
@@ -108,7 +107,7 @@ export async function incrementCounter(namespace: string, key: string, ttlSecond
     if (count === by) await redis.expire(fullKey, ttlSeconds);
     return count;
   } catch (err) {
-    console.error(`[cache] increment failed for ${namespace}:${key}:`, err instanceof Error ? err.message : err);
+    console.error(`[cache] increment failed for ${namespace}: ${describeRedisError(err)}`);
     return 0;
   }
 }

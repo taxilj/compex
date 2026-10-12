@@ -37,7 +37,7 @@ import { startBomWorker } from "../../src/jobs/bom-processor.js";
 const CSV = "mpn,manufacturer,quantity\nSTM32F103C8T6,ST,100\n";
 
 function txStub() {
-  return { leadItem: { createMany: mocks.leadItemCreateMany }, rfqItem: { createMany: mocks.rfqItemCreateMany }, document: { update: mocks.documentUpdate } };
+  return { leadItem: { createMany: mocks.leadItemCreateMany }, rfqItem: { createMany: mocks.rfqItemCreateMany }, document: { updateMany: mocks.updateMany } };
 }
 
 describe("bom-processor worker", () => {
@@ -62,7 +62,7 @@ describe("bom-processor worker", () => {
       data: [expect.objectContaining({ leadId: "lead-1", lineNumber: 1, mpn: "STM32F103C8T6", quantity: 100 })],
     });
     expect(mocks.rfqItemCreateMany).not.toHaveBeenCalled();
-    expect(mocks.documentUpdate).toHaveBeenCalledWith({ where: { id: "doc-1" }, data: { processingStatus: "COMPLETED" } });
+    expect(mocks.updateMany).toHaveBeenCalledWith({ where: { id: "doc-1", processingStatus: "PROCESSING" }, data: { processingStatus: "COMPLETED" } });
   });
 
   it("still appends to RfqItem (with pricing) when the job carries an rfqId, unaffected by the lead branch", async () => {
@@ -83,8 +83,8 @@ describe("bom-processor worker", () => {
 
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
     expect(mocks.rfqItemCreateMany).not.toHaveBeenCalled();
-    expect(mocks.documentUpdate).toHaveBeenCalledWith({
-      where: { id: "doc-3" },
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { id: "doc-3", processingStatus: "PROCESSING" },
       data: { processingStatus: "FAILED", processingError: "The BOM file could not be processed. Please check the file and try again." },
     });
   });
@@ -96,8 +96,8 @@ describe("bom-processor worker", () => {
     await expect(process({ data: { documentId: "doc-4", leadId: "lead-1" } })).rejects.toThrow("No valid rows");
 
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
-    expect(mocks.documentUpdate).toHaveBeenCalledWith({
-      where: { id: "doc-4" },
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { id: "doc-4", processingStatus: "PROCESSING" },
       data: { processingStatus: "FAILED", processingError: expect.stringContaining("No valid rows") },
     });
   });
@@ -111,8 +111,8 @@ describe("bom-processor worker", () => {
     await expect(process({ data: { documentId: "doc-6", leadId: "lead-1" } })).rejects.toThrow(/exceeds the maximum/);
 
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
-    expect(mocks.documentUpdate).toHaveBeenCalledWith({
-      where: { id: "doc-6" },
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { id: "doc-6", processingStatus: "PROCESSING" },
       data: { processingStatus: "FAILED", processingError: expect.stringContaining("exceeds the maximum") },
     });
   });
@@ -123,8 +123,8 @@ describe("bom-processor worker", () => {
 
     await expect(process({ data: { documentId: "doc-7", leadId: "lead-1" } })).rejects.toThrow("ENOENT");
 
-    expect(mocks.documentUpdate).toHaveBeenCalledWith({
-      where: { id: "doc-7" },
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: { id: "doc-7", processingStatus: "PROCESSING" },
       data: { processingStatus: "FAILED", processingError: "The BOM file could not be processed. Please check the file and try again." },
     });
   });
@@ -136,5 +136,18 @@ describe("bom-processor worker", () => {
 
     expect(mocks.findUniqueOrThrow).not.toHaveBeenCalled();
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("rolls back and never overwrites the document when it was re-claimed before completion (slow worker vs stale-PROCESSING reset)", async () => {
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-8", storageKey: "bom/leads/lead-1/x.csv" });
+    mocks.updateMany.mockReset();
+    mocks.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 }); // claim ok, completion lost
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(process({ data: { documentId: "doc-8", leadId: "lead-1" } })).rejects.toThrow();
+
+    // The transaction threw after createMany, so the real database rolls the inserts back.
+    const failedWrites = mocks.updateMany.mock.calls.filter(([arg]) => (arg as { data?: { processingStatus?: string } }).data?.processingStatus === "FAILED");
+    expect(failedWrites).toHaveLength(0);
   });
 });

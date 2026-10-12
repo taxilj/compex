@@ -28,7 +28,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
 vi.mock("../../src/lib/audit.js", () => ({ audit: mocks.audit }));
 vi.mock("../../src/modules/documents/documents.service.js", () => ({
   getStorage: () => ({ put: mocks.storagePut, delete: mocks.storageDelete }),
-  getBomQueue: () => ({ add: mocks.queueAdd }),
+  enqueueBomJob: mocks.queueAdd,
 }));
 
 import { leadBomUploadHandler, getLeadBomStatus } from "../../src/modules/leads/lead-bom-upload.js";
@@ -91,7 +91,7 @@ describe("lead BOM upload", () => {
     expect(mocks.documentCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ leadId: "lead-1", documentType: "BOM", processingStatus: "UPLOADED" }),
     }));
-    expect(mocks.queueAdd).toHaveBeenCalledWith("parse-bom", { documentId: "doc-1", leadId: "lead-1" });
+    expect(mocks.queueAdd).toHaveBeenCalledWith("doc-1", { documentId: "doc-1", leadId: "lead-1" });
     expect(result).toEqual({
       documentId: "doc-1",
       fileName: "bom.xlsx",
@@ -155,6 +155,52 @@ describe("lead BOM upload", () => {
     expect(result.documentId).toBe("doc-existing");
     expect(mocks.storagePut).not.toHaveBeenCalled();
     expect(mocks.documentCreate).not.toHaveBeenCalled();
+  });
+
+  it("retry of a pending upload (first enqueue failed) re-enqueues the SAME document, creating no new file or row", async () => {
+    mocks.documentFindFirst.mockResolvedValue({
+      id: "doc-pending",
+      fileName: "bom.xlsx",
+      processingStatus: "UPLOADED",
+      processingError: null,
+      fileSizeBytes: 1234,
+    });
+
+    const result = await leadBomUploadHandler(
+      fakeRequest({ filename: "bom.xlsx", mimetype: "text/csv", buffer: validXlsx }),
+      "lead-1",
+    );
+
+    expect(mocks.queueAdd).toHaveBeenCalledWith("doc-pending", { documentId: "doc-pending", leadId: "lead-1" });
+    expect(result).toMatchObject({ documentId: "doc-pending", duplicate: true });
+    expect(mocks.storagePut).not.toHaveBeenCalled();
+    expect(mocks.documentCreate).not.toHaveBeenCalled();
+  });
+
+  it("retry of a pending upload still returns a safe 503 and keeps the document when the queue is still down", async () => {
+    mocks.documentFindFirst.mockResolvedValue({
+      id: "doc-pending",
+      fileName: "bom.xlsx",
+      processingStatus: "UPLOADED",
+      processingError: null,
+      fileSizeBytes: 1234,
+    });
+    mocks.queueAdd.mockRejectedValue(Object.assign(new Error("unavailable"), { statusCode: 503 }));
+
+    await expect(leadBomUploadHandler(
+      fakeRequest({ filename: "bom.xlsx", mimetype: "text/csv", buffer: validXlsx }),
+      "lead-1",
+    )).rejects.toMatchObject({ statusCode: 503 });
+    expect(mocks.storageDelete).not.toHaveBeenCalled();
+    expect(mocks.documentCreate).not.toHaveBeenCalled();
+  });
+
+  it("a retry of an already PROCESSING or COMPLETED document never enqueues again", async () => {
+    for (const processingStatus of ["PROCESSING", "COMPLETED"]) {
+      mocks.documentFindFirst.mockResolvedValue({ id: "doc-x", fileName: "bom.xlsx", processingStatus, processingError: null, fileSizeBytes: 1 });
+      await leadBomUploadHandler(fakeRequest({ filename: "bom.xlsx", mimetype: "text/csv", buffer: validXlsx }), "lead-1");
+    }
+    expect(mocks.queueAdd).not.toHaveBeenCalled();
   });
 
   it("allows a fresh upload after a FAILED document, instead of replaying the same failure forever", async () => {
@@ -238,7 +284,7 @@ describe("lead BOM upload", () => {
       processingError: null,
       fileSizeBytes: validXlsx.length,
     });
-    mocks.queueAdd.mockRejectedValue(new Error("redis down"));
+    mocks.queueAdd.mockRejectedValue(Object.assign(new Error("BOM processing is temporarily unavailable."), { statusCode: 503 }));
 
     await expect(leadBomUploadHandler(
       fakeRequest({ filename: "bom.xlsx", mimetype: "text/csv", buffer: validXlsx }),

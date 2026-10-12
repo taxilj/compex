@@ -8,12 +8,17 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { nextRfqItemLineNumber } from "../modules/rfqs/rfq-line-number.js";
 import { nextLeadItemLineNumber } from "../modules/leads/lead-line-number.js";
 import { readFirstSheetSafely, UnsafeWorkbookError } from "../lib/xlsx-safe.js";
+import { WORKER_IDLE_OPTIONS, WORKER_REDIS_OPTIONS, pauseOnRedisError } from "../lib/redis-options.js";
+import { describeError } from "../lib/safe-log.js";
 
 // Marks a message as safe to show to the (possibly anonymous, unauthenticated)
 // caller of GET /leads/:leadId/bom. Everything else -- Prisma errors, raw
 // filesystem paths from LocalStorageProvider, S3 SDK errors -- must never
 // reach that public response; only ever logged server-side.
 class BomValidationError extends Error {}
+
+// Thrown inside the completion transaction when the document is no longer PROCESSING.
+class BomClaimLostError extends Error {}
 
 const MAX_CSV_ROWS = 20_000;
 
@@ -51,7 +56,7 @@ function parseRows(buffer: Buffer, ext: string): BomRow[] {
     // to_line bounds parsing cost for an oversized CSV: stop reading one row
     // past the cap (+1 for the header line) so an overflow is detectable
     // without ever materializing the full row set in memory.
-    const records = parse(buffer, { columns: true, skip_empty_lines: true, trim: true, to_line: MAX_CSV_ROWS + 2 });
+    const records = parse(buffer, { columns: true, skip_empty_lines: true, trim: true, to_line: MAX_CSV_ROWS + 2 }) as Record<string, string>[];
     if (records.length > MAX_CSV_ROWS) {
       throw new BomValidationError(`CSV exceeds the maximum of ${MAX_CSV_ROWS} rows`);
     }
@@ -81,7 +86,7 @@ function parseRows(buffer: Buffer, ext: string): BomRow[] {
 }
 
 export function startBomWorker() {
-  const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  const connection = new IORedis(env.REDIS_URL, WORKER_REDIS_OPTIONS);
 
   const worker = new Worker(
     "bom-processing",
@@ -141,22 +146,32 @@ export function startBomWorker() {
           } else {
             throw new Error("BOM processing job is missing both rfqId and leadId");
           }
-          await tx.document.update({
-            where: { id: documentId },
+          // Complete only a document this worker still owns. If a stale-PROCESSING reset
+          // (bom-recovery.ts) handed it to another worker meanwhile, throwing here rolls
+          // back the item inserts above, so a slow worker can never append a BOM twice.
+          const completed = await tx.document.updateMany({
+            where: { id: documentId, processingStatus: "PROCESSING" },
             data: { processingStatus: "COMPLETED" },
           });
+          if (completed.count !== 1) throw new BomClaimLostError();
         });
       } catch (err) {
         // Only ever surface messages from known-safe error types to the
         // public status endpoint -- everything else (Prisma errors, local
         // filesystem paths, S3 SDK errors) is real internal detail that must
         // never reach an anonymous, unauthenticated caller.
+        // Another worker owns the document now: leave its state alone.
+        if (err instanceof BomClaimLostError) {
+          console.error(`[bom-worker] document ${documentId} was re-claimed while processing; this attempt was rolled back`);
+          throw err;
+        }
         const isSafeToShow = err instanceof BomValidationError || err instanceof UnsafeWorkbookError;
         if (!isSafeToShow) {
-          console.error(`[bom-worker] document ${documentId} processing failed:`, err instanceof Error ? err.message : "Unknown error");
+          console.error(`[bom-worker] document ${documentId} processing failed: ${describeError(err)}`);
         }
-        await prisma.document.update({
-          where: { id: documentId },
+        await prisma.document.updateMany({
+          // Guarded so a late failure can never overwrite a COMPLETED document.
+          where: { id: documentId, processingStatus: "PROCESSING" },
           data: {
             processingStatus: "FAILED",
             processingError: isSafeToShow ? (err as Error).message : "The BOM file could not be processed. Please check the file and try again.",
@@ -165,12 +180,13 @@ export function startBomWorker() {
         throw err;
       }
     },
-    { connection, concurrency: 3 },
+    { connection, concurrency: 3, ...WORKER_IDLE_OPTIONS },
   );
 
-  worker.on("error", () => console.error("[bom-worker] Redis unavailable; BOM processing is delayed"));
+  pauseOnRedisError(worker, "bom-worker");
+
   worker.on("failed", (job, err) => {
-    console.error(`[bom-worker] job ${job?.id} failed:`, err.message);
+    console.error(`[bom-worker] job ${job?.id} failed: ${describeError(err)}`);
   });
 
   return worker;

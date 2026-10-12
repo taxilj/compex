@@ -15,6 +15,7 @@ vi.mock("../../src/lib/cache.js", () => ({
   }),
 }));
 
+import { cacheGet } from "../../src/lib/cache.js";
 import { bumpCatalogVersion, cachedCatalog, catalogKey, resetCatalogBreaker } from "../../src/modules/catalog/catalog-cache.js";
 
 beforeEach(() => {
@@ -25,6 +26,16 @@ beforeEach(() => {
 });
 
 describe("cachedCatalog", () => {
+  it("reads the version stamp from Redis at most once per memo window", async () => {
+    const load = vi.fn(async () => ["a"]);
+    vi.mocked(cacheGet).mockClear();
+    await cachedCatalog("categories", load);
+    await cachedCatalog("categories", load);
+    await cachedCatalog("manufacturers", load);
+    const versionReads = vi.mocked(cacheGet).mock.calls.filter(([, key]) => key === "version");
+    expect(versionReads).toHaveLength(1);
+  });
+
   it("cache miss loads once, cache hit skips the loader", async () => {
     const load = vi.fn(async () => ["a"]);
     expect(await cachedCatalog("categories", load)).toEqual(["a"]);
