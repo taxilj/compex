@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma.js";
+import { describeError } from "./safe-log.js";
 
 interface AuditParams {
   userId?: string;
@@ -31,7 +32,7 @@ function auditData(params: AuditParams) {
 export function audit(params: AuditParams): void {
   prisma.auditLog
     .create({ data: auditData(params) })
-    .catch((err: unknown) => console.error("[audit] write failed:", err));
+    .catch((err: unknown) => console.error(`[audit] write failed: ${describeError(err)}`));
 }
 
 // Runs inside an existing transaction — if the audit write fails, the whole

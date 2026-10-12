@@ -7,11 +7,12 @@ import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { auditInTx } from "../../lib/audit.js";
-import { sendEmail, quotationEmail } from "../../lib/email.js";
+import { describeEmailError, sendEmail, quotationEmail } from "../../lib/email.js";
 import { generateQuotationNumber } from "./quotation-number.js";
 import { generateQuotationPdf } from "../../lib/pdf.js";
 import { env } from "../../config/env.js";
 import { cancelFollowUps } from "../../jobs/follow-up-scheduler.js";
+import { describeError } from "../../lib/safe-log.js";
 
 const QUOTATION_SELECT = {
   id: true,
@@ -349,7 +350,7 @@ export async function adminQuotationsRoutes(app: FastifyInstance): Promise<void>
     try {
       pdfBuffer = await generateQuotationPdf(buildPdfData(q, customerName));
     } catch (err) {
-      console.error("[PDF] Generation failed:", err);
+      console.error(`[PDF] Generation failed: ${describeError(err)}`);
       throw Errors.internal("PDF generation failed");
     }
 
@@ -370,9 +371,9 @@ export async function adminQuotationsRoutes(app: FastifyInstance): Promise<void>
       subject: `Quotation Ready — ${q.quotationNumber}`,
       html: quotationEmail(customerName, q.quotationNumber, q.total.toFixed(2), q.currency, q.validUntil.toLocaleDateString("en-IN"), portalUrl),
       attachments: [{ filename: `${q.quotationNumber}.pdf`, content: pdfBuffer, contentType: "application/pdf" }],
-    }).catch((err) => console.error("[EMAIL] Quotation send failed:", err));
+    }).catch((err) => console.error("[EMAIL] Quotation send failed:", describeEmailError(err)));
 
-    cancelFollowUps(q.rfqId).catch((err) => console.error("[FOLLOWUP] Cancel after send failed:", err));
+    cancelFollowUps(q.rfqId).catch((err) => console.error(`[FOLLOWUP] Cancel after send failed: ${describeError(err)}`));
 
     return reply.send(ok(updated));
   });

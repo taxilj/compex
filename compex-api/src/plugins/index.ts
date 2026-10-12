@@ -8,6 +8,7 @@ import multipart from "@fastify/multipart";
 import { ZodError } from "zod";
 import { env } from "../config/env.js";
 import { AppError } from "../lib/errors.js";
+import { safeErr } from "../lib/safe-log.js";
 
 export async function registerPlugins(app: FastifyInstance): Promise<void> {
   await app.register(sensible);
@@ -38,7 +39,7 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
   });
 
   // Centralized error handler
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
       return reply.status(error.statusCode).send({
         success: false,
@@ -72,7 +73,7 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
     }
     // Never expose raw DB or stack errors in production
     const isDev = env.NODE_ENV === "development";
-    app.log.error(error);
+    app.log.error({ ...safeErr(error), method: request.method, route: request.routeOptions?.url }, "unhandled request error");
     return reply.status(500).send({
       success: false,
       error: {

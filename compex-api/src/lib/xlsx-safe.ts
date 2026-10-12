@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { describeError } from "./safe-log.js";
 
 // `xlsx` is installed from https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
 // (see package.json), not the npm registry. Both npm-registry advisories for
@@ -54,7 +55,7 @@ export function readFirstSheetSafely(buffer: Buffer): Record<string, unknown>[] 
     // Log server-side only: a hostile file and a genuine parser bug must
     // not look identical to us just because the customer only ever sees
     // the safe generic message below.
-    console.error("[xlsx-safe] XLSX.read failed:", err);
+    console.error(`[xlsx-safe] XLSX.read failed: ${describeError(err)}`);
     throw new UnsafeWorkbookError(
       "Unable to read this spreadsheet file. It may be corrupted or in an unsupported format.",
     );
@@ -85,7 +86,7 @@ export function readFirstSheetSafely(buffer: Buffer): Record<string, unknown>[] 
   try {
     raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
   } catch (err) {
-    console.error("[xlsx-safe] sheet_to_json failed:", err);
+    console.error(`[xlsx-safe] sheet_to_json failed: ${describeError(err)}`);
     throw new UnsafeWorkbookError(
       "Unable to read this spreadsheet file. It may be corrupted or in an unsupported format.",
     );

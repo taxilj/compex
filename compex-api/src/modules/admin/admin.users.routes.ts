@@ -13,6 +13,7 @@ import { env } from "../../config/env.js";
 import { hashToken } from "../../lib/jwt.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
 import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
+import { safeErr } from "../../lib/safe-log.js";
 
 // Never selects passwordHash -- this shape is reused for list/get/create/
 // update responses and audit oldValue/newValue snapshots alike, so leaving
@@ -142,7 +143,7 @@ export async function adminUsersRoutes(app: FastifyInstance): Promise<void> {
       const actionUrl = `${env.CORS_ORIGIN}/setup-account?token=${encodeURIComponent(setupToken)}`;
       await sendEmail({ to: body.email, subject: "Set up your Compex Solution account", html: accountSetupEmail(setupToken, env.CORS_ORIGIN), testActionUrl: actionUrl });
     } catch (sendErr) {
-      req.log.error({ err: sendErr, userId: user.id }, "account invitation email failed; rolling back invited user");
+      req.log.error({ ...safeErr(sendErr), userId: user.id }, "account invitation email failed; rolling back invited user");
       try {
         await prisma.$transaction([
           prisma.accountSetupToken.deleteMany({ where: { userId: user.id } }),
@@ -152,7 +153,7 @@ export async function adminUsersRoutes(app: FastifyInstance): Promise<void> {
         ]);
       } catch (rollbackErr) {
         // Never let a failed rollback replace the real error; surface it to operators instead.
-        req.log.error({ err: rollbackErr, userId: user.id }, "rollback of invited user FAILED; orphaned PENDING_VERIFICATION user needs manual cleanup");
+        req.log.error({ ...safeErr(rollbackErr), userId: user.id }, "rollback of invited user FAILED; orphaned PENDING_VERIFICATION user needs manual cleanup");
       }
       throw Errors.serviceUnavailable("Account invitation could not be delivered. Check the email provider configuration and try again.");
     }

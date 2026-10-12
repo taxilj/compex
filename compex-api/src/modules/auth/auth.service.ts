@@ -6,7 +6,7 @@ import {
   generateRefreshTokenRaw,
   hashToken,
 } from "../../lib/jwt.js";
-import { sendEmail, verificationEmail } from "../../lib/email.js";
+import { emailFailureReason, sendEmail, verificationEmail } from "../../lib/email.js";
 import { Errors } from "../../lib/errors.js";
 import { audit, auditInTx } from "../../lib/audit.js";
 import { env } from "../../config/env.js";
@@ -93,7 +93,7 @@ export async function register(input: RegisterInput, ipAddress?: string) {
     // resendVerificationEmail() below.
     console.error("[auth.register] verification email send failed", {
       userId: user.user.id,
-      reason: err instanceof Error ? err.message : String(err),
+      reason: emailFailureReason(err),
     });
     audit({ userId: user.user.id, action: "auth.registration_verification_email_failed", ipAddress });
     return { message: "Registration successful, but we could not send the verification email right now. Use \"Resend verification email\" to try again." };
@@ -142,7 +142,7 @@ export async function resendVerificationEmail(email: string, ipAddress?: string)
   } catch (err) {
     console.error("[auth.resendVerificationEmail] verification email send failed", {
       userId: user.id,
-      reason: err instanceof Error ? err.message : String(err),
+      reason: emailFailureReason(err),
     });
     audit({ userId: user.id, action: "auth.resend_verification_email_failed", ipAddress });
     // Still return the generic success message -- both to avoid enumeration

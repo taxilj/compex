@@ -14,6 +14,7 @@ import { ok, paginated } from "../../lib/response.js";
 import { hashToken } from "../../lib/jwt.js";
 import { assertValidSettingValues } from "../../lib/settings-validation.js";
 import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
+import { safeErr } from "../../lib/safe-log.js";
 
 const ContactEntry = z.object({
   name: z.string().trim().min(1).max(200),
@@ -233,7 +234,7 @@ export async function adminCustomersRoutes(app: FastifyInstance): Promise<void> 
       const actionUrl = `${env.CORS_ORIGIN}/setup-account?token=${encodeURIComponent(setupToken)}`;
       await sendEmail({ to: body.email, subject: "Set up your Compex Solution customer account", html: accountSetupEmail(setupToken, env.CORS_ORIGIN), testActionUrl: actionUrl });
     } catch (sendErr) {
-      req.log.error({ err: sendErr, customerId: customer.id }, "customer invitation email failed; rolling back invited customer");
+      req.log.error({ ...safeErr(sendErr), customerId: customer.id }, "customer invitation email failed; rolling back invited customer");
       // This request created the exact customer below; it has no RFQs,
       // quotations, or documents. Clean only those known IDs on delivery failure.
       try {
@@ -246,7 +247,7 @@ export async function adminCustomersRoutes(app: FastifyInstance): Promise<void> 
         ]);
       } catch (rollbackErr) {
         // Never let a failed rollback replace the real error; surface it to operators instead.
-        req.log.error({ err: rollbackErr, customerId: customer.id }, "rollback of invited customer FAILED; orphaned pending customer needs manual cleanup");
+        req.log.error({ ...safeErr(rollbackErr), customerId: customer.id }, "rollback of invited customer FAILED; orphaned pending customer needs manual cleanup");
       }
       throw Errors.serviceUnavailable("Customer invitation could not be delivered. Check the email provider configuration and try again.");
     }

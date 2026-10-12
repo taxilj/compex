@@ -15,6 +15,7 @@ import { DIGIKEY_MANUFACTURER_IMPORT_SOURCE, importDigiKeyManufacturers } from "
 import { importDigiKeyStarterCatalog } from "./digikey-starter-catalog-import.js";
 import { runImport } from "./run-import.js";
 import { PRODUCT_INCLUDE } from "../catalog/product-search.js";
+import { safeErr } from "../../lib/safe-log.js";
 
 // Same allowlist/size-cap approach as bom-upload.ts.
 const ALLOWED_EXTS = new Set([".csv", ".xlsx"]);
@@ -63,7 +64,7 @@ export async function adminCatalogImportRoutes(app: FastifyInstance): Promise<vo
       // response shape as the /mouser, /element14, /digikey routes below
       // (though those don't log; this one does, since a rejected file and
       // a genuine backend failure here must not be equally invisible).
-      req.log.error({ err, runId: run.id }, "catalog CSV/XLSX import failed");
+      req.log.error({ ...safeErr(err), runId: run.id }, "catalog CSV/XLSX import failed");
       const failed = await prisma.catalogImportRun.findUnique({ where: { id: run.id } });
       return reply.status(422).send(ok(failed));
     }
@@ -136,7 +137,7 @@ export async function adminCatalogImportRoutes(app: FastifyInstance): Promise<vo
       });
       return reply.status(201).send(ok({ run: completed, result }));
     } catch (err) {
-      req.log.error({ err, runId: run.id }, "DigiKey manufacturer import failed");
+      req.log.error({ ...safeErr(err), runId: run.id }, "DigiKey manufacturer import failed");
       const failed = await prisma.catalogImportRun.update({
         where: { id: run.id },
         data: {
@@ -163,7 +164,7 @@ export async function adminCatalogImportRoutes(app: FastifyInstance): Promise<vo
       });
       return reply.status(201).send(ok(result));
     } catch (err) {
-      req.log.error({ err }, "DigiKey starter catalogue import failed");
+      req.log.error(safeErr(err), "DigiKey starter catalogue import failed");
       return reply.status(502).send({
         success: false,
         error: { code: "DIGIKEY_STARTER_IMPORT_FAILED", message: "DigiKey starter catalogue import failed. Check the approved DigiKey API configuration and retry." },

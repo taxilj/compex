@@ -7,6 +7,7 @@ import type { RawCatalogItem } from "../catalog-import/types.js";
 import { env } from "../../config/env.js";
 import { Errors } from "../../lib/errors.js";
 import { isPublicSafeSpecKey, sanitizeSpecKeyLabel } from "./public-dto.js";
+import { describeError } from "../../lib/safe-log.js";
 
 // Multi-supplier exact-MPN search orchestrator (COMPEX multi-supplier live
 // search feature). Mouser / DigiKey / element14 run in parallel as PRIMARY
@@ -112,8 +113,8 @@ async function runPrimary(provider: PrimaryProviderName, mpn: string): Promise<P
     // Server-side only -- the public API never exposes more than `status`.
     // Without this, a provider stuck on ERROR (wrong/expired key, API shape
     // change, etc.) is undiagnosable from logs alone.
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[mpn-search] ${provider} lookup for ${mpn} -> ${status}: ${message}`);
+    // Provider error text is never logged: it is supplier response content.
+    console.error(`[mpn-search] ${provider} lookup for ${mpn} -> ${status}: ${describeError(err)}`);
     return { provider, status };
   }
 }

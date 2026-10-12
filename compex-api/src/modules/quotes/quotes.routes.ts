@@ -7,6 +7,7 @@ import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { audit } from "../../lib/audit.js";
 import { cancelFollowUps } from "../../jobs/follow-up-scheduler.js";
+import { describeError } from "../../lib/safe-log.js";
 
 // SECURITY: Only customer-visible fields — never expose vendor cost, margin, internal data
 const CUSTOMER_QUOTE_SELECT = {
@@ -106,7 +107,7 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
       select: CUSTOMER_QUOTE_SELECT,
     });
 
-    cancelFollowUps(q.rfqId).catch((err) => console.error("[FOLLOWUP] Cancel after accept failed:", err));
+    cancelFollowUps(q.rfqId).catch((err) => console.error(`[FOLLOWUP] Cancel after accept failed: ${describeError(err)}`));
     audit({ userId: req.user!.id, action: "quotation.accepted", entityType: "quotation", entityId: id });
     return reply.send(ok(updated));
   });
@@ -133,7 +134,7 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
       select: CUSTOMER_QUOTE_SELECT,
     });
 
-    cancelFollowUps(q.rfqId).catch((err) => console.error("[FOLLOWUP] Cancel after reject failed:", err));
+    cancelFollowUps(q.rfqId).catch((err) => console.error(`[FOLLOWUP] Cancel after reject failed: ${describeError(err)}`));
     audit({ userId: req.user!.id, action: "quotation.rejected", entityType: "quotation", entityId: id });
     return reply.send(ok(updated));
   });

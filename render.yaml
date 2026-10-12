@@ -3,8 +3,10 @@ services:
     name: compex-api
     env: node
     rootDir: compex-api
-    plan: free
-    buildCommand: npm install && npm run build
+    # Matches the live paid service (0.5 CPU / 512 MB). Editing this value does
+    # not change billing unless the file is synced as a Render Blueprint.
+    plan: starter
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npx prisma migrate deploy && npm start
     healthCheckPath: /health
     envVars:
@@ -18,6 +20,20 @@ services:
         sync: false
       - key: RESEND_API_KEY
         sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: ENQUIRY_ACK_ENABLED
+        value: "false"
+      - key: TRUST_PROXY_HOPS
+        value: "0"
       - key: ENQUIRY_NOTIFICATION_TO
         value: sales@compexsolution.com
       - key: STORAGE_PROVIDER

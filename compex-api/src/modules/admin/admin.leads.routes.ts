@@ -9,6 +9,7 @@ import { audit } from "../../lib/audit.js";
 import { cancelFollowUps } from "../../jobs/follow-up-scheduler.js";
 import { normalizeMpn } from "../catalog-import/normalizer.js";
 import { nextRfqNumber } from "../rfqs/rfq-number.js";
+import { describeError } from "../../lib/safe-log.js";
 
 const LEAD_SELECT = {
   id: true,
@@ -294,7 +295,7 @@ export async function adminLeadsRoutes(app: FastifyInstance): Promise<void> {
     });
 
     if ((body.status === "WON" || body.status === "LOST") && existing.rfqId) {
-      cancelFollowUps(existing.rfqId).catch((err) => console.error("[FOLLOWUP] Cancel failed:", err));
+      cancelFollowUps(existing.rfqId).catch((err) => console.error(`[FOLLOWUP] Cancel failed: ${describeError(err)}`));
     }
 
     audit({ userId: req.user!.id, action: "lead.updated", entityType: "lead", entityId: id, newValue: body });
