@@ -461,6 +461,14 @@ export default function PublicHeader() {
           <div className="px-4 pb-6 flex flex-col gap-5">
             <HeaderSearch categories={categories} onNavigate={() => setMobileOpen(false)} />
 
+            <Link
+              href="/request-quote"
+              className="bg-[#1769E0] text-white px-4 py-3 rounded text-center font-label-md hover:bg-[#1257b8] transition-colors"
+              onClick={() => setMobileOpen(false)}
+            >
+              Request a Quote
+            </Link>
+
             <nav className="flex flex-col gap-1">
               {navLinks.map((link) => (
                 <Link
@@ -472,6 +480,9 @@ export default function PublicHeader() {
                   {link.label}
                 </Link>
               ))}
+              <Link href="/contact" className="font-label-md text-[#44474d] hover:text-[#1769E0] py-2" onClick={() => setMobileOpen(false)}>
+                Contact Us
+              </Link>
               <Link href="/login" className="font-label-md text-[#44474d] hover:text-[#0B1F3A] py-2" onClick={() => setMobileOpen(false)}>
                 Login
               </Link>
@@ -508,6 +519,19 @@ export default function PublicHeader() {
                     {link.label}
                   </Link>
                 ))}
+              </div>
+            </div>
+
+            {/* The utility bar above is hidden on phones, so the contact details live here. */}
+            <div className="pt-3 border-t border-[#E4E7EC]">
+              <p className="font-label-sm text-[#44474d] uppercase tracking-wider mb-2">Contact</p>
+              <div className="flex flex-col gap-1">
+                <a href={COMPANY_PHONE_TEL_HREF} className="flex items-center gap-2 font-body-sm text-[#111c2d] hover:text-[#1769E0] py-1.5">
+                  <Phone size={14} className="shrink-0" aria-hidden="true" /> {COMPANY_PHONE}
+                </a>
+                <a href={COMPANY_EMAIL_MAILTO_HREF} className="flex items-center gap-2 font-body-sm text-[#111c2d] hover:text-[#1769E0] py-1.5 break-all">
+                  <Mail size={14} className="shrink-0" aria-hidden="true" /> {COMPANY_EMAIL}
+                </a>
               </div>
             </div>
           </div>

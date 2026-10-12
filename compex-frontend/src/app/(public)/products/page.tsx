@@ -201,6 +201,8 @@ function ProductSearchContent() {
                             src={p.images[0]}
                             alt=""
                             className="w-full h-full object-contain p-1"
+                            width={40}
+                            height={40}
                             fallback={<span className="font-mono-label text-[10px] text-[#0B1F3A]">{p.mpn.slice(0, 2)}</span>}
                           />
                         </div>

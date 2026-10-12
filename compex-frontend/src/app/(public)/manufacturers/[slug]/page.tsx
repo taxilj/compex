@@ -98,8 +98,15 @@ export default function ManufacturerDetailPage({ params }: { params: Promise<{ s
           <div className="flex items-center gap-6">
             {manufacturer.logoUrl && (
               <div className="w-16 h-16 rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={manufacturer.logoUrl} alt={manufacturer.name} className="w-full h-full object-contain" />
+                <ImageWithFallback
+                  src={manufacturer.logoUrl}
+                  alt={manufacturer.name}
+                  className="w-full h-full object-contain"
+                  width={64}
+                  height={64}
+                  eager
+                  fallback={<span className="font-headline-sm text-[#0B1F3A]">{manufacturer.name.slice(0, 1)}</span>}
+                />
               </div>
             )}
             <div>
@@ -161,6 +168,8 @@ export default function ManufacturerDetailPage({ params }: { params: Promise<{ s
                     src={p.images[0]}
                     alt={p.name ?? p.mpn}
                     className="w-full h-full object-contain p-4"
+                    width={240}
+                    height={240}
                     fallback={<Package size={28} className="text-[#0B1F3A]/20" />}
                   />
                 </div>

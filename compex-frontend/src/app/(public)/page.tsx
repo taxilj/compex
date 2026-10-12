@@ -1,9 +1,18 @@
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import Link from "next/link";
 import { ArrowRight, FileSpreadsheet, FileText, ListChecks, Calculator } from "lucide-react";
 import { HeroSection } from "@/components/home/HeroSection";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { CategorySection } from "@/components/home/CategorySection";
 import { ManufacturerMarquee } from "@/components/home/ManufacturerMarquee";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Compex Solution — Global Electronic Component Sourcing",
+  description:
+    "B2B electronic component sourcing and procurement platform. Search an exact part number, submit a BOM and let Compex source from global manufacturers and distributors.",
+  path: "/",
+});
 
 const howItWorks = [
   { step: "01", title: "Submit your requirement", desc: "Search an exact MPN, or upload your Bill of Materials for multiple line items." },

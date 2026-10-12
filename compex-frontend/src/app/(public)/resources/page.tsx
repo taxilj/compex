@@ -1,12 +1,14 @@
 ﻿import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import { BookOpen, Cpu, FileText, Plane, Zap } from "lucide-react";
 import Link from "next/link";
 import CTABanner from "@/components/ui/CTABanner";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Electronic Component Sourcing Resources | Compex Solution",
   description: "Guides and information on BOM sourcing, component selection, procurement, and import logistics for electronic manufacturing in India.",
-};
+  path: "/resources",
+});
 
 const resources = [
   {

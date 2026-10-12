@@ -94,4 +94,22 @@ describe("ImageWithFallback", () => {
     rerender(<ImageWithFallback src={null} alt="TLC555CP" fallback={<span>no photo</span>} />);
     expect(screen.getByRole("img", { name: "TLC555CP" })).toBeInTheDocument();
   });
+
+  it("reserves space and loads lazily by default, eagerly with high priority when asked", () => {
+    const { rerender } = render(
+      <ImageWithFallback src="https://mm.digikey.com/a.jpg" alt="A" width={240} height={240} fallback={<span>no photo</span>} />
+    );
+    const lazy = screen.getByRole("img", { name: "A" });
+    expect(lazy).toHaveAttribute("width", "240");
+    expect(lazy).toHaveAttribute("height", "240");
+    expect(lazy).toHaveAttribute("loading", "lazy");
+    expect(lazy).not.toHaveAttribute("fetchpriority");
+
+    rerender(
+      <ImageWithFallback src="https://mm.digikey.com/a.jpg" alt="A" width={240} height={240} eager fallback={<span>no photo</span>} />
+    );
+    const eager = screen.getByRole("img", { name: "A" });
+    expect(eager).toHaveAttribute("loading", "eager");
+    expect(eager).toHaveAttribute("fetchpriority", "high");
+  });
 });

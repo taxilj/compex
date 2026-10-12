@@ -6,6 +6,7 @@ import { listManufacturers, createManufacturer, updateManufacturer, deactivateMa
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { Field } from "@/components/admin/Field";
+import { SuccessNotice } from "@/components/admin/SuccessNotice";
 
 const emptyForm: ManufacturerInput = { name: "", slug: "" };
 
@@ -30,6 +31,7 @@ export default function AdminManufacturersPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Manufacturer | null>(null);
   const [form, setForm] = useState<ManufacturerInput>(emptyForm);
@@ -63,6 +65,7 @@ export default function AdminManufacturersPage() {
       // Update sends only changed fields (null = cleared); create omits blanks.
       if (editing) await updateManufacturer(editing.id, updatePayload(form, formFor(editing)));
       else await createManufacturer(createPayload(form));
+      setNotice(editing ? "Manufacturer updated." : "Manufacturer created.");
       setShowModal(false);
       load();
     } catch (err) {
@@ -91,6 +94,7 @@ export default function AdminManufacturersPage() {
         </button>
       </div>
       <div className="relative max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" size={16} /><input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} aria-label="Search manufacturers" placeholder="Search name or slug…" className="w-full rounded border border-[#E4E7EC] bg-white py-2.5 pl-9 pr-4 focus:outline-none focus:ring-2 focus:ring-[#1769E0]" /></div>
+      {notice && <SuccessNotice message={notice} onDismiss={() => setNotice(null)} />}
       {error && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
       <div className="overflow-hidden rounded-xl border border-[#E4E7EC] bg-white shadow-sm">
         {loading ? <div className="flex items-center justify-center py-16 text-[#44474d]"><Loader2 className="mr-2 animate-spin" size={20} /> Loading manufacturers…</div> :

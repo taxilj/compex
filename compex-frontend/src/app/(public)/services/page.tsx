@@ -1,12 +1,14 @@
 ﻿import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import { Package, Globe, Search, AlertTriangle, TrendingDown, Plane, Truck, FileText } from "lucide-react";
 import Link from "next/link";
 import CTABanner from "@/components/ui/CTABanner";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Electronic Component Sourcing Services | Compex Solution",
   description: "B2B sourcing services: BOM procurement, global supplier sourcing, obsolete components, import management, and India-wide delivery.",
-};
+  path: "/services",
+});
 
 const services = [
   { icon: Package, title: "Electronic Component Sourcing", desc: "We source standard and specialist electronic components from global manufacturers and authorized distributors." },

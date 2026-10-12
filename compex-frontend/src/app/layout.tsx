@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -8,16 +9,23 @@ const inter = Inter({
   display: "swap",
 });
 
+const DEFAULT_TITLE = "Compex Solution — Global Electronic Component Sourcing";
+const DEFAULT_DESCRIPTION =
+  "B2B electronic component sourcing and procurement platform. Streamline your supply chain with direct access to global manufacturers.";
+
 export const metadata: Metadata = {
-  title: "Compex Solution — Global Electronic Component Sourcing",
-  description:
-    "B2B electronic component sourcing and procurement platform. Streamline your supply chain with direct access to global manufacturers.",
+  metadataBase: new URL(SITE_URL),
+  title: DEFAULT_TITLE,
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
   openGraph: {
-    title: "Compex Solution — Global Electronic Component Sourcing",
-    description:
-      "B2B electronic component sourcing and procurement platform. Streamline your supply chain with direct access to global manufacturers.",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    siteName: SITE_NAME,
+    type: "website",
     images: ["/compex-logo.jpeg"],
   },
+  twitter: { card: "summary", title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, images: ["/compex-logo.jpeg"] },
 };
 
 export default function RootLayout({

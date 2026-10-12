@@ -1,11 +1,13 @@
 ﻿import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import { Factory, Car, Cpu, Shield } from "lucide-react";
 import CTABanner from "@/components/ui/CTABanner";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Case Studies | Compex Solution",
-  description: "Example sourcing and procurement projects handled by Compex Solution for industrial and electronics manufacturers across India.",
-};
+  description: "Illustrative examples of the sourcing and procurement challenges Compex Solution addresses for industrial and electronics manufacturers across India.",
+  path: "/case-studies",
+});
 
 const caseStudies = [
   {

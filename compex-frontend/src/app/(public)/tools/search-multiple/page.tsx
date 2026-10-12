@@ -19,35 +19,43 @@ export default function SearchMultiplePage() {
   const [rows, setRows] = useState<RowResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
-  const mpns = Array.from(
+  const uniqueMpns = Array.from(
     new Set(
       input
         .split("\n")
         .map((line) => line.trim().toUpperCase())
         .filter(Boolean)
     )
-  ).slice(0, MAX_MPNS);
+  );
+  const mpns = uniqueMpns.slice(0, MAX_MPNS);
+  const ignoredCount = uniqueMpns.length - mpns.length;
+
+  async function lookupRow(mpn: string) {
+    try {
+      const result = await lookupPublicProduct(mpn);
+      setRows((prev) =>
+        prev.map((row) =>
+          row.mpn === mpn
+            ? { mpn, status: result.product ? "found" : "not_found", product: result.product ?? undefined }
+            : row
+        )
+      );
+    } catch {
+      setRows((prev) => (prev.map((row) => (row.mpn === mpn ? { mpn, status: "error" } : row))));
+    }
+  }
 
   async function runSearch() {
     if (mpns.length === 0) return;
     setIsRunning(true);
     setRows(mpns.map((mpn) => ({ mpn, status: "pending" })));
-
-    for (const mpn of mpns) {
-      try {
-        const result = await lookupPublicProduct(mpn);
-        setRows((prev) =>
-          prev.map((row) =>
-            row.mpn === mpn
-              ? { mpn, status: result.product ? "found" : "not_found", product: result.product ?? undefined }
-              : row
-          )
-        );
-      } catch {
-        setRows((prev) => (prev.map((row) => (row.mpn === mpn ? { mpn, status: "error" } : row))));
-      }
-    }
+    for (const mpn of mpns) await lookupRow(mpn);
     setIsRunning(false);
+  }
+
+  async function retryRow(mpn: string) {
+    setRows((prev) => prev.map((row) => (row.mpn === mpn ? { mpn, status: "pending" } : row)));
+    await lookupRow(mpn);
   }
 
   return (
@@ -82,6 +90,12 @@ export default function SearchMultiplePage() {
             <div className="flex items-center justify-between mt-2 mb-4">
               <span className="font-body-sm text-[#75777e]">{mpns.length} / {MAX_MPNS} parts</span>
             </div>
+            {ignoredCount > 0 && (
+              <p className="font-body-sm text-[#B54708] -mt-2 mb-4" role="status">
+                Only the first {MAX_MPNS} parts are searched; {ignoredCount} more {ignoredCount === 1 ? "was" : "were"} ignored.
+                Run another search for the rest.
+              </p>
+            )}
             <button
               type="button"
               onClick={runSearch}
@@ -121,10 +135,20 @@ export default function SearchMultiplePage() {
                           </td>
                         )}
                         {row.status === "not_found" && (
-                          <td colSpan={5} className="px-4 py-3 font-body-sm text-[#75777e]">No match found</td>
+                          <td colSpan={5} className="px-4 py-3 font-body-sm text-[#75777e]">
+                            No match found.{" "}
+                            <Link href={`/request-quote?mpn=${encodeURIComponent(row.mpn)}`} className="font-label-md text-[#1769E0] hover:underline whitespace-nowrap">
+                              Request a quote for this part
+                            </Link>
+                          </td>
                         )}
                         {row.status === "error" && (
-                          <td colSpan={5} className="px-4 py-3 font-body-sm text-[#F04438]">Lookup failed — try again</td>
+                          <td colSpan={5} className="px-4 py-3 font-body-sm text-[#B42318]" role="alert">
+                            Lookup failed.{" "}
+                            <button type="button" onClick={() => void retryRow(row.mpn)} disabled={isRunning} className="font-label-md text-[#1769E0] hover:underline disabled:opacity-50">
+                              Retry
+                            </button>
+                          </td>
                         )}
                         {row.status === "found" && row.product && (
                           <>

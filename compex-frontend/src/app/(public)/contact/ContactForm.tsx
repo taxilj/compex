@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { Mail, Phone, MapPin, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { submitPublicLead } from "@/lib/api/leads";
+import { COMPANY_EMAIL, COMPANY_EMAIL_MAILTO_HREF, COMPANY_PHONE, COMPANY_PHONE_TEL_HREF } from "@/lib/constants/contact";
 
 const INPUT_CLS = "w-full border border-[#E4E7EC] rounded-lg px-4 py-3 font-body-md text-[#111c2d] placeholder:text-[#75777e] focus:outline-none focus:border-[#1769E0] focus:ring-1 focus:ring-[#1769E0] transition-colors";
 
@@ -181,14 +182,18 @@ export default function ContactForm() {
                   <Mail size={20} className="text-[#1769E0] mt-0.5 shrink-0" />
                   <div>
                     <p className="font-label-sm text-[#44474d] uppercase mb-0.5">Email</p>
-                    <p className="font-body-md text-[#111c2d]">info@compexsolution.com</p>
+                    <a href={COMPANY_EMAIL_MAILTO_HREF} className="font-body-md text-[#111c2d] hover:text-[#1769E0] break-all">
+                      {COMPANY_EMAIL}
+                    </a>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <Phone size={20} className="text-[#1769E0] mt-0.5 shrink-0" />
                   <div>
                     <p className="font-label-sm text-[#44474d] uppercase mb-0.5">Phone</p>
-                    <p className="font-body-md text-[#111c2d]">Available on request</p>
+                    <a href={COMPANY_PHONE_TEL_HREF} className="font-body-md text-[#111c2d] hover:text-[#1769E0]">
+                      {COMPANY_PHONE}
+                    </a>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">

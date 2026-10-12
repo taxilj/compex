@@ -6,6 +6,7 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
+import { SuccessNotice } from "@/components/admin/SuccessNotice";
 
 const emptyForm: VendorInput = { name: "", contactEmail: "" };
 
@@ -26,6 +27,7 @@ export default function AdminVendorsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
@@ -59,6 +61,7 @@ export default function AdminVendorsPage() {
       // Update sends only changed fields (null = cleared); create omits blanks.
       if (editing) await updateVendor(editing.id, updatePayload(form, formFor(editing)));
       else await createVendor(createPayload(form));
+      setNotice(editing ? "Vendor updated." : "Vendor created.");
       setShowModal(false);
       load();
     } catch (err) {
@@ -98,6 +101,7 @@ export default function AdminVendorsPage() {
       </div>
 
       {loading && <div className="flex items-center justify-center py-16 text-[#44474d]"><Loader2 size={22} className="animate-spin mr-2" /> Loading vendors…</div>}
+      {notice && <SuccessNotice message={notice} onDismiss={() => setNotice(null)} />}
       {error && <p role="alert" className="text-[#F04438] font-body-sm">{error}</p>}
 
       {!loading && !error && (

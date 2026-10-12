@@ -3,11 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, FolderTree, X } from "lucide-react";
 import { listAdminCategories, createCategory, updateCategory, type AdminCategory } from "@/lib/api/admin";
+import { SuccessNotice } from "@/components/admin/SuccessNotice";
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<AdminCategory | null>(null);
@@ -47,6 +49,7 @@ export default function AdminCategoriesPage() {
       const payload = { name: form.name, description: form.description || undefined, parentId: form.parentId || undefined };
       if (editing) await updateCategory(editing.id, payload);
       else await createCategory(payload);
+      setNotice(editing ? "Category updated." : "Category created.");
       setShowModal(false);
       load();
     } catch (err) {
@@ -71,6 +74,7 @@ export default function AdminCategoriesPage() {
         </button>
       </div>
 
+      {notice && <SuccessNotice message={notice} onDismiss={() => setNotice(null)} />}
       {error && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
 
       <div className="bg-white rounded-xl shadow-sm border border-[#E4E7EC] overflow-hidden">

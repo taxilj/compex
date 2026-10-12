@@ -17,6 +17,7 @@ import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { createPayload, updatePayload } from "@/lib/api/form-payload";
+import { SuccessNotice } from "@/components/admin/SuccessNotice";
 
 const PAGE_SIZE = 50;
 
@@ -58,6 +59,7 @@ export default function AdminProductsPage() {
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
@@ -119,6 +121,7 @@ export default function AdminProductsPage() {
       // Update sends only changed fields (null = cleared); create omits blanks.
       if (editing) await updateProduct(editing.id, updatePayload(form, productForm(editing)));
       else await createProduct(createPayload(form));
+      setNotice(editing ? "Product updated." : "Product created.");
       setShowModal(false);
       load();
     } catch (err) {
@@ -132,6 +135,7 @@ export default function AdminProductsPage() {
     setError(null);
     try {
       await updateProduct(p.id, { isActive: !p.isActive });
+      setNotice(`${p.mpn} is now ${p.isActive ? "hidden from" : "visible in"} the public catalogue.`);
       load();
     } catch (err) {
       setError(apiErrorMessage(err, `Failed to ${p.isActive ? "hide" : "unhide"} ${p.mpn}.`));
@@ -150,6 +154,7 @@ export default function AdminProductsPage() {
         </button>
       </div>
 
+      {notice && <SuccessNotice message={notice} onDismiss={() => setNotice(null)} />}
       {error && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
       {lookupWarning && <p role="status" className="rounded border border-[#F79009]/30 bg-[#FFFAEB] px-4 py-3 text-[#9A6700] text-sm">{lookupWarning}</p>}
 

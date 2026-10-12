@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import Image from "next/image";
 import Link from "next/link";
 import CTABanner from "@/components/ui/CTABanner";
 import { industries } from "./industries-data";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Electronic Component Sourcing by Industry | Compex Solution",
   description: "Compex Solution sources electronic components for industrial automation, automotive, medical, telecom, defense, and more industries across India.",
-};
+  path: "/industries",
+});
 
 export default function IndustriesPage() {
   return (

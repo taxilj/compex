@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import Link from "next/link";
 import { Upload, ListPlus, LogIn } from "lucide-react";
 import CTABanner from "@/components/ui/CTABanner";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "BOM Management | Compex Solution",
-  description: "Submit a Bill of Materials for sourcing, or manage parsed BOM uploads inside your Compex customer portal.",
-};
+  description: "Submit a Bill of Materials to Compex Solution for sourcing, or manage parsed BOM uploads inside your Compex customer portal.",
+  path: "/tools/bom",
+});
 
 const paths = [
   {

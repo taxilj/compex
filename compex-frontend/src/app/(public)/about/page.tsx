@@ -1,11 +1,13 @@
 ﻿import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import { Globe, Package, ShieldCheck, Truck, Users, Target } from "lucide-react";
 import CTABanner from "@/components/ui/CTABanner";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "About Compex Solution | Electronic Component Sourcing India",
   description: "Compex Solution is an electronic component sourcing and procurement company helping Indian manufacturers procure components from global suppliers.",
-};
+  path: "/about",
+});
 
 const capabilities = [
   { icon: Globe, title: "Global Sourcing", desc: "We source from manufacturers and distributors across North America, Europe, and Asia." },

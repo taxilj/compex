@@ -7,6 +7,7 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { Field } from "@/components/admin/Field";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
+import { SuccessNotice } from "@/components/admin/SuccessNotice";
 
 const emptyForm: CreateUserInput = { email: "", firstName: "", lastName: "", role: "STAFF" };
 
@@ -32,6 +33,7 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [form, setForm] = useState<CreateUserInput & { status?: "ACTIVE" | "SUSPENDED" }>(emptyForm);
@@ -65,6 +67,7 @@ export default function AdminUsersPage() {
       // Update sends only changed fields (null = cleared); create omits blanks.
       if (editing) await updateUser(editing.id, updatePayload(form, formFor(editing)) as UpdateUserInput);
       else await createUser(createPayload(form));
+      setNotice(editing ? "User updated." : "User created.");
       setShowModal(false);
       load();
     } catch (err) {
@@ -91,6 +94,7 @@ export default function AdminUsersPage() {
         <input value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search users" placeholder="Search name or email…" className="w-full rounded border border-[#E4E7EC] bg-white py-2.5 pl-9 pr-4 focus:outline-none focus:ring-2 focus:ring-[#1769E0]" />
       </div>
 
+      {notice && <SuccessNotice message={notice} onDismiss={() => setNotice(null)} />}
       {error && <p role="alert" className="rounded border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 text-[#B42318]">{error}</p>}
 
       <div className="overflow-hidden rounded-xl border border-[#E4E7EC] bg-white shadow-sm">

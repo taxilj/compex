@@ -1,8 +1,9 @@
 /* eslint-disable @next/next/no-img-element -- Next Image is intentionally mocked in this unit test. */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PublicHeader from "./PublicHeader";
 import { listCategories } from "@/lib/api/products";
+import { COMPANY_EMAIL, COMPANY_EMAIL_MAILTO_HREF, COMPANY_PHONE, COMPANY_PHONE_TEL_HREF } from "@/lib/constants/contact";
 
 vi.mock("next/image", () => ({
   default: ({ priority, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { priority?: boolean }) => {
@@ -59,5 +60,23 @@ describe("PublicHeader categories", () => {
     await screen.findByText("Real category");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("PublicHeader mobile drawer", () => {
+  it("offers a quote CTA and clickable phone and email, and closes with Escape", async () => {
+    vi.mocked(listCategories).mockResolvedValue([]);
+    render(<PublicHeader />);
+    const opener = screen.getByRole("button", { name: "Open menu" });
+    fireEvent.click(opener);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("link", { name: /Request a Quote/i })).toHaveAttribute("href", "/request-quote");
+    expect(within(dialog).getByRole("link", { name: /Contact Us/i })).toHaveAttribute("href", "/contact");
+    expect(within(dialog).getByRole("link", { name: COMPANY_PHONE })).toHaveAttribute("href", COMPANY_PHONE_TEL_HREF);
+    expect(within(dialog).getByRole("link", { name: COMPANY_EMAIL })).toHaveAttribute("href", COMPANY_EMAIL_MAILTO_HREF);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

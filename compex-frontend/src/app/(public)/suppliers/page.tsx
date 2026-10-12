@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import Link from "next/link";
 import { Globe2, ShieldCheck, Network, Radio, Cpu, Layers } from "lucide-react";
 import CTABanner from "@/components/ui/CTABanner";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Global Sourcing Network | Compex Solution",
   description: "Compex Solution sources electronic components through a verified network of authorized global distribution channels.",
-};
+  path: "/suppliers",
+});
 
 const channels = [
   {

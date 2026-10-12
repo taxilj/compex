@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import Link from "next/link";
 import CTABanner from "@/components/ui/CTABanner";
 import ManufacturersGrid from "./ManufacturersGrid";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Electronic Component Manufacturers | Compex Solution",
-  description: "Browse manufacturers represented in the Compex Solution component catalogue.",
-};
+  description: "Browse the manufacturers represented in the Compex Solution component catalogue, then search their parts by exact manufacturer part number.",
+  path: "/manufacturers",
+});
 
 export default function ManufacturersPage() {
   return (

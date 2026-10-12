@@ -20,6 +20,8 @@ export function ProductCard({ product }: ProductCardProps) {
             src={image}
             alt={product.name ?? product.mpn}
             className="w-full h-full object-contain p-4"
+            width={240}
+            height={240}
             fallback={<Package size={32} className="text-[#0B1F3A]/20" />}
           />
         </div>

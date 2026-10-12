@@ -175,6 +175,9 @@ function ProductDetailContent({ mpn, manufacturerId }: { mpn: string; manufactur
                 src={imageUrl}
                 alt={product.name ?? product.mpn}
                 className="w-full h-full object-contain"
+                width={224}
+                height={224}
+                eager
                 fallback={<Package size={64} className="text-[#0B1F3A]/20" />}
               />
             </div>

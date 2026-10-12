@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/site";
 import Link from "next/link";
 import { FileText, LogIn, ArrowRight } from "lucide-react";
 import CTABanner from "@/components/ui/CTABanner";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Request for Quote | Compex Solution",
-  description: "Submit a formal Request for Quote for specific electronic component line items.",
-};
+  description: "Submit a formal Request for Quote for specific electronic component line items and receive a detailed quotation from the Compex sourcing team.",
+  path: "/tools/rfq",
+});
 
 const steps = [
   { step: "01", title: "Add line items", desc: "Enter MPN, manufacturer, description, and quantity for each component you need." },
