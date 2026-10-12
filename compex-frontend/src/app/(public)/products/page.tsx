@@ -23,6 +23,7 @@ function ProductSearchContent() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0); // bumped by the Retry button to refetch
 
   // null = still loading (backend may be cold-starting and take several
   // seconds); an empty array means the fetch resolved with genuinely no
@@ -60,7 +61,7 @@ function ProductSearchContent() {
       cancelled = true;
       controller.abort(); // cancel the superseded request, not just ignore it
     };
-  }, [query, manufacturerId, categoryId, page]);
+  }, [query, manufacturerId, categoryId, page, reloadKey]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasActiveFilters = Boolean(manufacturerId || categoryId);
@@ -140,6 +141,13 @@ function ProductSearchContent() {
           {error && (
             <div className="border border-[#F04438]/30 bg-[#F04438]/5 rounded-xl px-6 py-4 mb-4" role="alert">
               <p className="font-body-sm text-[#B42318]">{error}</p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((key) => key + 1)}
+                className="mt-2 font-label-md text-sm text-[#1769E0] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1769E0]"
+              >
+                Retry
+              </button>
             </div>
           )}
 

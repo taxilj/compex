@@ -82,6 +82,25 @@ describe("bounded retry for public reads", () => {
   });
 });
 
+describe("non-2xx responses are never read as empty results", () => {
+  const gatewayError = () => new Response("{}", { status: 502, headers: { "content-type": "application/json" } });
+
+  it("a 5xx with a non-envelope body rejects listProducts instead of returning an empty list", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => gatewayError()));
+    await expect(listProducts({ limit: 8 })).rejects.toMatchObject({ statusCode: 502 });
+  });
+
+  it("a 5xx with a non-envelope body rejects apiFetchPublic instead of resolving undefined", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => gatewayError()));
+    await expect(apiFetchPublic("/leads/bom-capability")).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("a normal empty 200 result is still an empty list", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ok([], { total: 0, page: 1, limit: 8 })));
+    await expect(listProducts({ limit: 8 })).resolves.toMatchObject({ data: [], total: 0 });
+  });
+});
+
 describe("category cache", () => {
   it("dedupes concurrent calls into one request, then serves from cache (miss then hit)", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok([{ id: "c1", name: "A", children: [], _count: { products: 1 } }]));

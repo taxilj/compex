@@ -57,7 +57,9 @@ async function parseJson<T>(res: Response): Promise<T> {
   } catch {
     throw new ApiError(res.status, "PARSE_ERROR", "Invalid server response");
   }
-  if (json.success === false) {
+  // A non-2xx is a failure even when its body is not our { success: false } envelope
+  // (e.g. a gateway error): never let it read as an empty successful result.
+  if (json.success === false || !res.ok) {
     const err = json.error as { code?: string; message?: string; details?: unknown[] } | undefined;
     throw new ApiError(res.status, err?.code ?? "ERROR", err?.message ?? "Request failed", err?.details);
   }
@@ -123,7 +125,7 @@ export async function apiFetchPaginated<T>(path: string, init?: RequestInit): Pr
   } catch {
     throw new ApiError(res.status, "PARSE_ERROR", "Invalid server response");
   }
-  if (json.success === false) {
+  if (json.success === false || !res.ok) {
     const err = json.error;
     throw new ApiError(res.status, err?.code ?? "ERROR", err?.message ?? "Request failed", err?.details);
   }
