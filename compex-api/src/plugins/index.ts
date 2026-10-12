@@ -57,15 +57,16 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
         },
       });
     }
+    const fastifyError = error as { validation?: unknown; statusCode?: number; message?: string };
     // Fastify validation errors (e.g. from schema)
-    if (error.validation) {
+    if (fastifyError.validation) {
       return reply.status(400).send({
         success: false,
-        error: { code: "VALIDATION_ERROR", message: error.message },
+        error: { code: "VALIDATION_ERROR", message: fastifyError.message ?? "Invalid request" },
       });
     }
     // Rate limit error from @fastify/rate-limit
-    if (error.statusCode === 429) {
+    if (fastifyError.statusCode === 429) {
       return reply.status(429).send({
         success: false,
         error: { code: "RATE_LIMITED", message: "Too many requests" },
@@ -78,7 +79,7 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
       success: false,
       error: {
         code: "SERVER_ERROR",
-        message: isDev ? error.message : "Internal server error",
+        message: isDev ? (fastifyError.message ?? "Internal server error") : "Internal server error",
       },
     });
   });

@@ -1,4 +1,5 @@
 ﻿import Fastify from "fastify";
+import type { FastifyInstance, RawServerDefault } from "fastify";
 import { registerPlugins } from "./plugins/index.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { customersRoutes } from "./modules/customers/customers.routes.js";
@@ -38,7 +39,7 @@ export async function buildApp() {
       },
     },
     trustProxy: trustProxySetting(env.TRUST_PROXY_HOPS),
-  });
+  }) as FastifyInstance<RawServerDefault>;
 
   await registerPlugins(app);
 

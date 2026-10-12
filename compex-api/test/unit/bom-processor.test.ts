@@ -46,6 +46,7 @@ describe("bom-processor worker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process = (startBomWorker() as unknown as { processor: typeof process }).processor;
+    mocks.documentUpdate.mockResolvedValue({ updatedAt: new Date("2026-01-01") });
     mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.readFile.mockResolvedValue(Buffer.from(CSV));
     mocks.nextRfqLine.mockResolvedValue(1);
@@ -54,7 +55,7 @@ describe("bom-processor worker", () => {
   });
 
   it("appends parsed rows to LeadItem when the job carries a leadId", async () => {
-    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-1", storageKey: "bom/leads/lead-1/x.csv" });
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-1", storageKey: "bom/leads/lead-1/x.csv", updatedAt: new Date("2026-01-01") });
 
     await process({ data: { documentId: "doc-1", leadId: "lead-1" } });
 
@@ -62,11 +63,11 @@ describe("bom-processor worker", () => {
       data: [expect.objectContaining({ leadId: "lead-1", lineNumber: 1, mpn: "STM32F103C8T6", quantity: 100 })],
     });
     expect(mocks.rfqItemCreateMany).not.toHaveBeenCalled();
-    expect(mocks.updateMany).toHaveBeenCalledWith({ where: { id: "doc-1", processingStatus: "PROCESSING" }, data: { processingStatus: "COMPLETED" } });
+    expect(mocks.updateMany).toHaveBeenCalledWith({ where: { id: "doc-1", processingStatus: "PROCESSING", updatedAt: new Date("2026-01-01") }, data: { processingStatus: "COMPLETED" } });
   });
 
   it("still appends to RfqItem (with pricing) when the job carries an rfqId, unaffected by the lead branch", async () => {
-    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-2", storageKey: "bom/cust-1/rfq-1/x.csv" });
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-2", storageKey: "bom/cust-1/rfq-1/x.csv", updatedAt: new Date("2026-01-01") });
 
     await process({ data: { documentId: "doc-2", rfqId: "rfq-1" } });
 
@@ -77,33 +78,33 @@ describe("bom-processor worker", () => {
   });
 
   it("marks the document FAILED and never claims success when neither rfqId nor leadId is present, without leaking the internal error to the public status field", async () => {
-    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-3", storageKey: "bom/orphan/x.csv" });
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-3", storageKey: "bom/orphan/x.csv", updatedAt: new Date("2026-01-01") });
 
     await expect(process({ data: { documentId: "doc-3" } })).rejects.toThrow("missing both rfqId and leadId");
 
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
     expect(mocks.rfqItemCreateMany).not.toHaveBeenCalled();
     expect(mocks.updateMany).toHaveBeenCalledWith({
-      where: { id: "doc-3", processingStatus: "PROCESSING" },
+      where: { id: "doc-3", processingStatus: "PROCESSING", updatedAt: new Date("2026-01-01") },
       data: { processingStatus: "FAILED", processingError: "The BOM file could not be processed. Please check the file and try again." },
     });
   });
 
   it("marks FAILED with an honest error when the file has no valid rows, without creating any items", async () => {
-    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-4", storageKey: "bom/leads/lead-1/empty.csv" });
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-4", storageKey: "bom/leads/lead-1/empty.csv", updatedAt: new Date("2026-01-01") });
     mocks.readFile.mockResolvedValue(Buffer.from("mpn,quantity\n,\n"));
 
     await expect(process({ data: { documentId: "doc-4", leadId: "lead-1" } })).rejects.toThrow("No valid rows");
 
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
     expect(mocks.updateMany).toHaveBeenCalledWith({
-      where: { id: "doc-4", processingStatus: "PROCESSING" },
+      where: { id: "doc-4", processingStatus: "PROCESSING", updatedAt: new Date("2026-01-01") },
       data: { processingStatus: "FAILED", processingError: expect.stringContaining("No valid rows") },
     });
   });
 
   it("rejects an oversized CSV honestly instead of silently truncating it", async () => {
-    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-6", storageKey: "bom/leads/lead-1/huge.csv" });
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-6", storageKey: "bom/leads/lead-1/huge.csv", updatedAt: new Date("2026-01-01") });
     const header = "mpn,quantity\n";
     const rows = Array.from({ length: 20_001 }, (_, i) => `MPN${i},1`).join("\n");
     mocks.readFile.mockResolvedValue(Buffer.from(header + rows));
@@ -112,25 +113,25 @@ describe("bom-processor worker", () => {
 
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
     expect(mocks.updateMany).toHaveBeenCalledWith({
-      where: { id: "doc-6", processingStatus: "PROCESSING" },
+      where: { id: "doc-6", processingStatus: "PROCESSING", updatedAt: new Date("2026-01-01") },
       data: { processingStatus: "FAILED", processingError: expect.stringContaining("exceeds the maximum") },
     });
   });
 
   it("never leaks a raw internal error (e.g. a storage/filesystem failure) to the public processingError field", async () => {
-    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-7", storageKey: "bom/leads/lead-1/x.csv" });
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-7", storageKey: "bom/leads/lead-1/x.csv", updatedAt: new Date("2026-01-01") });
     mocks.readFile.mockRejectedValue(new Error("ENOENT: no such file or directory, open 'C:\\secret\\internal\\path\\x.csv'"));
 
     await expect(process({ data: { documentId: "doc-7", leadId: "lead-1" } })).rejects.toThrow("ENOENT");
 
     expect(mocks.updateMany).toHaveBeenCalledWith({
-      where: { id: "doc-7", processingStatus: "PROCESSING" },
+      where: { id: "doc-7", processingStatus: "PROCESSING", updatedAt: new Date("2026-01-01") },
       data: { processingStatus: "FAILED", processingError: "The BOM file could not be processed. Please check the file and try again." },
     });
   });
 
   it("skips a duplicate delivery: a document no longer UPLOADED is never reprocessed", async () => {
-    mocks.updateMany.mockResolvedValue({ count: 0 });
+    mocks.documentUpdate.mockRejectedValue({ code: "P2025" });
 
     await process({ data: { documentId: "doc-5", leadId: "lead-1" } });
 
@@ -139,9 +140,9 @@ describe("bom-processor worker", () => {
   });
 
   it("rolls back and never overwrites the document when it was re-claimed before completion (slow worker vs stale-PROCESSING reset)", async () => {
-    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-8", storageKey: "bom/leads/lead-1/x.csv" });
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "doc-8", storageKey: "bom/leads/lead-1/x.csv", updatedAt: new Date("2026-01-01") });
     mocks.updateMany.mockReset();
-    mocks.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 }); // claim ok, completion lost
+    mocks.updateMany.mockResolvedValueOnce({ count: 0 }); // completion lost
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await expect(process({ data: { documentId: "doc-8", leadId: "lead-1" } })).rejects.toThrow();

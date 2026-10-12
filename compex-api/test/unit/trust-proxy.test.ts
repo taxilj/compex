@@ -29,8 +29,13 @@ describe("trust proxy configuration", () => {
 
   it("maps 0 hops to 'trust nothing' and n hops to exactly n", () => {
     expect(trustProxySetting(0)).toBe(false);
-    expect(trustProxySetting(1)).toBe(1);
-    expect(trustProxySetting(2)).toBe(2);
+    const one = trustProxySetting(1);
+    const two = trustProxySetting(2);
+    expect(typeof one).toBe("function");
+    expect(one!(RENDER_PROXY, 0)).toBe(true);
+    expect(one!(RENDER_PROXY, 1)).toBe(false);
+    expect(two!(RENDER_PROXY, 1)).toBe(true);
+    expect(two!(RENDER_PROXY, 2)).toBe(false);
   });
 
   it("with 0 hops, a client-supplied X-Forwarded-For is ignored entirely", async () => {

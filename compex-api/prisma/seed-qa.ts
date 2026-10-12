@@ -26,6 +26,8 @@ async function main() {
 
   const adminEmail = required("QA_ADMIN_EMAIL");
   const adminPassword = required("QA_ADMIN_PASSWORD");
+  const staffEmail = required("QA_STAFF_EMAIL");
+  const staffPassword = required("QA_STAFF_PASSWORD");
   const customerEmail = required("QA_CUSTOMER_EMAIL");
   const customerPassword = required("QA_CUSTOMER_PASSWORD");
 
@@ -55,6 +57,11 @@ async function main() {
     where: { email: adminEmail },
     update: { role: UserRole.ADMIN, status: UserStatus.ACTIVE },
     create: { email: adminEmail, passwordHash: await bcrypt.hash(adminPassword, 12), role: UserRole.ADMIN, status: UserStatus.ACTIVE, firstName: "Compex", lastName: "QA Admin" },
+  });
+  await prisma.user.upsert({
+    where: { email: staffEmail },
+    update: { role: UserRole.STAFF, status: UserStatus.ACTIVE },
+    create: { email: staffEmail, passwordHash: await bcrypt.hash(staffPassword, 12), role: UserRole.STAFF, status: UserStatus.ACTIVE, firstName: "Compex", lastName: "QA Staff" },
   });
 
   const customerUser = await prisma.user.upsert({

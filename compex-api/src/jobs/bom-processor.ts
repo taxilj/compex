@@ -95,12 +95,20 @@ export function startBomWorker() {
 
       // Claim only an unprocessed upload. A duplicate BullMQ delivery must not
       // parse and append the same BOM twice.
-      const claimed = await prisma.document.updateMany({
+      // The conditional update is the atomic claim. Its returned timestamp is
+      // the ownership version; recovery changes it before a second worker can
+      // claim the document, so an old worker cannot complete or fail that claim.
+      const claimed = await prisma.document.update({
         where: { id: documentId, processingStatus: "UPLOADED" },
         data: { processingStatus: "PROCESSING" },
+        select: { updatedAt: true },
+      }).catch((error: unknown) => {
+        if ((error as { code?: unknown } | null)?.code === "P2025") return null;
+        throw error;
       });
-      if (claimed.count !== 1) return;
+      if (!claimed) return;
 
+      const claimVersion = claimed.updatedAt;
       const doc = await prisma.document.findUniqueOrThrow({ where: { id: documentId } });
 
       try {
@@ -150,7 +158,7 @@ export function startBomWorker() {
           // (bom-recovery.ts) handed it to another worker meanwhile, throwing here rolls
           // back the item inserts above, so a slow worker can never append a BOM twice.
           const completed = await tx.document.updateMany({
-            where: { id: documentId, processingStatus: "PROCESSING" },
+            where: { id: documentId, processingStatus: "PROCESSING", updatedAt: claimVersion },
             data: { processingStatus: "COMPLETED" },
           });
           if (completed.count !== 1) throw new BomClaimLostError();
@@ -171,7 +179,7 @@ export function startBomWorker() {
         }
         await prisma.document.updateMany({
           // Guarded so a late failure can never overwrite a COMPLETED document.
-          where: { id: documentId, processingStatus: "PROCESSING" },
+          where: { id: documentId, processingStatus: "PROCESSING", updatedAt: claimVersion },
           data: {
             processingStatus: "FAILED",
             processingError: isSafeToShow ? (err as Error).message : "The BOM file could not be processed. Please check the file and try again.",
