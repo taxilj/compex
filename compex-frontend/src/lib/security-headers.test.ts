@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentSecurityPolicy, securityHeaders } from "../../next.config";
+import nextConfig, { contentSecurityPolicy, noindexHeaders, securityHeaders } from "../../next.config";
 
 describe("security headers", () => {
   it("sends every required header", () => {
@@ -32,5 +32,16 @@ describe("security headers", () => {
     const csp = contentSecurityPolicy(true);
     expect(csp).toContain("'unsafe-eval'");
     expect(csp).toContain("ws:");
+  });
+});
+
+describe("noindex headers for client-rendered private areas", () => {
+  it("marks admin and portal responses noindex while keeping the security headers on every route", async () => {
+    const rules = await nextConfig.headers!();
+    const bySource = Object.fromEntries(rules.map((rule) => [rule.source, rule.headers]));
+    expect(bySource["/:path*"]).toEqual(securityHeaders);
+    expect(bySource["/admin/:path*"]).toEqual(noindexHeaders);
+    expect(bySource["/portal/:path*"]).toEqual(noindexHeaders);
+    expect(noindexHeaders).toEqual([{ key: "X-Robots-Tag", value: "noindex, nofollow" }]);
   });
 });

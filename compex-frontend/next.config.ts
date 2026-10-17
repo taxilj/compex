@@ -40,12 +40,19 @@ export const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
 ];
 
+export const noindexHeaders = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+
 const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Admin and the customer portal are client-rendered (their layouts cannot export metadata),
+      // so they are kept out of search results with a response header instead.
+      ...["/admin/:path*", "/portal/:path*"].map((source) => ({ source, headers: noindexHeaders })),
+    ];
   },
   async rewrites() {
     return [

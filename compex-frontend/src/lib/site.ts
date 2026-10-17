@@ -7,6 +7,20 @@ export const SITE_NAME = "Compex Solution";
 // is the current live deployment.
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://compex-frontend.vercel.app").replace(/\/$/, "");
 
+// Indexable public routes (the sitemap). Dynamic product and manufacturer pages are not listed:
+// they need the catalogue API at build time and are discovered through the catalogue index pages.
+export const PUBLIC_PATHS = [
+  "/", "/products", "/categories", "/manufacturers", "/request-quote", "/contact", "/tools", "/tools/bom",
+  "/tools/rfq", "/tools/calculators", "/resources", "/suppliers", "/industries", "/sourcing", "/services",
+  "/about", "/case-studies",
+];
+
+// Routes crawlers must stay out of (robots.txt). The same routes are also noindex, through page
+// metadata or an X-Robots-Tag header, so a direct link cannot get them indexed either.
+export const PRIVATE_PATHS = [
+  "/admin", "/portal", "/login", "/register", "/verify-email", "/setup-account", "/tools/search-multiple", "/api/",
+];
+
 const SHARE_IMAGE = "/compex-logo.jpeg";
 
 interface PageMetadataInput {
