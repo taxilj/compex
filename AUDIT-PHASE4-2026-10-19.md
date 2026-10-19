@@ -49,7 +49,7 @@ Latency from this machine: 1.0–1.8 s for catalogue GETs, 3.8 s for `bom-capabi
 | # | Sev | Finding | Evidence | Fix needs |
 |---|---|---|---|---|
 | F1 | **HIGH — FIXED in `b54e713`** | **Suspending a user does not cut off an existing session.** `refresh()` never reads `user.status`, and the admin PATCH that sets `SUSPENDED` does not revoke refresh tokens, so a suspended user can keep refreshing for the 30-day refresh lifetime. Login blocks SUSPENDED (`auth.service.ts:191`), so only new logins are stopped. The 15-min access token also carries role and is never re-checked (`middleware/authenticate.ts`). | `auth.service.ts:230-277`, `admin.users.routes.ts:164-185` | Code + regression test (check status in `refresh`/`authenticate`, revoke tokens on suspend). No approval needed beyond normal flow |
-| F2 | **HIGH** (availability) | **Production BOM upload is disabled.** Redis quota is exceeded, the queue health probe fails, so `bom-capability` reports `available:false`. The site is honest about it (good), but the feature owners asked for is effectively off. Catalogue reads also run slower while the Redis timeout path is hit. | Render logs above; `public-leads.routes.ts:32-38` | **Owner/billing decision on Redis plan (Phase 10, read-only until approved).** Code-side hardening (don't let a bad Redis slow reads) exists on sibling branches (`31599a5`, `f8db1f5`), not on master |
+| F2 | **HIGH** (availability; **intermittent** — see §8) | **Production BOM upload is disabled.** Redis quota is exceeded, the queue health probe fails, so `bom-capability` reports `available:false`. The site is honest about it (good), but the feature owners asked for is effectively off. Catalogue reads also run slower while the Redis timeout path is hit. | Render logs above; `public-leads.routes.ts:32-38` | **Owner/billing decision on Redis plan (Phase 10, read-only until approved).** Code-side hardening (don't let a bad Redis slow reads) exists on sibling branches (`31599a5`, `f8db1f5`), not on master |
 | F3 | **MED-HIGH** | **Client IP is the proxy, not the visitor.** `TRUST_PROXY_HOPS="0"` in `render.yaml`, and the production request log shows `remoteAddress: 10.26.239.2` (private address) for my public request. Rate limiting is keyed on `req.ip`, so the 5/min enquiry limit and 200/min global limit are shared across all visitors, and audit `ipAddress` values are useless. | `app.ts:42`, `plugins/index.ts:28-32`, `render.yaml`, Render log line for `GET /api/v1/leads/bom-capability` | Render env change (needs approval) after confirming hop count; code already supports it |
 | F4 | MEDIUM — **FIXED in `af0f4b3`** (production history not scrubbed) | **Organization audit entries contain bank account, SWIFT/IFSC/MICR and routing code in clear text.** Vendor and customer routes strip bank fields before auditing; organization does not. | `admin.organizations.routes.ts:69,81` vs `admin.vendors.routes.ts:55-56`, `admin.customers.routes.ts:109-110` | Code + test (reuse the strip-pattern) |
 | F5 | MEDIUM | **STAFF == ADMIN on almost every admin module.** Every admin router uses `requireRole("STAFF","ADMIN")`; only `GET /admin/settings/client-ip` is ADMIN-only. Only user create/edit has an ADMIN guard (STAFF cannot create or edit ADMIN accounts). STAFF can read all users, invite STAFF/CUSTOMER accounts, edit non-admin users (including email), edit Organization bank details, and change settings. The owner's department matrix is not enforced at all. | grep of `requireRole` (22 call sites) | **Owner decision first** (PRD §18.1), then code |
@@ -136,4 +136,41 @@ Only rows whose status changed or gained evidence are listed. All other PRD rows
 | F8 18 flat categories vs the 373-row sheet | owner / data task | taxonomy import |
 | F9–F11 sitemap and JSON-LD, dead mock pages, 3 lint warnings | optional | low priority |
 
-**Updated verdict:** unchanged — NOT READY for a production release. The code defects F1, F4 and F6 are closed locally; F2/F3 need approvals, F5/F7/F8 need owner input, and the full integration suite and browser QA have not run.
+**Verdict after Phase 5:** unchanged — NOT READY for a production release (see §8 for the final position). The code defects F1, F4 and F6 are closed locally.
+
+## 8. Phase 9 verification and two more fixes (2026-10-19, same branch, nothing pushed)
+
+### New findings
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| F13 | MEDIUM | Admin **Settings** put a fixed 256px category list beside an editor that could not shrink, so at 375px the whole admin content area scrolled sideways and the value editor was cut off | **FIXED** in `ca7bbad` (class-contract test; verified in the browser at 375 and 768px) |
+| F14 | LOW | Admin **RFQ list** header and filter bars used `-mx-8`/`px-8` while the layout only pads 16px on phones, so they overhung the viewport by 16px | **FIXED** in `e7b0746` (test; verified at 375 and 1280px) |
+| F15 | LOW | **Vendor RFQs**: a `<select>` with long option text overhangs the content column by 37px at 375px; nothing is clipped | **OPEN** (cosmetic; the page is one very large JSX line with no test harness) |
+| F16 | MEDIUM | The Redis quota problem is **intermittent**: `bom-capability` returned `false` at 05:00 UTC, Render logged "quota-exceeded" every 5 minutes until about 11:31 UTC, and by 12:03 UTC the endpoint answered `true` six times in a row. BOM upload therefore switches on and off during the day. Render has no Key Value instance, so Redis is an external provider; idle BullMQ workers polling Redis are a probable command source (not verified) | **OPEN** — provider/billing decision (F2) |
+
+### Verification results
+- **Full API integration suite** on a throwaway Postgres: **18 files, 119 tests passed, exit 0**; all 20 migrations applied from scratch; container, volume and port removed afterwards. (The `[cache] … unavailable` log lines in that run are the intended no-Redis degradation.)
+- **Dependency audit:** production dependencies **0 vulnerabilities** in both projects. Including dev dependencies: API 9 (3 moderate, 3 high, 3 critical) and frontend 17 (3 moderate, 12 high, 2 critical) — all in build/test tooling (vitest 2.x line and its vite/esbuild chain, the shadcn CLI, eslint-config-next). Fixes are major upgrades (vitest 5) and nothing here ships to production; left alone on purpose.
+- **Client-bundle secret scan:** 76 files in `.next/static`, no provider, JWT, database, SMTP or S3 secret names; no `NEXT_PUBLIC_*` value inlined.
+- **Browser QA** (built-in browser; production build of the frontend against the local API and a throwaway database, with Redis deliberately unreachable):
+
+| Surface | 375 | 390 | 768 | 1280 | 1440 |
+|---|---|---|---|---|---|
+| Public, 10 routes: home, products, categories, manufacturers, request-quote, contact, tools/bom, product detail, login, 404 | pass | pass | pass | pass | pass |
+| Admin, 7 key routes: dashboard, enquiries, RFQs, users, customers, products, settings | pass (after F13/F14) | pass | pass | pass | pass |
+| Admin, 8 more routes: vendors, manufacturers, categories, organization, quotes, vendor RFQs, catalog import, catalog coverage | pass (F15 aside) | — | — | — | — |
+| Customer portal: home, RFQs, new RFQ, quotes, company | pass | — | — | — | — |
+
+  "Pass" = no page-level horizontal scroll and (public pages) exactly one `h1`. Tables inside `overflow-x-auto` wrappers and the Quotes tab bar scroll by design.
+- **Interactions checked in the browser:** desktop Products menu (opens with the real categories, `aria-expanded`, Esc closes and returns focus to the trigger); header search (shows the matching product); mobile drawer (opens, lists categories, Esc closes); admin sign-in; Enquiries banner and Sent/Pending/Failed badges (F6); customer sign-in; `/portal/orders` redirects to `/portal`; **F1 end to end** — a signed-in customer was suspended through the admin API and the next page load landed on `/login`.
+- **Console and network:** no unexpected errors. The "Framing … frame-ancestors 'none'" messages came from my own iframe test being blocked by the CSP (it works as designed); the 404s came only from deliberate visits to the 404 route.
+- **Not covered:** an automated accessibility audit (axe/Lighthouse), other browsers, the secondary admin routes and the portal at widths other than 375, keyboard traversal of the mobile category accordions (the taxonomy is flat, so there are none), and any form submission (forbidden by the instructions).
+
+### Production read-only recheck (2026-10-19 12:03 UTC)
+Vercel production `2cd4275` READY and equal to `origin/master`; Render live deploy `a8070ea`; `/health`, categories, manufacturers, products, the public frontend routes, `robots.txt` and `sitemap.xml` all 200; `bom-capability` currently `available:true`.
+
+### Render plan (read-only, checked last)
+`compex-api`: instance plan `0.5c-512mb` (0.5 CPU / 512 MB, the Starter-class paid size, matching `render.yaml`), one instance, not suspended, auto-deploy from `master`, build plan `starter`. There are **no Render Postgres or Key Value instances**, so the database and Redis plans and quotas live with other providers and could not be seen. The billing and invoice page was not opened (it needs a dashboard login), so the price and payment state are **not verified**. Nothing was purchased, upgraded or changed.
+
+### Final position
+**NOT READY for a production release.** Closed locally: F1, F4, F6, F13, F14 (all tests green, nothing deployed). Open: F2/F16 and F3 need your approval (Redis plan, Render environment), F5/F7/F8 need owner decisions, F15 is cosmetic, and none of the fixes is deployed. The full integration suite and browser QA have now run.

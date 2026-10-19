@@ -32,7 +32,7 @@ Branch landscape (context, not a requirement): work not on `master` exists on si
 | PAR-1 | Vercel production deploy commit equals `origin/master` | VERIFIED | Latest production deployment READY, `githubCommitSha` = `2cd4275…` = `git ls-remote origin master` |
 | PAR-2 | Render API code equals `origin/master` | VERIFIED | Live deploy `a8070ea` (status live); `git diff a8070ea 2cd4275 -- compex-api` is empty |
 | PAR-3 | Render `/health` responds | VERIFIED | `GET https://compex-api.onrender.com/health` → HTTP 200 `{"status":"ok"}` |
-| PAR-4 | Render plan/billing | BLOCKED (deliberately last, Phase 10) | Service listing shows instance plan `0.5c-512mb`, build plan `starter`; the billing/plan page has not been read |
+| PAR-4 | Render plan/billing | BLOCKED | Read-only (Phase 9): `compex-api` runs one instance of the `0.5c-512mb` class (Starter-sized, matching `render.yaml`), not suspended; no Render Postgres or Key Value exists, so the database and Redis plans are external and unseen. The billing page was not read (needs a dashboard login). Nothing was purchased or changed |
 
 ---
 
@@ -54,7 +54,7 @@ COMPEX Solution is an Indian B2B electronics component sourcing company. The pla
 | CAT-1 | Products list/detail from the real database, no mock data | IMPLEMENTED BUT NOT VERIFIED | `products.routes.ts`, `product-search.ts`; `src/data/mock` still exists (legacy) — confirm no public screen imports it |
 | CAT-2 | Public DTO exposes only factual product data (no pricing, stock, MOQ, lead time, supplier names/URLs, internal fields, provider payloads) | VERIFIED | `public-dto.ts` allowlist + `public-dto.test.ts`; Phase 4: live list and detail responses carry only the allowlisted keys |
 | CAT-3 | Exact-MPN lookup queries Mouser, DigiKey, Element14 in parallel; errors never cached as "no result"; no fallback provider | IMPLEMENTED BUT NOT VERIFIED | `mpn-search-orchestrator.ts` + unit tests; real-provider behaviour untestable here (no real credentials in tests) |
-| CAT-4 | Provider credentials never reach the client bundle | IMPLEMENTED BUT NOT VERIFIED | Only `NEXT_PUBLIC_API_URL` is public by design; needs a bundle scan (Phase 9) |
+| CAT-4 | Provider credentials never reach the client bundle | VERIFIED | Only `NEXT_PUBLIC_API_URL` is public by design; scan of the 76 files in `.next/static` found no provider, JWT, database, SMTP or S3 secret names and no inlined `NEXT_PUBLIC_*` value (Phase 9) |
 | CAT-5 | Product pagination | VERIFIED | API `page`/`limit` (default 24, max 100) with total — live `meta` observed in Phase 4 (803 products); the frontend pager exists but is not browser-tested |
 | CAT-6 | Product detail SEO metadata from real API data | IMPLEMENTED BUT NOT VERIFIED | `products/[mpn]/layout.tsx` `generateMetadata` + `layout.test.ts` |
 | CAT-7 | Catalogue index/search tuned for scale (trigram + compound indexes, ID-pre-resolved manufacturer search, load shedding) | NOT IMPLEMENTED on this branch | Exists on `codex/scale-readiness` / `hardening/production-readiness` only; `master` search path unchanged (see PERF-3/4) |
@@ -65,8 +65,8 @@ COMPEX Solution is an Indian B2B electronics component sourcing company. The pla
 |---|---|---|---|
 | NAV-1 | Menu built from the real recursive category tree (no hard-coded or sliced samples) | IMPLEMENTED BUT NOT VERIFIED | `categories.routes.ts` builds a full-depth tree from flat rows; `PublicHeader.tsx` renders the `listCategories()` result |
 | NAV-2 | Desktop: top-level categories with children shown on hover/focus | PARTIALLY IMPLEMENTED | The **Products** panel opens on *click*; children appear on hover/focus of a parent. Whether the panel itself should open on hover is an owner/UX decision (§18) |
-| NAV-3 | Desktop keyboard: Esc closes and returns focus to trigger | PARTIALLY IMPLEMENTED | `NavDropdown` handles Esc + focus return; arrow-key traversal inside the tree is not implemented |
-| NAV-4 | Mobile drawer with accordion categories | IMPLEMENTED BUT NOT VERIFIED | `Sheet` + `MobileCategoryTree` (`<details>`) |
+| NAV-3 | Desktop keyboard: Esc closes and returns focus to trigger | PARTIALLY IMPLEMENTED | `NavDropdown` handles Esc + focus return (verified in the browser, Phase 9); arrow-key traversal inside the tree is not implemented |
+| NAV-4 | Mobile drawer with accordion categories | VERIFIED | `Sheet` + `MobileCategoryTree` (`<details>`); in the browser at 375px the drawer opens, lists the categories and closes on Escape (accordions untestable: the taxonomy is flat) |
 | NAV-5 | Loading, empty, error + retry states | IMPLEMENTED BUT NOT VERIFIED | `DropdownLoading/Empty/Error` for categories and manufacturers; `PublicHeader.test.tsx` |
 | NAV-6 | `/categories` index page and `?categoryId=` filtering on `/products` | IMPLEMENTED BUT NOT VERIFIED | `(public)/categories/page.tsx`; menu links use the param |
 | NAV-7 | Category taxonomy content matches the owner "Category" sheet (373 rows: Product Group → Product Category, HS Code/HSN/USA HTS, Custom Duty) | PARTIALLY IMPLEMENTED | Production serves 18 flat categories (max depth 1) against the owner sheet's 373-row Group → Category hierarchy (Phase 4 F8) — a data import, not a code defect; row-level comparison not done |
@@ -114,8 +114,8 @@ COMPEX Solution is an Indian B2B electronics component sourcing company. The pla
 | ENQ-7 | Customer acknowledgement email | PARTIALLY IMPLEMENTED | Implemented but `ENQUIRY_ACK_ENABLED="false"` in `render.yaml` (disabled by configuration) |
 | ENQ-8 | Honest BOM capability state | VERIFIED | `GET /leads/bom-capability` = durable storage AND queue available; live it returns `available:false` while Render logs show the Redis quota exceeded (Phase 4) — honest, but see ENQ-10 |
 | ENQ-9 | BOM upload validation (types, size, rows) | IMPLEMENTED BUT NOT VERIFIED | `lead-bom-upload.ts`, `bom-validation.test.ts`; XLSX/CSV only. PDF/Word/image BOMs NOT IMPLEMENTED (owner has not specified extraction — BLOCKED, §18) |
-| ENQ-10 | Redis outage never blocks enquiries; stranded BOMs recover; no double-append | PARTIALLY IMPLEMENTED | `bom-recovery.ts`, `bom-queue-health.test.ts`, `bom-concurrency.test.ts`; in production the Redis quota is exhausted, the queue is down and BOM upload is reported unavailable (Phase 4 F2). Needs a disposable-Redis run (Phase 9) |
-| ENQ-11 | Portal RFQ create/edit/submit with tenant isolation | IMPLEMENTED BUT NOT VERIFIED | `rfqs.routes.ts`; integration `tenant-isolation.test.ts` (destructive DB test; not run) |
+| ENQ-10 | Redis outage never blocks enquiries; stranded BOMs recover; no double-append | PARTIALLY IMPLEMENTED | `bom-recovery.ts`, `bom-queue-health.test.ts`, `bom-concurrency.test.ts`; in production the Redis quota is **intermittently** exhausted: the queue was down and BOM upload reported unavailable until about 11:30 UTC on 2026-10-19 and had recovered by 12:03 UTC (Phase 4 F2, Phase 9 F16). Needs a disposable-Redis run |
+| ENQ-11 | Portal RFQ create/edit/submit with tenant isolation | VERIFIED | `rfqs.routes.ts`; integration `tenant-isolation.test.ts` and `rfqs.test.ts` passed on a throwaway Postgres in the full 18-file / 119-test run (Phase 9) |
 | ENQ-12 | Workbook "RFQ Log" shape: header (Enquiry No., Customer, Sales Person, RFQ/Due/Quote Date, SBU Type, Company, Sourcing, Comments, Quotation#, Conversion Rate) + lines (Cust Part, RFQ Part, Make, Qty, Offered Part/Make/DC/MOQ/SPQ/Qty, Unit Price, Lead Time, Cost, Vendor, Charges, PV/SV/GM/GM%) | PARTIALLY IMPLEMENTED | `Lead`/`Rfq`/`RfqItem`/`VendorQuote`/`LandedCost`/`Quotation` cover much of it; a field-by-field diff against the sheet has not been done. The sheet's margin formulas must not be re-implemented until the owner confirms them (§18) |
 
 ## 8. Customer, vendor, manufacturer and product masters
@@ -185,12 +185,12 @@ COMPEX Solution is an Indian B2B electronics component sourcing company. The pla
 | SEO-2 | Per-page title, description, canonical, OG/Twitter | IMPLEMENTED BUT NOT VERIFIED | `pageMetadata()`; `site.test.ts` enforces metadata presence |
 | SEO-3 | Admin/portal/auth kept out of search | VERIFIED | `X-Robots-Tag` + robots disallow; live `/admin` answers 307 → `/login` with `X-Robots-Tag: noindex, nofollow` (Phase 4) |
 | SEO-4 | Branded 404 and error pages | IMPLEMENTED BUT NOT VERIFIED | `not-found.tsx`, `(public)/error.tsx`, `global-error.tsx` + tests; the branded 404 title was seen live (Phase 4), the error boundaries were not exercised |
-| MOB-1 | Responsive at 375/390/768/1280/1440 | IMPLEMENTED BUT NOT VERIFIED | Not browser-tested this session (Phase 9); admin layout on phones unknown |
+| MOB-1 | Responsive at 375/390/768/1280/1440 | VERIFIED | Browser-checked in Phase 9 at 375/390/768/1280/1440: 10 public routes and 7 key admin routes at all five widths, 8 more admin routes and 5 customer-portal routes at 375 — no page-level horizontal scroll. Two admin layout defects were found and fixed (`ca7bbad` Settings, `e7b0746` RFQ list); one cosmetic overhang remains on Vendor RFQs (F15) |
 | A11Y-1 | Keyboard/ARIA basics, reduced motion, contrast | IMPLEMENTED BUT NOT VERIFIED | Combobox/Sheet/ARIA present; no automated audit run |
 | SEC-1 | Security headers + CSP | VERIFIED | `next.config.ts`, `security-headers.test.ts`; CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy and HSTS seen live on `/` (Phase 4); CSP allows `'unsafe-inline'` scripts (documented tradeoff) |
 | SEC-2 | Tenant isolation, role guards, input validation (Zod) | IMPLEMENTED BUT NOT VERIFIED | see §1/§10 |
 | SEC-3 | Safe logging (no raw errors, redacted request URLs) | IMPLEMENTED BUT NOT VERIFIED | `safe-log.ts`, `no-raw-error-logging.test.ts`; request serializer drops query strings |
-| SEC-4 | Dependency vulnerabilities | VERIFIED | `npm audit --omit=dev` reports 0 vulnerabilities in both projects on this branch (Phase 4); development dependencies not audited |
+| SEC-4 | Dependency vulnerabilities | VERIFIED | `npm audit --omit=dev` reports 0 vulnerabilities in both projects (Phase 4). Including dev dependencies: 9 in the API and 17 in the frontend, all in test/build tooling (vitest 2.x chain, shadcn CLI, eslint-config-next); fixing them needs major upgrades and none ships to production (Phase 9) |
 | SEC-5 | `trust proxy` configured for Render | NOT IMPLEMENTED | `TRUST_PROXY_HOPS="0"` in `render.yaml`, and the production request log shows a private proxy address as the client IP, so per-IP limits are shared across visitors (Phase 4 F3). Fixing it is a Render environment change that needs your approval |
 
 ## 14. Data model and API (summary)
@@ -227,5 +227,5 @@ Order, PO, invoice, shipment and any financial/ledger workflow; WhatsApp Busines
 11. **Mouser** — provider key/approval status (reported blocked 2026-09-07; current state unverified).
 12. **Production mailbox delivery** — a controlled delivery test needs the owner's approval of the mailbox/time.
 13. **Follow-up worker** — resolved in Phase 4: `server.ts` runs the background jobs inside the API process.
-14. **Redis plan** — the production Redis quota is exhausted (BOM queue down); upgrading or another remedy is a billing decision (Phase 4 F2).
+14. **Redis plan** — the production Redis quota is exhausted for part of each day (BOM queue down; it recovered by 12:03 UTC on 2026-10-19). Redis is an external provider (Render has no Key Value instance), so upgrading or another remedy is a billing decision with that provider (Phase 4 F2, Phase 9 F16).
 15. **Historical audit rows** — approve or decline a one-off scrub of bank and credit values already stored in production `audit_logs` (Phase 5, F4).
