@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { startBomWorker } from "./jobs/bom-processor.js";
 import { startFollowUpWorker } from "./jobs/follow-up-worker.js";
 import { startBomRecovery } from "./jobs/bom-recovery.js";
+import { startNotificationRecovery } from "./jobs/notification-recovery.js";
 import { safeErr } from "./lib/safe-log.js";
 
 const app = await buildApp();
@@ -15,10 +16,11 @@ try {
   const bomWorker = startBomWorker();
   const followUpWorker = startFollowUpWorker();
   const bomRecovery = startBomRecovery();
+  const notificationRecovery = startNotificationRecovery();
   console.log("[server] BullMQ workers started");
 
   process.on("SIGTERM", async () => {
-    await Promise.all([bomWorker.close(), followUpWorker.close(), bomRecovery.close()]);
+    await Promise.all([bomWorker.close(), followUpWorker.close(), bomRecovery.close(), notificationRecovery.close()]);
     await app.close();
     process.exit(0);
   });

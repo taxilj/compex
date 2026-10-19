@@ -4,6 +4,18 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { convertLeadToRfq, listAdminLeads, listCustomers, type AdminLead, type AdminCustomer } from "@/lib/api/admin";
 
+const NOTIFICATION_BADGES = {
+  SENT: { label: "Sent", className: "bg-[#ECFDF3] text-[#027A48]" },
+  PENDING: { label: "Pending", className: "bg-[#FFFAEB] text-[#B54708]" },
+  FAILED: { label: "Failed", className: "bg-[#FEF3F2] text-[#B42318] font-semibold" },
+} as const;
+
+function NotificationBadge({ status, error }: { status: AdminLead["notificationStatus"]; error: string | null }) {
+  if (!status) return <>—</>;
+  const badge = NOTIFICATION_BADGES[status];
+  return <span title={error ?? undefined} className={`rounded-full px-2.5 py-1 font-label-sm text-xs ${badge.className}`}>{badge.label}</span>;
+}
+
 export default function AdminLeadsPage() {
   const [leads, setLeads] = useState<AdminLead[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
@@ -11,6 +23,7 @@ export default function AdminLeadsPage() {
   const [convertingLeadId, setConvertingLeadId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const failedCount = leads.filter((lead) => lead.notificationStatus === "FAILED").length;
 
   useEffect(() => {
     Promise.all([listAdminLeads({ limit: 50 }), listCustomers({ limit: 100 })])
@@ -53,6 +66,11 @@ export default function AdminLeadsPage() {
       </div>
 
       {error && <p className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 font-body-sm text-[#B42318]">{error}</p>}
+      {failedCount > 0 && (
+        <p role="alert" className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 font-body-sm text-[#B42318]">
+          {failedCount} {failedCount === 1 ? "enquiry" : "enquiries"} could not be emailed to the sales mailbox. The system retries automatically for 3 days — check the rows marked Failed manually.
+        </p>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-[#E4E7EC] bg-white shadow-sm">
         {loading ? (
@@ -77,7 +95,7 @@ export default function AdminLeadsPage() {
                   <td className="px-4 py-3 font-body-sm text-[#344054]">{lead.source.replaceAll('_', ' ')}</td>
                   <td className="px-4 py-3 font-body-sm text-xs text-[#344054]">{lead.items.length ? lead.items.map((item) => `${item.mpn} × ${item.quantity}`).join(', ') : '—'}</td>
                   <td className="px-4 py-3 font-body-sm text-xs text-[#344054]">{lead.deliveryLocation ?? '—'}</td>
-                  <td className="px-4 py-3 font-body-sm text-xs text-[#344054]">{lead.notificationStatus ?? '—'}</td>
+                  <td className="px-4 py-3 font-body-sm text-xs text-[#344054]"><NotificationBadge status={lead.notificationStatus} error={lead.notificationError} /></td>
                   <td className="px-4 py-3"><span className="rounded-full bg-[#E8EEFF] px-2.5 py-1 font-label-sm text-xs text-[#175CD3]">{lead.status}</span></td>
                   <td className="px-4 py-3 font-body-sm text-xs text-[#667085]">{new Date(lead.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
