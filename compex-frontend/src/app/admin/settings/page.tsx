@@ -132,8 +132,8 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
-      <div className="flex gap-6">
-        <nav className="w-64 shrink-0 bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-2 max-h-[600px] overflow-y-auto">
+      <div className="flex flex-col gap-6 md:flex-row">
+        <nav className="w-full md:w-64 md:shrink-0 bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-2 max-h-[600px] overflow-y-auto">
           {loadingCategories ? (
             <div className="flex items-center justify-center py-8 text-[#44474d]">
               <Loader2 size={18} className="animate-spin" />
@@ -154,7 +154,7 @@ export default function AdminSettingsPage() {
           )}
         </nav>
 
-        <div className="flex-1 bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6 min-h-[400px]">
+        <div className="min-w-0 md:flex-1 bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6 min-h-[400px]">
           {!activeCategory ? (
             <p className="font-body-md text-[#44474d]">Select a category.</p>
           ) : loadingValues ? (
