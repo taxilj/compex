@@ -184,7 +184,7 @@ Vercel production `2cd4275` READY and equal to `origin/master`; Render live depl
 | F8 | Category hierarchy | **BLOCKED on owner decisions.** The data exists (371 rows) but 33 names repeat against the unique `Category.name`, 8 live categories sit at other levels, HSN/HTS have no column, two schemes coexist. Read-only checker and tests added; nothing seeded | `4958789`, `docs/CATEGORY-HIERARCHY-IMPORT.md` |
 | F7 | Organisation code prefixes | **Traced; owner decision needed.** 13 columns stored and editable, read by no generator; the owner gave prefix values but no numbering pattern | `bd4e9a7`, `docs/ORGANIZATION-CODE-PREFIXES.md` |
 | F15 | Vendor RFQ select overhang | **Fixed** with a regression test; 0px overhang at 375px | `bd4e9a7` |
-| F5 | STAFF permissions | **Audited and locked in; one owner decision open.** All 75 admin routes asserted for no token / CUSTOMER / STAFF / ADMIN / suspended; the test fails if a guard is narrowed (checked) | `1d953a8`, `docs/ADMIN-ROUTE-AUTHORIZATION.md` |
+| F5 | STAFF permissions | **Audited and locked in; owner approved the current behaviour (2026-10-19).** All 75 admin routes asserted for no token / CUSTOMER / STAFF / ADMIN / suspended; the test fails if a guard is narrowed (checked) | `1d953a8`, `docs/ADMIN-ROUTE-AUTHORIZATION.md` |
 | Legacy audit rows | Exposure report and rehearsed scrub | **Report only.** No API route returns audit rows; scrub SQL rehearsed on synthetic rows; retention period is an owner decision; nothing run on production | `032f228`, `docs/LEGACY-AUDIT-ROWS.md` |
 
 ### Verification (all on this branch, nothing deployed)
@@ -196,4 +196,4 @@ Vercel production `2cd4275` READY and equal to `origin/master`; Render live depl
 - Not covered: the production behaviour of any change (nothing deployed), the real Render hop count, the real quota consumer, accessibility audit, other browsers.
 
 ### Final position
-**NOT READY for a production release.** F3 is prepared but not applied (needs the measurement and your approval), F2/F16 depends on a provider decision, and F5 needs one owner decision. F7 and F8 are owner-decision items that do not block the release.
+**NOT READY for a production release.** F3 is prepared but not applied (needs the measurement and your approval), and F2/F16 depends on a provider decision. F5 is resolved: the owner approved the current STAFF/ADMIN behaviour on 2026-10-19 (STAFF = ADMIN except creating/editing ADMIN accounts and the `client-ip` diagnostic). F7 and F8 are owner-decision items that do not block the release.

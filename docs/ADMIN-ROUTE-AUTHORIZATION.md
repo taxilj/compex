@@ -1,6 +1,6 @@
 # Admin route authorisation (F5)
 
-Status: **current behaviour audited and locked in by tests; no permission rule was added or changed.** The owner's documents do not define what a generic STAFF user may do, so the open decision is recorded at the end instead of being invented.
+Status: **current behaviour audited and locked in by tests; no permission rule was added or changed.** The owner's documents do not define what a generic STAFF user may do, so the decision was asked rather than invented: the owner approved keeping the current behaviour (see "Approved policy" at the end).
 
 ## How access is enforced
 
@@ -57,6 +57,8 @@ Adding an admin route without guards fails the 401/403 tests; narrowing a router
 
 `docs/OWNER-MASTER-DATA-COMPLIANCE.md` records that no permission system should be invented without sign-off on what department-based access should restrict. The application has three roles (CUSTOMER, STAFF, ADMIN) and a free-text-validated `department` field on users that nothing reads; the matrix above is by department and uses names (RVL, DPASL, L1-Price) that have no admin screens here. It therefore cannot be applied to the existing STAFF role without choices only the owner can make.
 
-## Decision needed
+## Approved policy (decided 2026-10-19)
 
-**What may a STAFF user do?** The code today lets STAFF do everything an ADMIN can except create or edit ADMIN accounts and use the `client-ip` diagnostic. In particular STAFF can currently export enquiries as CSV, upload catalogue CSVs, trigger paid supplier API fetches, edit organisation bank details, edit customer credit limits and bank details, delete dropdown values, and invite or suspend STAFF and CUSTOMER users. Options: (a) keep as is; (b) apply only the written rule that import/export is ADMIN-only (today that means the enquiry CSV export and the catalogue CSV upload); (c) implement the department matrix (needs the owner to say how each department maps to the existing STAFF role and which screens exist for RVL, DPASL and L1-Price).
+**Question:** what may a STAFF user do? **Decision: option (a), keep the current behaviour.** STAFF can do everything an ADMIN can except create or edit ADMIN accounts and use the `client-ip` diagnostic. This includes, knowingly: exporting enquiries as CSV, uploading catalogue CSVs, triggering paid supplier API fetches, editing organisation bank details, editing customer credit limits and bank details, deleting dropdown values, and inviting or suspending STAFF and CUSTOMER users.
+
+`test/unit/admin-authorization.test.ts` enforces exactly this policy: its `ADMIN_ONLY` set is the single place that would change if the owner later restricts more. The alternatives that were offered and not chosen: (b) make import/export ADMIN-only per the INDEX sheet wording, and (c) implement the department matrix. Either can be revisited when the owner defines how departments map to the STAFF role.
