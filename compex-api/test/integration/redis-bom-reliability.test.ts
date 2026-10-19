@@ -1,6 +1,6 @@
 import net from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import IORedis from "ioredis";
+import IORedis, { type RedisOptions } from "ioredis";
 import { Queue, Worker } from "bullmq";
 import {
   FAIL_FAST_REDIS_OPTIONS,
@@ -120,11 +120,19 @@ suite("BOM queue against a disposable Redis", () => {
     return thing;
   }
 
+  // Clients handed to Queue/Worker are not closed by them; disconnect them so none keeps
+  // reconnecting (and logging) after its stand-in server is gone.
+  function conn(url: string, options: RedisOptions = {}): IORedis {
+    const client = new IORedis(url, options);
+    closers.push(async () => client.disconnect());
+    return client;
+  }
+
   const commandsProcessed = async () =>
     Number(/total_commands_processed:(\d+)/.exec(await admin.info("stats"))![1]);
 
   it("a repeated add with the same jobId queues one job, and two workers deliver it once", async () => {
-    const queue = track(new Queue(QUEUE, { connection: new IORedis(REDIS_IT_URL, FAIL_FAST_REDIS_OPTIONS) }));
+    const queue = track(new Queue(QUEUE, { connection: conn(REDIS_IT_URL, FAIL_FAST_REDIS_OPTIONS) }));
     const options = { jobId: "bom-doc-1", removeOnFail: true, removeOnComplete: true };
     await queue.add("parse-bom", { documentId: "doc-1" }, options);
     await queue.add("parse-bom", { documentId: "doc-1" }, options);
@@ -133,7 +141,7 @@ suite("BOM queue against a disposable Redis", () => {
     const handled: string[] = [];
     for (let i = 0; i < 2; i += 1) {
       track(new Worker(QUEUE, async (job) => { handled.push(job.id!); }, {
-        connection: new IORedis(REDIS_IT_URL, WORKER_REDIS_OPTIONS),
+        connection: conn(REDIS_IT_URL, WORKER_REDIS_OPTIONS),
         ...WORKER_IDLE_OPTIONS,
       }));
     }
@@ -147,7 +155,7 @@ suite("BOM queue against a disposable Redis", () => {
 
   it("an idle worker with the production options costs almost no Redis commands", async () => {
     track(new Worker(QUEUE, async () => undefined, {
-      connection: new IORedis(REDIS_IT_URL, WORKER_REDIS_OPTIONS),
+      connection: conn(REDIS_IT_URL, WORKER_REDIS_OPTIONS),
       ...WORKER_IDLE_OPTIONS,
     }));
     await sleep(1000); // let start-up commands settle
@@ -159,11 +167,11 @@ suite("BOM queue against a disposable Redis", () => {
   }, 20_000);
 
   it("a job whose worker died mid-run is redelivered to another worker", async () => {
-    const queue = track(new Queue(QUEUE, { connection: new IORedis(REDIS_IT_URL, FAIL_FAST_REDIS_OPTIONS) }));
+    const queue = track(new Queue(QUEUE, { connection: conn(REDIS_IT_URL, FAIL_FAST_REDIS_OPTIONS) }));
     // Short lock and sweep so the test does not wait the production 5 minutes.
     const fast = { lockDuration: 1000, stalledInterval: 500, maxStalledCount: 1 };
     const crashed = new Worker(QUEUE, () => new Promise<void>(() => undefined), {
-      connection: new IORedis(REDIS_IT_URL, WORKER_REDIS_OPTIONS),
+      connection: conn(REDIS_IT_URL, WORKER_REDIS_OPTIONS),
       ...fast,
     });
     await queue.add("parse-bom", { documentId: "doc-2" }, { jobId: "bom-doc-2", removeOnComplete: true });
@@ -172,7 +180,7 @@ suite("BOM queue against a disposable Redis", () => {
 
     const handled: string[] = [];
     track(new Worker(QUEUE, async (job) => { handled.push(job.id!); }, {
-      connection: new IORedis(REDIS_IT_URL, WORKER_REDIS_OPTIONS),
+      connection: conn(REDIS_IT_URL, WORKER_REDIS_OPTIONS),
       ...fast,
     }));
     await waitFor(() => handled.length === 1, 15_000, "the stalled job to be redelivered");
@@ -189,7 +197,12 @@ suite("BOM queue against a disposable Redis", () => {
       process.env.REDIS_URL = `redis://127.0.0.1:${port}`;
       vi.resetModules();
       const service = await import("../../src/modules/documents/documents.service.js");
-      closers.push(async () => service.getBomQueue().close());
+      closers.push(async () => {
+        const queue = service.getBomQueue();
+        const client = await queue.client;
+        await queue.close();
+        client.disconnect();
+      });
 
       await expect(service.enqueueBomJob("doc-3", { documentId: "doc-3", leadId: "lead-3" })).rejects.toMatchObject({ statusCode: 503 });
       expect(await service.isBomQueueAvailable()).toBe(false);
@@ -206,7 +219,7 @@ suite("BOM queue against a disposable Redis", () => {
 
       const handled: string[] = [];
       const worker = track(new Worker(QUEUE, async (job) => { handled.push(job.id!); }, {
-        connection: new IORedis(`redis://127.0.0.1:${port}`, WORKER_REDIS_OPTIONS),
+        connection: conn(`redis://127.0.0.1:${port}`, WORKER_REDIS_OPTIONS),
         ...WORKER_IDLE_OPTIONS,
         runRetryDelay: 500, // production waits 60 s between retries; shortened so the test finishes
       }));
@@ -219,7 +232,7 @@ suite("BOM queue against a disposable Redis", () => {
       expect(proxy.commands() - sentDuringOutage).toBeLessThan(30);
 
       // Redis comes back; a job is added through the real server in the meantime.
-      const queue = track(new Queue(QUEUE, { connection: new IORedis(REDIS_IT_URL, FAIL_FAST_REDIS_OPTIONS) }));
+      const queue = track(new Queue(QUEUE, { connection: conn(REDIS_IT_URL, FAIL_FAST_REDIS_OPTIONS) }));
       await queue.add("parse-bom", { documentId: "doc-4" }, { jobId: "bom-doc-4", removeOnComplete: true });
       proxy.setMode("pass");
       await waitFor(() => handled.length >= 1, 30_000, "the worker to recover and handle the job");
