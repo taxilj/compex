@@ -19,11 +19,15 @@ Not stated in any Render page I could read: how many entries `X-Forwarded-For` c
 
 ## Measure it (read-only, no config change)
 
-`GET /api/v1/admin/settings/client-ip` is ADMIN-only and echoes only the caller's own addresses. Call it once from the admin browser session, or with curl using an ADMIN access cookie, through the public API address:
+`GET /api/v1/admin/settings/client-ip` is ADMIN-only and echoes only the caller's own addresses. **Measure it on the path real visitors use.** Browsers talk to Vercel, which rewrites `/api/v1/*` to the Render API (`compex-frontend/next.config.ts`), so the chain includes Vercel's hop; measuring against the Render host directly would give a different count. Sign in as ADMIN in a browser and open:
 
-```bash
-curl -s -b "access_token=<ADMIN access token>" https://<public-api-host>/api/v1/admin/settings/client-ip
 ```
+https://compex-frontend.vercel.app/api/v1/admin/settings/client-ip
+```
+
+The `access_token` cookie is httpOnly on the Vercel domain, so no token needs to be copied or pasted anywhere.
+
+Evidence from Render's request logs on 2026-10-19: requests arriving through that path show private peer addresses that are neither the visitor nor Vercel (for example 10.25.57.6 on a `/bom-capability` request and 10.26.239.2 earlier), and Render's own health check shows as 10.238.22.22. So at `TRUST_PROXY_HOPS=0` visitors share a rate-limit bucket per balancer address rather than per person. The hop count itself was **not** measured (no admin session was available), so the value below is still unknown.
 
 Read the result with the caller's own public IP (search "what is my IP") in hand:
 
@@ -38,8 +42,11 @@ Decision rule: write the chain right to left after the socket, `[socketAddress, 
 Repeat the call once with a forged header to prove the spoof guard, using curl against production only with your own admin session:
 
 ```bash
-curl -s -H "X-Forwarded-For: 1.2.3.4" -b "access_token=<ADMIN access token>" https://<public-api-host>/api/v1/admin/settings/client-ip
+# use your own admin cookie from the browser; do not paste it into chat, tickets or files
+curl -s -H "X-Forwarded-For: 1.2.3.4" -b "access_token=<ADMIN access token>" https://compex-frontend.vercel.app/api/v1/admin/settings/client-ip
 ```
+
+Vercel may overwrite or append to a client-supplied header; whatever it does is exactly what the API will see, which is why this check matters.
 
 `forwardedFor` should show `1.2.3.4` as the **left-most** entry with your real IP still at position N. If the forged value appears at position N or to its right, stop and do not apply the setting.
 
