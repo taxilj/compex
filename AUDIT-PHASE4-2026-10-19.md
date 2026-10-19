@@ -145,7 +145,7 @@ Only rows whose status changed or gained evidence are listed. All other PRD rows
 |---|---|---|---|
 | F13 | MEDIUM | Admin **Settings** put a fixed 256px category list beside an editor that could not shrink, so at 375px the whole admin content area scrolled sideways and the value editor was cut off | **FIXED** in `ca7bbad` (class-contract test; verified in the browser at 375 and 768px) |
 | F14 | LOW | Admin **RFQ list** header and filter bars used `-mx-8`/`px-8` while the layout only pads 16px on phones, so they overhung the viewport by 16px | **FIXED** in `e7b0746` (test; verified at 375 and 1280px) |
-| F15 | LOW | **Vendor RFQs**: a `<select>` with long option text overhangs the content column by 37px at 375px; nothing is clipped | **OPEN** (cosmetic; the page is one very large JSX line with no test harness) |
+| F15 | LOW | **Vendor RFQs**: a `<select>` with long option text overhangs the content column by 37px at 375px; nothing is clipped | **FIXED** in `bd4e9a7` (`max-w-full` on the select, class-contract test; verified in the browser at 375/390/768/1280/1440) |
 | F16 | MEDIUM | The Redis quota problem is **intermittent**: `bom-capability` returned `false` at 05:00 UTC, Render logged "quota-exceeded" every 5 minutes until about 11:31 UTC, and by 12:03 UTC the endpoint answered `true` six times in a row. BOM upload therefore switches on and off during the day. Render has no Key Value instance, so Redis is an external provider; idle BullMQ workers polling Redis are a probable command source (not verified) | **OPEN** — provider/billing decision (F2) |
 
 ### Verification results
@@ -174,3 +174,26 @@ Vercel production `2cd4275` READY and equal to `origin/master`; Render live depl
 
 ### Final position
 **NOT READY for a production release.** Closed locally: F1, F4, F6, F13, F14 (all tests green, nothing deployed). Open: F2/F16 and F3 need your approval (Redis plan, Render environment), F5/F7/F8 need owner decisions, F15 is cosmetic, and none of the fixes is deployed. The full integration suite and browser QA have now run.
+
+## 9. Phase 10: remaining release work (2026-10-19, same branch, nothing pushed)
+
+| # | Item | Result | Evidence |
+|---|---|---|---|
+| F3 | Proxy-aware rate limits | **Prepared, not applied.** Render's pages confirm Cloudflare plus Render balancers but not the hop count, so `TRUST_PROXY_HOPS` was not guessed. Tests show distinct IPs/buckets at the right count, the shared bucket at 0, and the spoof hazards at too-low/too-high counts; the global limiter also keys on IP because it runs before `authenticate` | `cfadb4d`, `docs/PROXY-RATE-LIMITS.md` |
+| F2/F16 | Redis and BOM reliability | **Code behaves correctly under quota failure (measured on a disposable Redis); the quota is a provider decision.** 11 commands per 10 s with the breaker versus 153,258 without; idle workers cost about 0 commands (BullMQ defaults: 15 per 12 s); enqueue fails fast with the upload kept pending; the worker resumes by itself and processes once; the same jobId is queued once; a dead worker's job is redelivered. The remaining probable quota consumer is the catalogue cache (not proven) | `fd6ca8a`, `ef14cdd`, `docs/REDIS-BOM-RELIABILITY.md` |
+| F8 | Category hierarchy | **BLOCKED on owner decisions.** The data exists (371 rows) but 33 names repeat against the unique `Category.name`, 8 live categories sit at other levels, HSN/HTS have no column, two schemes coexist. Read-only checker and tests added; nothing seeded | `4958789`, `docs/CATEGORY-HIERARCHY-IMPORT.md` |
+| F7 | Organisation code prefixes | **Traced; owner decision needed.** 13 columns stored and editable, read by no generator; the owner gave prefix values but no numbering pattern | `bd4e9a7`, `docs/ORGANIZATION-CODE-PREFIXES.md` |
+| F15 | Vendor RFQ select overhang | **Fixed** with a regression test; 0px overhang at 375px | `bd4e9a7` |
+| F5 | STAFF permissions | **Audited and locked in; one owner decision open.** All 75 admin routes asserted for no token / CUSTOMER / STAFF / ADMIN / suspended; the test fails if a guard is narrowed (checked) | `1d953a8`, `docs/ADMIN-ROUTE-AUTHORIZATION.md` |
+| Legacy audit rows | Exposure report and rehearsed scrub | **Report only.** No API route returns audit rows; scrub SQL rehearsed on synthetic rows; retention period is an owner decision; nothing run on production | `032f228`, `docs/LEGACY-AUDIT-ROWS.md` |
+
+### Verification (all on this branch, nothing deployed)
+- API: typecheck 0; unit **47 files / 323 tests** (CI placeholder environment); build 0.
+- API integration on a fresh disposable Postgres plus a disposable Redis: **19 files / 124 tests**, all 20 migrations applied from scratch; both containers removed.
+- Frontend: `tsc` 0; lint 0 errors, 3 warnings (unchanged baseline); **34 files / 179 tests**; production build 0.
+- `npm audit --omit=dev`: 0 vulnerabilities in both projects. Secret scan of the branch diff: no secrets (one placeholder localhost test URL).
+- Browser QA at 375/390/768/1280/1440: Vendor RFQs, `/`, `/admin/settings`, `/admin/rfqs` at all five widths; `/products`, `/request-quote`, `/admin`, `/admin/leads` (F6 banner visible) at 375; no page-level horizontal scroll anywhere. API log for the session: 76 responses, all 200, no 5xx.
+- Not covered: the production behaviour of any change (nothing deployed), the real Render hop count, the real quota consumer, accessibility audit, other browsers.
+
+### Final position
+**NOT READY for a production release.** F3 is prepared but not applied (needs the measurement and your approval), F2/F16 depends on a provider decision, and F5 needs one owner decision. F7 and F8 are owner-decision items that do not block the release.
