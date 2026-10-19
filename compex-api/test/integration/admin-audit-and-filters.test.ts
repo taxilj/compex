@@ -32,6 +32,23 @@ describe("audit redaction", () => {
     for (const secret of ["IBAN-SECRET", "313131", "424242", "SHIP-SECRET"]) expect(audit).not.toContain(secret);
     expect(audit).toContain("vendor.created");
   });
+
+  it("never writes organization bank details to the audit log", async () => {
+    const admin = await createAdminAndLogin(app, "admin-org-audit@invalid.test");
+    const bank = { bankName: "SENTINEL-BANK-NAME", bankAccount: "SENTINEL-ACCOUNT-1", bankAddress: "SENTINEL-BANK-ADDR", swiftIfscMicr: "SENTINEL-SWIFT", routingCode: "SENTINEL-ROUTING" };
+    const created = await app.inject({ method: "POST", url: "/api/v1/admin/organizations", headers: auth(admin.accessToken), payload: { companyName: "Audit Org", shortName: "AORG", currency: "INR", ...bank } });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().data.id as string;
+    const patched = await app.inject({ method: "PATCH", url: `/api/v1/admin/organizations/${id}`, headers: auth(admin.accessToken), payload: { website: "https://audit-org.example", bankAccount: "SENTINEL-ACCOUNT-2" } });
+    expect(patched.statusCode).toBe(200);
+
+    const rows = await prisma.auditLog.findMany({ where: { entityType: "organization" } });
+    expect(rows.map((row) => row.action).sort()).toEqual(["organization.created", "organization.updated"]);
+    expect(JSON.stringify(rows)).not.toContain("SENTINEL");
+    expect(JSON.stringify(rows)).toContain("Audit Org");
+    // The admin API itself still returns the stored value.
+    expect(created.json().data.bankAccount).toBe("SENTINEL-ACCOUNT-1");
+  });
 });
 
 describe("activate / deactivate audit records what changed", () => {
