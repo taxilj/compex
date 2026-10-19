@@ -24,7 +24,7 @@ Run from the project directory. Node 20 (CI uses 20).
 # compex-api
 npm install && npx prisma generate
 npm run dev                  # tsx watch, needs .env (API default port 4000)
-npm run worker               # separate process: BOM worker, follow-up worker, BOM recovery
+npm run worker               # standalone copy of the background jobs that server.ts already runs in-process
 npm run typecheck            # `lint` is an alias for tsc --noEmit — there is no ESLint here
 npm test                     # unit tests only (test/unit, no DB/Redis needed)
 npx vitest run test/unit/bom-processor.test.ts            # single file
@@ -47,9 +47,9 @@ npx vitest run src/lib/site.test.ts                        # single file
 
 **Redis is best-effort, never a hard dependency for enquiries.** Cache and queue paths must degrade (fail-fast options in `lib/redis-options.ts`; the catalogue cache bounds each Redis call with `withTimeout` and trips a cooldown breaker). Enquiries/RFQs are saved to PostgreSQL *before* any email or queue work; email failure must not lose or block the saved record.
 
-**BOM pipeline.** Upload (`modules/documents`) stores the file and enqueues a BullMQ job (`jobs/bom-processor.ts`). If the enqueue fails (Redis down/quota) the document stays `UPLOADED`; `jobs/bom-recovery.ts` re-enqueues stranded documents on an interval and retires superseded ones so a BOM is never appended twice. `jobs/follow-up-*` handle scheduled follow-up emails. The worker is a separate process from the API.
+**BOM pipeline.** Upload (`modules/documents`) stores the file and enqueues a BullMQ job (`jobs/bom-processor.ts`). If the enqueue fails (Redis down/quota) the document stays `UPLOADED`; `jobs/bom-recovery.ts` re-enqueues stranded documents on an interval and retires superseded ones so a BOM is never appended twice. `jobs/follow-up-*` handle scheduled follow-up emails. In production `src/server.ts` starts the BOM worker, follow-up worker, BOM recovery and notification recovery **inside the API process**; `npm run worker` runs the same set standalone.
 
-**Email.** `lib/email.ts` selects the transport via `EMAIL_PROVIDER` (`log` default, `smtp`, `resend`, or `test`, which feeds the test outbox and is rejected outside `NODE_ENV=test`). Website enquiries notify `ENQUIRY_NOTIFICATION_TO`; the customer's address is used as Reply-To.
+**Email.** `lib/email.ts` selects the transport via `EMAIL_PROVIDER` (`log` default, `smtp`, `resend`, or `test`, which feeds the test outbox and is rejected outside `NODE_ENV=test`). Website enquiries notify `ENQUIRY_NOTIFICATION_TO`; the customer's address is used as Reply-To. A failed notification leaves the lead `FAILED`; `jobs/notification-recovery.ts` re-sends it (every 10 min, up to 5 attempts within 3 days, Postgres only) and the admin Enquiries page flags what is still failed.
 
 **Frontend.** App Router groups: `(public)`, `(auth)`, `admin/`, `portal/`. All API calls use same-origin `/api/v1/*`, rewritten server-side to `NEXT_PUBLIC_API_URL` (`next.config.ts`) so the API's httpOnly auth cookies are first-party. `src/proxy.ts` (Next 16's replacement for `middleware`) only gates the SSR shell on the `access_token` cookie — the API re-validates every call. API clients live in `src/lib/api/`; `src/data/mock` is legacy and must not back production screens. CSP and security headers are defined in `next.config.ts` (tested in `lib/security-headers.test.ts`). `admin/` and `portal/` are client-rendered and kept out of search via `X-Robots-Tag`.
 
