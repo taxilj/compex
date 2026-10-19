@@ -19,3 +19,22 @@ stitch_compex_sourcing_procurement_platform/
 
 # Local QA Postgres bootstrap (portable binaries, data dir) — never commit
 .qa-infra/
+
+# Secrets and key material (the committed compex-api/.env.example stays tracked)
+.env.*
+!.env.example
+*.key
+*.p12
+id_rsa*
+secrets.json
+
+# Generated test and QA artefacts
+*.timestamp-*.mjs
+test-results/
+playwright-report/
+.playwright-mcp/
+
+# Local tool state and scratch directories
+.claude/tmp/
+.next_stale_*/
+_to_delete/
