@@ -1,6 +1,6 @@
 # Admin route authorisation (F5)
 
-Status: **current behaviour audited and locked in by tests; no permission rule was added or changed.** The owner's documents do not define what a generic STAFF user may do, so the decision was asked rather than invented: the owner approved keeping the current behaviour (see "Approved policy" at the end).
+Status: **current behaviour audited and locked in by tests; one rule changed on 2026-10-20: the enquiry CSV export is now ADMIN-only.** The owner's documents do not define what a generic STAFF user may do, so the decision was asked rather than invented (see "Approved policy" at the end).
 
 ## How access is enforced
 
@@ -11,6 +11,7 @@ Every route under `/api/v1/admin/*` (75 routes in 14 routers) registers `authent
 | Where | Rule |
 |---|---|
 | `GET /admin/settings/client-ip` | ADMIN only (route-level `requireRole("ADMIN")`) |
+| `GET /admin/leads/export` (enquiry CSV) | ADMIN only (route-level `requireRole("ADMIN")`, owner policy 2026-10-20); the Enquiries page shows the Export CSV link to ADMIN only |
 | `POST /admin/users` | creating an account with role ADMIN needs an ADMIN caller; STAFF may invite STAFF or CUSTOMER accounts |
 | `PATCH /admin/users/:id` | editing or suspending an account whose role is ADMIN needs an ADMIN caller; role itself cannot be changed through this route |
 | Everything else under `/admin/*` | identical for STAFF and ADMIN |
@@ -41,7 +42,7 @@ Other authenticated areas are not `/admin`: customer-portal routes (`/customers`
 
 - no token: 401 on every admin route;
 - CUSTOMER token: 403 on every admin route;
-- STAFF token: 200 on every admin route except the `ADMIN_ONLY` set (currently only `client-ip`, which must be 403);
+- STAFF token: 200 on every admin route except the `ADMIN_ONLY` set (currently `client-ip` and `leads/export`, which must be 403);
 - ADMIN token: 200 on every admin route;
 - a valid token for a SUSPENDED account: 401.
 
@@ -57,8 +58,10 @@ Adding an admin route without guards fails the 401/403 tests; narrowing a router
 
 `docs/OWNER-MASTER-DATA-COMPLIANCE.md` records that no permission system should be invented without sign-off on what department-based access should restrict. The application has three roles (CUSTOMER, STAFF, ADMIN) and a free-text-validated `department` field on users that nothing reads; the matrix above is by department and uses names (RVL, DPASL, L1-Price) that have no admin screens here. It therefore cannot be applied to the existing STAFF role without choices only the owner can make.
 
-## Approved policy (decided 2026-10-19)
+## Approved policy (decided 2026-10-19, export rule stated 2026-10-20)
 
-**Question:** what may a STAFF user do? **Decision: option (a), keep the current behaviour.** STAFF can do everything an ADMIN can except create or edit ADMIN accounts and use the `client-ip` diagnostic. This includes, knowingly: exporting enquiries as CSV, uploading catalogue CSVs, triggering paid supplier API fetches, editing organisation bank details, editing customer credit limits and bank details, deleting dropdown values, and inviting or suspending STAFF and CUSTOMER users.
+**Question:** what may a STAFF user do? **Decision: STAFF stays broadly equivalent to ADMIN**, with three exceptions: STAFF cannot create or edit ADMIN accounts, cannot use the `client-ip` diagnostic, and cannot export data (the enquiry CSV export is ADMIN-only). This is a convenience policy, **not a least-privilege model**: STAFF can still, knowingly, upload catalogue CSVs, trigger paid supplier API fetches, edit organisation bank details, edit customer credit limits and bank details, delete dropdown values, and invite or suspend STAFF and CUSTOMER users.
 
-`test/unit/admin-authorization.test.ts` enforces exactly this policy: its `ADMIN_ONLY` set is the single place that would change if the owner later restricts more. The alternatives that were offered and not chosen: (b) make import/export ADMIN-only per the INDEX sheet wording, and (c) implement the department matrix. Either can be revisited when the owner defines how departments map to the STAFF role.
+History: on 2026-10-19 the owner chose "keep as is", which at that time let STAFF export. On 2026-10-20 the owner's written policy listed exports as ADMIN-only ("Exports remain ADMIN-only"), so the export route was restricted and the earlier note corrected. The catalogue CSV upload and the quotation PDF are not exports in this sense and were left unchanged; say so if they should be restricted too.
+
+`test/unit/admin-authorization.test.ts` enforces this policy: its `ADMIN_ONLY` set (client-ip and leads export) is the single place that changes if the owner restricts more. Not chosen: making catalogue import ADMIN-only per the INDEX sheet wording, and the department matrix; either can be revisited when the owner defines how departments map to the STAFF role.

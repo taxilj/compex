@@ -89,7 +89,8 @@ export async function adminLeadsRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireRole("STAFF", "ADMIN"));
 
   // Registered before "/:id" so the literal path always wins over the param route.
-  app.get("/export", async (req, reply) => {
+  // Owner policy: data exports are ADMIN-only (STAFF otherwise matches ADMIN here).
+  app.get("/export", { preHandler: requireRole("ADMIN") }, async (req, reply) => {
     const q = LeadExportQuery.parse(req.query);
     const where = {
       ...(q.status && { status: q.status }),

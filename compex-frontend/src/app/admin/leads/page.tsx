@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { convertLeadToRfq, listAdminLeads, listCustomers, type AdminLead, type AdminCustomer } from "@/lib/api/admin";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NOTIFICATION_BADGES = {
   SENT: { label: "Sent", className: "bg-[#ECFDF3] text-[#027A48]" },
@@ -17,6 +18,7 @@ function NotificationBadge({ status, error }: { status: AdminLead["notificationS
 }
 
 export default function AdminLeadsPage() {
+  const { user } = useAuth();
   const [leads, setLeads] = useState<AdminLead[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [selectedCustomerByLead, setSelectedCustomerByLead] = useState<Record<string, string>>({});
@@ -57,12 +59,14 @@ export default function AdminLeadsPage() {
           <h1 className="font-headline-lg text-[#111c2d]">Enquiries</h1>
           <p className="font-body-md text-[#44474d]">Public contact submissions and RFQ-linked leads.</p>
         </div>
-        <a
-          href="/api/v1/admin/leads/export"
-          className="rounded border border-[#E4E7EC] bg-white px-4 py-2 font-label-sm text-[#344054] hover:bg-[#F8FAFC]"
-        >
-          Export CSV
-        </a>
+        {user?.role === "ADMIN" && (
+          <a
+            href="/api/v1/admin/leads/export"
+            className="rounded border border-[#E4E7EC] bg-white px-4 py-2 font-label-sm text-[#344054] hover:bg-[#F8FAFC]"
+          >
+            Export CSV
+          </a>
+        )}
       </div>
 
       {error && <p className="rounded-lg border border-[#F04438]/30 bg-[#FEF3F2] px-4 py-3 font-body-sm text-[#B42318]">{error}</p>}

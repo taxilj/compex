@@ -9,7 +9,10 @@ const api = vi.hoisted(() => ({
   convertLeadToRfq: vi.fn(),
 }));
 
+const auth = vi.hoisted(() => ({ role: "ADMIN" as "ADMIN" | "STAFF" }));
+
 vi.mock("@/lib/api/admin", () => api);
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { role: auth.role } }) }));
 
 function lead(overrides: Partial<AdminLead> = {}): AdminLead {
   return {
@@ -44,7 +47,28 @@ function load(leads: AdminLead[]) {
   api.listCustomers.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100 });
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  auth.role = "ADMIN";
+});
+
+// Owner policy: data exports are ADMIN-only. The API answers STAFF with 403, so the page must not
+// offer STAFF a link that downloads a JSON error.
+describe("admin enquiries CSV export", () => {
+  it("offers the export to an ADMIN", async () => {
+    load([lead()]);
+    render(<AdminLeadsPage />);
+    expect(await screen.findByRole("link", { name: "Export CSV" })).toHaveAttribute("href", "/api/v1/admin/leads/export");
+  });
+
+  it("hides the export from STAFF", async () => {
+    auth.role = "STAFF";
+    load([lead()]);
+    render(<AdminLeadsPage />);
+    await screen.findByText("Asha");
+    expect(screen.queryByRole("link", { name: "Export CSV" })).not.toBeInTheDocument();
+  });
+});
 
 describe("admin enquiries notification status", () => {
   it("flags a failed notification with a red badge and a banner naming the count", async () => {

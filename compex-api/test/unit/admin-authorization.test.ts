@@ -29,7 +29,9 @@ import { buildApp } from "../../src/app.js";
 import { signAccessToken } from "../../src/lib/jwt.js";
 
 type Role = "CUSTOMER" | "STAFF" | "ADMIN";
-const ADMIN_ONLY = new Set(["GET /api/v1/admin/settings/client-ip"]);
+// Owner-approved policy: STAFF equals ADMIN except for ADMIN accounts (field rules in
+// admin.users.routes.ts), the client-ip diagnostic and data exports.
+const ADMIN_ONLY = new Set(["GET /api/v1/admin/settings/client-ip", "GET /api/v1/admin/leads/export"]);
 const UUID = "00000000-0000-4000-8000-000000000001";
 
 interface CapturedRoute { method: string; url: string }
