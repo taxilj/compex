@@ -25,11 +25,22 @@ Already covered by unit tests (no change needed): documents stranded in `PROCESS
 
 ## Capability honesty
 
-`bom-capability` is the AND of a durable-storage check (cached 60 s) and a real Redis round trip (not `PING`, which a quota-exhausted provider still answers), cached 5 minutes when healthy and 60 s when not. Worst case: up to 5 minutes after the quota runs out the flag can still read `true`; the first upload then gets a 503 with the "saved, will be processed automatically" message and the flag flips to `false` immediately. No document is lost in that window.
+`bom-capability` is the AND of a durable-storage check (cached 60 s) and the Redis verdict from `src/lib/redis-health.ts`.
 
-## Where the quota is probably going (not proven)
+**Why the old check was wrong (observed 2026-10-20):** it probed with a read (`HEXISTS`) and cached "healthy" for five minutes. At 497,581 of 500,000 monthly commands the provider was rejecting writes (`[cache] set failed … quota-exceeded`) and queue commands (`[bom-worker] Redis quota-exceeded` every five minutes) while `bom-capability` kept answering `true`, because reads still passed.
 
-Queue workers are not the cause (table above). The remaining Redis traffic is the public catalogue cache: one `GET` per catalogue request, a `SET` per miss and a version read every 5 s per process (`catalog-cache.ts`). That scales with visitors and crawlers. This could not be confirmed: the provider's per-command dashboard is the only source and was not accessible.
+**How it works now:** the cache, the queue producer and the BOM worker report what they see to a small in-process memory.
+- Any Redis failure is remembered: **10 minutes** for quota exhaustion, **1 minute** for timeouts and connection errors. While it is remembered the capability is `false` and Redis is sent nothing.
+- Only an accepted **write** (a cache `SET`, a counter, a BOM enqueue, or the probe) counts as healthy. Reads never do. Healthy evidence lasts five minutes.
+- With no recent evidence either way, **one write probe** (`SET compex:health:probe 1 EX 120`) is sent. During a failing or busy period that is at most a handful of commands an hour; under normal traffic the cache writes keep it at zero.
+- While Redis is known to be failing, `enqueueBomJob` does not send Redis another command: the upload stays stored and `UPLOADED` (HTTP 503 with the "saved, will be processed automatically" message) and `jobs/bom-recovery.ts` enqueues it once Redis accepts writes again. Nothing is deleted or marked failed.
+- Recovery is automatic: the hold expires, or any accepted write clears it, and the next check or sweep proceeds.
+
+Tests: `test/unit/redis-health.test.ts`, `bom-queue-health.test.ts`, `redis-cache-health.test.ts`, `bom-capability-route.test.ts`, and the real-Redis scenarios in `test/integration/redis-bom-reliability.test.ts`.
+
+## Where the quota went (provider dashboard, 2026-10-20)
+
+Upstash shows one database on the **Free Tier** with no payment method: 497,581 of 500,000 monthly commands, cost $0.00. Over the last five days only a few dozen commands per day were processed and the week view shows only small per-interval counts, so the quota was used up **before about 13 October**, which fits idle BullMQ polling before the 12 October release set `drainDelay`/`stalledInterval`. Today's traffic is roughly ten commands an hour (cache `GET`, the capability probe, connection setup). The reset date is not shown on the free tier. At the current rate the remaining ~2,400 commands would not run out before the monthly counter resets, but the provider still rejected writes today, which the dashboard numbers do not explain.
 
 ## Recommendations (all need your decision)
 

@@ -22,9 +22,10 @@ vi.mock("bullmq", () => ({
   Queue: vi.fn().mockImplementation(() => ({
     on: vi.fn(),
     client: Promise.resolve({
-      hexists: async () => {
+      // The capability probe is a real write (SET), not a read.
+      set: async () => {
         if (sim.queueDown) throw new Error("ERR max requests limit exceeded");
-        return 0;
+        return "OK";
       },
     }),
     add: async (_name: string, data: { documentId: string }, opts: { jobId: string; removeOnFail?: boolean; removeOnComplete?: boolean }) => {
@@ -156,7 +157,7 @@ describe("BOM enqueue recovery", () => {
     expect(sim.jobs.get("bom-doc-rfq")).toEqual({ documentId: "doc-rfq", rfqId: "rfq-9", leadId: undefined, customerId: "cust-3" });
   });
 
-  it("one document failing to enqueue does not stop the rest of the batch", async () => {
+  it("an unexpected enqueue failure pauses the rest of that sweep, loses nothing, and the next sweep after the hold enqueues both", async () => {
     pendingDoc("doc-a");
     pendingDoc("doc-b");
     const realAdd = sim.jobs.set.bind(sim.jobs);
@@ -166,9 +167,17 @@ describe("BOM enqueue recovery", () => {
       if (calls === 1) throw new Error("boom");
       return realAdd(key, value);
     }) as typeof sim.jobs.set;
-    await expect(recoverPendingBoms()).resolves.toBe(1);
-    sim.jobs.set = realAdd;
+    // Any enqueue failure is treated as a Redis failure (missing a real rejection is the worse error),
+    // so doc-b is not sent to Redis during the hold; both documents stay UPLOADED, none is retired.
+    await expect(recoverPendingBoms()).resolves.toBe(0);
     expect(sim.docs.get("doc-a")?.processingStatus).toBe("UPLOADED");
+    expect(sim.docs.get("doc-b")?.processingStatus).toBe("UPLOADED");
+    expect(sim.jobs.size).toBe(0);
+
+    sim.jobs.set = realAdd;
+    resetBomQueueHealth(); // the hold expiring is modelled in bom-queue-health.test.ts
+    await expect(recoverPendingBoms()).resolves.toBe(2);
+    expect([...sim.jobs.keys()].sort()).toEqual(["bom-doc-a", "bom-doc-b"]);
   });
 
   it("a customer re-upload after a 503 retires the older pending document instead of parsing both (no duplicate RFQ lines)", async () => {

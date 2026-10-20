@@ -211,6 +211,36 @@ suite("BOM queue against a disposable Redis", () => {
       expect(proxy.commands()).toBe(seen); // answered from the cached verdict: no new Redis command
     }, 20_000);
 
+    it("capability is false under quota (no crash), then a real write probe recovers it once Redis accepts writes", async () => {
+      const proxy = startQuotaProxy();
+      closers.push(() => proxy.close());
+      const port = await proxy.listen();
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      process.env.REDIS_URL = `redis://127.0.0.1:${port}`;
+      vi.resetModules();
+      const service = await import("../../src/modules/documents/documents.service.js");
+      closers.push(async () => {
+        const queue = service.getBomQueue();
+        const client = await queue.client;
+        await queue.close();
+        client.disconnect();
+      });
+
+      expect(await service.isBomQueueAvailable()).toBe(false);
+      const sent = proxy.commands();
+      for (let i = 0; i < 50; i += 1) expect(await service.isBomQueueAvailable()).toBe(false);
+      expect(proxy.commands()).toBe(sent); // held: 50 checks sent Redis nothing
+
+      proxy.setMode("pass");
+      // The ten-minute quota hold is cleared so the probe can be tried against the real Redis now.
+      await waitFor(async () => {
+        service.resetBomQueueHealth();
+        return service.isBomQueueAvailable();
+      }, 15_000, "the write probe to succeed against the real Redis");
+      expect(await admin.get("compex:health:probe")).toBe("1"); // proof it was a real write
+    }, 30_000);
+
     it("a worker stops hammering Redis, then resumes by itself and processes the pending job once Redis is back", async () => {
       const proxy = startQuotaProxy();
       closers.push(() => proxy.close());

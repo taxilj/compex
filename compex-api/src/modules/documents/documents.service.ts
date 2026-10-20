@@ -6,7 +6,8 @@ import { LocalStorageProvider, S3StorageProvider } from "../../lib/storage/index
 import type { StorageProvider } from "../../lib/storage/index.js";
 import { env } from "../../config/env.js";
 import { withTimeout } from "../../lib/async.js";
-import { FAIL_FAST_REDIS_OPTIONS, describeRedisError, rateLimitedLogger } from "../../lib/redis-options.js";
+import { FAIL_FAST_REDIS_OPTIONS, describeRedisError, noteRedisError, rateLimitedLogger } from "../../lib/redis-options.js";
+import { recordRedisWriteOk, redisHealth, resetRedisHealth } from "../../lib/redis-health.js";
 import { describeError } from "../../lib/safe-log.js";
 
 let _storage: StorageProvider | null = null;
@@ -32,50 +33,57 @@ export function getBomQueue(): Queue {
     // blocking commands -- this is the producer side only.)
     const connection = new IORedis(env.REDIS_URL, FAIL_FAST_REDIS_OPTIONS);
     _bomQueue = new Queue("bom-processing", { connection });
-    _bomQueue.on("error", rateLimitedLogger("bom-queue"));
+    const logQueueError = rateLimitedLogger("bom-queue");
+    _bomQueue.on("error", (err) => {
+      noteRedisError(err);
+      logQueueError(err);
+    });
   }
   return _bomQueue;
 }
 
 const BOM_ENQUEUE_TIMEOUT_MS = 5000;
 const QUEUE_PROBE_TIMEOUT_MS = 3000;
-// Healthy answers are reused longer than unhealthy ones so recovery is noticed
-// quickly, while a busy upload page costs at most one Redis command per window.
-const QUEUE_HEALTHY_TTL_MS = 5 * 60_000;
-const QUEUE_UNHEALTHY_TTL_MS = 60_000;
+// The probe is a WRITE: a provider that has used up its quota still answers reads while
+// rejecting writes and queue commands, so a read probe reports a Redis that cannot work.
+const QUEUE_PROBE_KEY = "compex:health:probe";
+const QUEUE_PROBE_TTL_SECONDS = 120;
 
 export const BOM_QUEUE_UNAVAILABLE_MESSAGE =
   "Your BOM file was saved, but processing is temporarily unavailable. It will be processed automatically once the service recovers; you can also retry in a few minutes.";
 
-let _queueHealth: { available: boolean; checkedAt: number } | null = null;
 let _queueProbe: Promise<boolean> | null = null;
 
-function recordQueueHealth(available: boolean): boolean {
-  _queueHealth = { available, checkedAt: Date.now() };
-  return available;
-}
-
-// Test hook: forget the cached queue health.
+// Test hook: forget what is known about Redis health.
 export function resetBomQueueHealth(): void {
-  _queueHealth = null;
+  resetRedisHealth();
   _queueProbe = null;
 }
 
-// Real round trip (not PING, which a quota-exhausted Upstash still answers).
+// Whether BOM processing can work right now. The shared Redis health memory (redis-health.ts)
+// answers first: failures seen by the cache, the queue and the worker keep this false for a
+// hold period without sending Redis anything, and a recent accepted write keeps it true
+// without a probe. Only when nothing is known is ONE write probe sent (a real write, since a
+// quota-exhausted provider still answers reads), so a failing or busy period costs at most a
+// handful of commands per hour. Recovery is automatic: the hold expires and the next probe
+// or any accepted cache/enqueue write marks Redis healthy again.
 export async function isBomQueueAvailable(): Promise<boolean> {
-  if (_queueHealth) {
-    const ttl = _queueHealth.available ? QUEUE_HEALTHY_TTL_MS : QUEUE_UNHEALTHY_TTL_MS;
-    if (Date.now() - _queueHealth.checkedAt < ttl) return _queueHealth.available;
-  }
+  const health = redisHealth();
+  if (health === "failing") return false;
+  if (health === "ok") return true;
   _queueProbe ??= withTimeout(
-    getBomQueue().client.then((client) => client.hexists("bull:bom-processing:meta", "opts.maxLenEvents")),
+    getBomQueue().client.then((client) => (client as unknown as IORedis).set(QUEUE_PROBE_KEY, "1", "EX", QUEUE_PROBE_TTL_SECONDS)),
     QUEUE_PROBE_TIMEOUT_MS,
     "BOM queue probe",
   )
-    .then(() => recordQueueHealth(true))
+    .then(() => {
+      recordRedisWriteOk();
+      return true;
+    })
     .catch((error: unknown) => {
+      noteRedisError(error);
       console.error(`[bom-queue] health probe failed: ${describeRedisError(error)}`);
-      return recordQueueHealth(false);
+      return false;
     })
     .finally(() => {
       _queueProbe = null;
@@ -97,6 +105,13 @@ export async function enqueueBomJob(
   documentId: string,
   data: { documentId: string; rfqId?: string; leadId?: string; customerId?: string },
 ): Promise<void> {
+  // Redis is known to be failing (quota, timeout, connection): keep the upload pending without
+  // sending it another rejected command. The stored document stays UPLOADED and the recovery
+  // sweep (bom-recovery.ts) enqueues it once Redis accepts writes again.
+  if (redisHealth() === "failing") {
+    console.error(`[bom-queue] enqueue skipped for document ${documentId}: Redis is failing; upload retained as pending`);
+    throw Errors.serviceUnavailable(BOM_QUEUE_UNAVAILABLE_MESSAGE);
+  }
   try {
     await withTimeout(
       // removeOnFail/removeOnComplete: a finished or failed job must not leave its jobId
@@ -107,9 +122,9 @@ export async function enqueueBomJob(
       BOM_ENQUEUE_TIMEOUT_MS,
       "BOM enqueue",
     );
-    recordQueueHealth(true);
+    recordRedisWriteOk();
   } catch (error) {
-    recordQueueHealth(false);
+    noteRedisError(error);
     console.error(`[bom-queue] enqueue failed for document ${documentId}: ${describeRedisError(error)}; upload retained as pending`);
     throw Errors.serviceUnavailable(BOM_QUEUE_UNAVAILABLE_MESSAGE);
   }

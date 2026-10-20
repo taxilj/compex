@@ -1,4 +1,5 @@
 import type { RedisOptions } from "ioredis";
+import { recordRedisFailure } from "./redis-health.js";
 
 // One connection policy for every Redis client in this process. Production
 // Redis (Upstash) bills per command, so an outage must never turn into a tight
@@ -70,6 +71,12 @@ export function isRedisQuotaError(err: unknown): boolean {
   return err instanceof Error && /max (requests|daily request) limit|rate limit|max requests/i.test(err.message);
 }
 
+// Tell the shared Redis health memory (redis-health.ts) about a failure, classified only:
+// quota exhaustion is held longer than a socket/timeout blip. Never logs the error.
+export function noteRedisError(err: unknown): void {
+  recordRedisFailure(isRedisQuotaError(err) ? "quota" : "transient");
+}
+
 // Circuit breaker for a BullMQ worker. On a quota error (Upstash "max requests
 // limit exceeded") BullMQ keeps re-polling several times a second, which is what
 // drained the monthly quota. Pausing is local to this process (no Redis command),
@@ -80,6 +87,7 @@ export function pauseOnRedisError(worker: PausableWorker, label: string, cooldow
   const log = rateLimitedLogger(label);
   worker.on("error", (err) => {
     log(err);
+    noteRedisError(err); // the capability check must not call Redis available while the worker is failing
     if (!isRedisQuotaError(err) || worker.isPaused()) return;
     void worker.pause(true).catch(() => undefined);
     setTimeout(() => worker.resume(), cooldownMs).unref?.();

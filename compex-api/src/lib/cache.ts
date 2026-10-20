@@ -1,6 +1,7 @@
 import IORedis from "ioredis";
 import { env } from "../config/env.js";
-import { FAIL_FAST_REDIS_OPTIONS, describeRedisError } from "./redis-options.js";
+import { FAIL_FAST_REDIS_OPTIONS, describeRedisError, noteRedisError } from "./redis-options.js";
+import { recordRedisWriteOk } from "./redis-health.js";
 
 // Small shared cache helper backed by the same Redis instance already used
 // for BullMQ (env.REDIS_URL) -- see follow-up-scheduler.ts for the existing
@@ -29,6 +30,7 @@ function getClient(): IORedis | null {
       loggedConnectionError = false;
     });
     client.on("error", (err) => {
+      noteRedisError(err);
       // ioredis requires an 'error' listener or it throws; keep this a
       // single best-effort log line rather than crashing the process on a
       // transient Redis blip.
@@ -58,6 +60,7 @@ export async function cacheGet<T>(namespace: string, key: string): Promise<Cache
     if (!raw) return null;
     return JSON.parse(raw) as CacheEntry<T>;
   } catch (err) {
+    noteRedisError(err);
     console.error(`[cache] get failed for ${namespace}, treating as a miss: ${describeRedisError(err)}`);
     return null;
   }
@@ -70,7 +73,9 @@ export async function cacheSet<T>(namespace: string, key: string, value: T, ttlS
   try {
     const entry: CacheEntry<T> = { value, cachedAt: new Date().toISOString() };
     await redis.set(`compex:cache:${namespace}:${key}`, JSON.stringify(entry), "EX", ttlSeconds);
+    recordRedisWriteOk(); // a real accepted write: the only kind of evidence that Redis is healthy
   } catch (err) {
+    noteRedisError(err);
     // A failed write just means the next lookup misses the cache -- never
     // let a caching problem surface as (or block) an application error.
     console.error(`[cache] set failed for ${namespace}, continuing without caching this entry: ${describeRedisError(err)}`);
@@ -105,8 +110,10 @@ export async function incrementCounter(namespace: string, key: string, ttlSecond
     const fullKey = `compex:counter:${namespace}:${key}`;
     const count = await redis.incrby(fullKey, by);
     if (count === by) await redis.expire(fullKey, ttlSeconds);
+    recordRedisWriteOk();
     return count;
   } catch (err) {
+    noteRedisError(err);
     console.error(`[cache] increment failed for ${namespace}: ${describeRedisError(err)}`);
     return 0;
   }

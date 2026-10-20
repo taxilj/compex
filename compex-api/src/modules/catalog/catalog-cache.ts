@@ -1,6 +1,6 @@
 import { cacheGet, cacheSet } from "../../lib/cache.js";
 import { withTimeout } from "../../lib/async.js";
-import { describeRedisError } from "../../lib/redis-options.js";
+import { describeRedisError, noteRedisError } from "../../lib/redis-options.js";
 
 // Public catalogue read-through cache (categories, product lists, manufacturers).
 // Redis is an optimisation only: every Redis call is bounded so a slow or dead
@@ -49,6 +49,7 @@ const BREAKER_COOLDOWN_MS = 30_000;
 let skipRedisUntil = 0;
 
 function tripBreaker(err: unknown): void {
+  noteRedisError(err); // slow, timed-out or rejected cache calls also count against BOM capability
   if (Date.now() >= skipRedisUntil) {
     console.warn(`[catalog-cache] Redis slow or unavailable (${describeRedisError(err)}); serving from the database for ${BREAKER_COOLDOWN_MS / 1000}s`);
   }
