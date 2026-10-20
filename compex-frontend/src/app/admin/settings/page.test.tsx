@@ -35,4 +35,25 @@ describe("AdminSettingsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Activate" }));
     await waitFor(() => expect(activateSetting).toHaveBeenCalledWith("country-1"));
   });
+
+  // At 375px the fixed 256px category list plus an unshrinkable editor pushed the whole admin
+  // content area sideways. jsdom cannot compute Tailwind layout, so this pins the class
+  // contract that stacks the two panes on phones and keeps them side by side from md up.
+  it("stacks the category list above the editor on phones and puts them side by side from md", async () => {
+    vi.mocked(listSettings).mockResolvedValue([setting(true)]);
+
+    render(<AdminSettingsPage />);
+    await screen.findByRole("button", { name: "Deactivate" });
+
+    const nav = screen.getByRole("navigation");
+    const row = nav.parentElement!;
+    const editor = nav.nextElementSibling!;
+    const tokens = (element: Element) => element.className.split(/\s+/);
+
+    expect(tokens(row)).toEqual(expect.arrayContaining(["flex", "flex-col", "md:flex-row"]));
+    expect(tokens(nav)).toEqual(expect.arrayContaining(["w-full", "md:w-64", "md:shrink-0"]));
+    expect(tokens(nav)).not.toContain("w-64");
+    expect(tokens(nav)).not.toContain("shrink-0");
+    expect(tokens(editor)).toEqual(expect.arrayContaining(["min-w-0", "md:flex-1"]));
+  });
 });

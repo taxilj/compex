@@ -244,6 +244,19 @@ export async function refresh(rawToken: string, ipAddress?: string) {
 
   if (stored.expiresAt < new Date()) throw Errors.unauthorized();
 
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: stored.userId },
+    include: { customer: true },
+  });
+  if (user.status !== "ACTIVE") {
+    // A suspended (or never-activated) account must not mint new tokens: end the whole session family.
+    await prisma.refreshToken.updateMany({
+      where: { family: stored.family },
+      data: { revokedAt: new Date() },
+    });
+    throw Errors.unauthorized();
+  }
+
   // Rotate: revoke old, issue new
   const newRaw = generateRefreshTokenRaw();
   await prisma.$transaction([
@@ -260,11 +273,6 @@ export async function refresh(rawToken: string, ipAddress?: string) {
       },
     }),
   ]);
-
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: stored.userId },
-    include: { customer: true },
-  });
 
   const accessToken = signAccessToken({
     sub: user.id,

@@ -45,7 +45,7 @@ export default function AdminRFQsPage() {
 
   return (
     <div className="space-y-0 h-full flex flex-col">
-      <div className="bg-white border-b border-[#E4E7EC] px-0 py-5 mb-0 flex items-center justify-between -mx-8 -mt-8 px-8 sticky top-0 z-10">
+      <div className="bg-white border-b border-[#E4E7EC] py-5 mb-0 flex items-center justify-between -mx-4 -mt-4 px-4 md:-mx-8 md:-mt-8 md:px-8 sticky top-0 z-10">
         <div>
           <h1 className="font-headline-lg text-[#111c2d]">Requests for Quotation</h1>
           <p className="font-body-sm text-[#44474d] mt-0.5">
@@ -54,7 +54,7 @@ export default function AdminRFQsPage() {
         </div>
       </div>
 
-      <div className="bg-[#f0f3ff] border-b border-[#E4E7EC] px-8 py-3 -mx-8 flex items-center justify-between gap-4 flex-wrap">
+      <div className="bg-[#f0f3ff] border-b border-[#E4E7EC] px-4 md:px-8 py-3 -mx-4 md:-mx-8 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#44474d]" />

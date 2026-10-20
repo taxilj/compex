@@ -179,6 +179,12 @@ export async function adminUsersRoutes(app: FastifyInstance): Promise<void> {
     const user = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({ where: { id }, data: withCleared(body, cleared), select: UserSelect });
       await auditInTx(tx, { userId: req.user!.id, action: "user.updated", entityType: "user", entityId: id, oldValue: existing, newValue: updated });
+      if (body.status === "SUSPENDED") {
+        // Suspension must end live sessions. authenticate() re-checks status on every request;
+        // revoking here also stops the refresh tokens from lingering until they expire.
+        await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+        await auditInTx(tx, { userId: req.user!.id, action: "user.sessions_revoked", entityType: "user", entityId: id });
+      }
       return updated;
     });
     return reply.send(ok(user));

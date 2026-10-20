@@ -50,6 +50,25 @@ describe("STAFF cannot modify ADMIN accounts", () => {
   });
 });
 
+describe("suspending a user ends their session", () => {
+  it("rejects the old access token and refuses to refresh once suspended", async () => {
+    const admin = await createAdminAndLogin(app, "suspender@invalid.test");
+    const password = makeTestPassword();
+    const target = await prisma.user.create({ data: { email: "suspended-staff@invalid.test", passwordHash: await bcrypt.hash(password, 12), role: "STAFF", status: "ACTIVE", firstName: "Sus", lastName: "Pended" } });
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: target.email, password } });
+    const accessToken = login.json().data.accessToken as string;
+    const refreshToken = login.cookies.find((cookie) => cookie.name === "refresh_token")!.value;
+    expect((await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: auth(accessToken) })).statusCode).toBe(200);
+
+    const suspend = await app.inject({ method: "PATCH", url: `/api/v1/admin/users/${target.id}`, headers: auth(admin.accessToken), payload: { status: "SUSPENDED" } });
+    expect(suspend.statusCode).toBe(200);
+
+    expect((await app.inject({ method: "GET", url: "/api/v1/auth/me", headers: auth(accessToken) })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url: "/api/v1/auth/refresh", cookies: { refresh_token: refreshToken } })).statusCode).toBe(401);
+    expect(await prisma.refreshToken.count({ where: { userId: target.id, revokedAt: null } })).toBe(0);
+  });
+});
+
 describe("clearing optional fields", () => {
   it("turns an explicit null into a real NULL for plain and Settings-backed vendor fields", async () => {
     const admin = await createAdminAndLogin(app, "admin-clear-vendor@invalid.test");

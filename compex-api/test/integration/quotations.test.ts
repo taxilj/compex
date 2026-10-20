@@ -32,6 +32,10 @@ async function createQuotation(adminToken: string, rfqId: string, customerId: st
 }
 
 describe("Quotation creation, retrieval, send (admin)", () => {
+  // Two bcrypt-hashed registrations (cost 12) plus RFQ, quotation create and send take about
+  // 7.8 s on a developer machine, identically on master and on the feature branch, which is
+  // over vitest's 5 s default. An explicit per-test limit keeps every assertion and avoids
+  // raising the timeout for the whole integration suite.
   it("admin creates, retrieves, and sends a quotation", async () => {
     const { accessToken: customerToken } = await registerAndLogin(app, "cust-quo1@compex-test.local");
     const { accessToken: adminToken } = await createAdminAndLogin(app, "admin-quo1@compex-test.local");
@@ -53,7 +57,7 @@ describe("Quotation creation, retrieval, send (admin)", () => {
     // create + send are audited transactionally (P2.1)
     const logs = await prisma.auditLog.findMany({ where: { entityType: "quotation", entityId: quotationId } });
     expect(logs.map((l) => l.action).sort()).toEqual(["quotation.created", "quotation.sent"]);
-  });
+  }, 20_000);
 
   it("customer cannot access admin quotation management endpoints", async () => {
     const { accessToken } = await registerAndLogin(app, "cust-quo2@compex-test.local");
