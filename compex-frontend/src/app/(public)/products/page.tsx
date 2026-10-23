@@ -12,6 +12,11 @@ const PAGE_SIZE = 24;
 
 function ProductSearchContent() {
   const searchParams = useSearchParams();
+  return <ProductSearchResults key={searchParams.toString()} />;
+}
+
+function ProductSearchResults() {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [query] = useState(searchParams.get("q") ?? "");
   const [searchInput, setSearchInput] = useState(query);
