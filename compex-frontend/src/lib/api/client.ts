@@ -24,8 +24,7 @@ const UPLOAD_TIMEOUT_MS = 120_000;
 // fetch() with a timeout that also honours a caller-supplied AbortSignal
 // (stale-request cancellation). A caller abort rethrows as-is (AbortError);
 // only our own timeout becomes ApiError(TIMEOUT).
-async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
-  const timeoutMs = init.body instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = init.body instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -82,9 +81,9 @@ function buildHeaders(init?: RequestInit): HeadersInit {
   };
 }
 
-async function fetchWithRefresh(path: string, init?: RequestInit): Promise<Response> {
+async function fetchWithRefresh(path: string, init?: RequestInit, timeoutMs?: number): Promise<Response> {
   const makeReq = () =>
-    fetchWithTimeout(`${API_URL}${path}`, { ...init, credentials: "include", headers: buildHeaders(init) });
+    fetchWithTimeout(`${API_URL}${path}`, { ...init, credentials: "include", headers: buildHeaders(init) }, timeoutMs);
 
   let res = await makeReq();
 
@@ -116,8 +115,8 @@ export async function apiFetchPublic<T>(path: string, init?: RequestInit): Promi
   return parseJson<T>(res);
 }
 
-export async function apiFetchPaginated<T>(path: string, init?: RequestInit): Promise<{ data: T[]; total: number; page: number; limit: number }> {
-  const res = await fetchWithRefresh(path, init);
+export async function apiFetchPaginated<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<{ data: T[]; total: number; page: number; limit: number }> {
+  const res = await fetchWithRefresh(path, init, timeoutMs);
   if (res.status === 204) return { data: [], total: 0, page: 1, limit: 20 };
   let json: { success: boolean; data: T[]; meta?: { total: number; page: number; limit: number }; error?: { code?: string; message?: string; details?: unknown[] } };
   try {

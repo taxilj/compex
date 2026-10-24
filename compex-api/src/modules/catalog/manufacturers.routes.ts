@@ -13,16 +13,18 @@ import { PUBLIC_CACHE_CONTROL, cachedCatalog, catalogKey } from "./catalog-cache
 // unfiltered specifications (Product).
 export async function manufacturersRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async (req, reply) => {
-    const q = z.object({ page: z.coerce.number().int().positive().default(1), limit: z.coerce.number().int().positive().max(100).default(100) }).parse(req.query);
+    const q = z.object({ page: z.coerce.number().int().positive().default(1), limit: z.coerce.number().int().positive().max(100).default(100), q: z.string().trim().max(100).default("") }).parse(req.query);
+    const where = q.q ? { name: { contains: q.q, mode: "insensitive" as const } } : {};
     const { publicData, total } = await cachedCatalog(catalogKey("manufacturers", q), async () => {
       const [data, count] = await prisma.$transaction([
         prisma.manufacturer.findMany({
+          where,
           skip: (q.page - 1) * q.limit,
           take: q.limit,
-          orderBy: { name: "asc" },
+          orderBy: [{ name: "asc" }, { id: "asc" }],
           include: { _count: { select: { products: { where: { isActive: true } } } } },
         }),
-        prisma.manufacturer.count(),
+        prisma.manufacturer.count({ where }),
       ]);
       return { publicData: data.map((manufacturer) => ({ ...toPublicManufacturer(manufacturer), _count: manufacturer._count })), total: count };
     });

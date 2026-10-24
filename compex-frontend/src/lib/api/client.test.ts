@@ -172,7 +172,7 @@ describe("timeout covers the response body and is not retried", () => {
 });
 
 describe("manufacturer pagination timeout recovery", () => {
-  it("retries the same page once after a real 20-second abort and shares recovery between callers", async () => {
+  it("retries the same page once after a real 5-second abort and shares recovery between callers", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn()
       .mockImplementationOnce(hangingFetch())
@@ -182,7 +182,7 @@ describe("manufacturer pagination timeout recovery", () => {
     const sameRequest = listManufacturers({ page: 2, limit: 100 });
     const settled = request.catch((error: unknown) => error);
     expect(sameRequest).toBe(request);
-    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 10);
+    await vi.advanceTimersByTimeAsync(5_000 + 10);
     expect(await settled).toMatchObject({ data: [{ id: "last-manufacturer" }], total: 101, page: 2, limit: 100 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
@@ -196,7 +196,7 @@ describe("manufacturer pagination timeout recovery", () => {
     const fetchMock = hangingFetch();
     vi.stubGlobal("fetch", fetchMock);
     const settled = listManufacturers({ page: 3, limit: 100 }).catch((error: unknown) => error);
-    await vi.advanceTimersByTimeAsync(2 * REQUEST_TIMEOUT_MS + 10);
+    await vi.advanceTimersByTimeAsync(10_000 + 10);
     expect(await settled).toMatchObject({ code: "TIMEOUT" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     fetchMock.mockResolvedValueOnce(ok([], { total: 0, page: 3, limit: 100 }));

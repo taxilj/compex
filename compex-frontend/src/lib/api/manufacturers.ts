@@ -9,18 +9,19 @@ export interface ManufacturerListItem extends BackendManufacturer {
 // effect) share one network call; the entry is dropped once it settles.
 const manufacturerInflight = new Map<string, ReturnType<typeof apiFetchPaginated<ManufacturerListItem>>>();
 
-export function listManufacturers(params?: { page?: number; limit?: number }) {
+export function listManufacturers(params?: { page?: number; limit?: number; q?: string }) {
   const q = new URLSearchParams();
   if (params?.page) q.set("page", String(params.page));
   if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.q?.trim()) q.set("q", params.q.trim());
   const qs = q.toString();
   const path = `/manufacturers${qs ? `?${qs}` : ""}`;
   const pending = manufacturerInflight.get(path);
   if (pending) return pending;
-  // A transient timeout on any directory page must not discard the whole load.
-  const request = apiFetchPaginated<ManufacturerListItem>(path)
+  // Two five-second attempts bound directory recovery to ten seconds.
+  const request = apiFetchPaginated<ManufacturerListItem>(path, undefined, 5_000)
     .catch((error: unknown) => {
-      if (error instanceof ApiError && error.code === "TIMEOUT") return apiFetchPaginated<ManufacturerListItem>(path);
+      if (error instanceof ApiError && error.code === "TIMEOUT") return apiFetchPaginated<ManufacturerListItem>(path, undefined, 5_000);
       throw error;
     })
     .finally(() => manufacturerInflight.delete(path));
