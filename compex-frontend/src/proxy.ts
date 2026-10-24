@@ -8,7 +8,8 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get("access_token");
   if (!token) return NextResponse.redirect(new URL("/login", request.url));
 
-  // These legacy prototypes render hard-coded commercial data. Keep them out
+  // Orders, invoices and shipments now render explicit unavailable states.
+  // Keep the remaining prototypes out
   // of authenticated workflows until matching API-backed modules exist.
   // NOTE: "/admin/customers" is a real, API-backed, tested feature (see
   // admin.customers.routes.ts and the AdminSidebar "Management" nav group) —
@@ -18,11 +19,10 @@ export function proxy(request: NextRequest) {
   // that was a bug hiding working functionality, not an unbuilt page.
   const { pathname } = request.nextUrl;
   const unsupportedAdminRoutes = [
-    "/admin/invoices", "/admin/orders",
-    "/admin/purchase-orders", "/admin/reports", "/admin/shipments",
+    "/admin/reports",
   ];
   const unsupportedPortalPrefixes = [
-    "/portal/invoices", "/portal/orders", "/portal/saved", "/portal/shipments",
+    "/portal/saved",
   ];
 
   if (unsupportedAdminRoutes.includes(pathname)) return NextResponse.redirect(new URL("/admin", request.url));

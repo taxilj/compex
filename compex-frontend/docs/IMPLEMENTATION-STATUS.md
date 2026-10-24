@@ -1,6 +1,8 @@
 ﻿# Implementation Status — Compex Solution Frontend
 
-Last updated: 2026-08-10
+Historical snapshot: 2026-08-10
+
+2026-10-24 correction: Orders, purchase orders, invoices and shipments are NOT AVAILABLE. Their mock screens have been replaced with explicit unavailable states, including portal detail routes. They remain absent from navigation. Other rows below are historical, not current release evidence; see `../../docs/FINAL-DELIVERY-2026-10-24.md`.
 
 ## Build Status: EXPECTED PASS
 
@@ -41,8 +43,8 @@ Last updated: 2026-08-10
 | `/portal/rfqs/[id]` | DONE | RFQ detail + timeline |
 | `/portal/rfqs/[id]/bom` | TODO | BOM line items view |
 | `/portal/quotes/compare` | TODO | Side-by-side quote compare |
-| `/portal/orders` | DONE | Purchase orders list |
-| `/portal/invoices` | DONE | Invoices list |
+| `/portal/orders` | NOT AVAILABLE | Explicit unavailable state; no mock records |
+| `/portal/invoices` | NOT AVAILABLE | Explicit unavailable state; no mock records |
 | `/portal/profile` | PARTIAL | Form present, no save action |
 
 ### Admin ERP — 9/12 complete
@@ -51,16 +53,16 @@ Last updated: 2026-08-10
 |---|---|---|
 | `/admin` | DONE | Dashboard + KPI cards |
 | `/admin/rfqs` | DONE | Full RFQ management table |
-| `/admin/orders` | DONE | Sales orders table |
-| `/admin/invoices` | DONE | Invoice management + tabs |
+| `/admin/orders` | NOT AVAILABLE | Explicit unavailable state; no mock records |
+| `/admin/invoices` | NOT AVAILABLE | Explicit unavailable state; no mock records |
 | `/admin/customers` | DONE | Customer management table |
 | `/admin/vendors` | DONE | Vendor management + ratings |
 | `/admin/products` | DONE | Product catalog table |
 | `/admin/reports` | DONE | Analytics + sparklines |
 | `/admin/settings` | DONE | Tabbed settings panel |
 | `/admin/quotes` | TODO | Quote management |
-| `/admin/purchase-orders` | TODO | PO management |
-| `/admin/shipments` | TODO | Import & shipments |
+| `/admin/purchase-orders` | NOT AVAILABLE | Explicit unavailable state; no mock records |
+| `/admin/shipments` | NOT AVAILABLE | Explicit unavailable state; no mock records |
 
 ## Data Layer
 
