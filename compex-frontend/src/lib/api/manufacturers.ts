@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchPaginated } from "./client";
+import { ApiError, apiFetch, apiFetchPaginated } from "./client";
 import type { BackendManufacturer, BackendProduct } from "./products";
 
 export interface ManufacturerListItem extends BackendManufacturer {
@@ -17,7 +17,13 @@ export function listManufacturers(params?: { page?: number; limit?: number }) {
   const path = `/manufacturers${qs ? `?${qs}` : ""}`;
   const pending = manufacturerInflight.get(path);
   if (pending) return pending;
-  const request = apiFetchPaginated<ManufacturerListItem>(path).finally(() => manufacturerInflight.delete(path));
+  // A transient timeout on any directory page must not discard the whole load.
+  const request = apiFetchPaginated<ManufacturerListItem>(path)
+    .catch((error: unknown) => {
+      if (error instanceof ApiError && error.code === "TIMEOUT") return apiFetchPaginated<ManufacturerListItem>(path);
+      throw error;
+    })
+    .finally(() => manufacturerInflight.delete(path));
   manufacturerInflight.set(path, request);
   return request;
 }

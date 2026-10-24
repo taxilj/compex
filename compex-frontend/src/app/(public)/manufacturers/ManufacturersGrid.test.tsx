@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import ManufacturersGrid from "./ManufacturersGrid";
+import { ApiError } from "@/lib/api/client";
 import { listManufacturers } from "@/lib/api/manufacturers";
 import { listProducts } from "@/lib/api/products";
 
@@ -51,6 +52,22 @@ describe("ManufacturersGrid", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("Recovered Mfr")).toBeInTheDocument();
+  });
+
+  it("keeps Retry visible after exhausted timeouts and loads every page on manual recovery", async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => mfr(`r${i}`, `Recovered ${i}`));
+    vi.mocked(listManufacturers).mockRejectedValueOnce(new ApiError(0, "TIMEOUT", "The server took too long to respond"));
+    render(<ManufacturersGrid />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load manufacturers");
+    expect(screen.queryByText("No manufacturers in the catalogue yet")).not.toBeInTheDocument();
+    vi.mocked(listManufacturers)
+      .mockResolvedValueOnce({ data: page1, total: 101, page: 1, limit: 100 })
+      .mockResolvedValueOnce({ data: [mfr("r100", "Recovered last")], total: 101, page: 2, limit: 100 });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Recovered last")).toBeInTheDocument();
+    expect(screen.getByText("Recovered 0")).toBeInTheDocument();
+    expect(listManufacturers).toHaveBeenNthCalledWith(3, { page: 2, limit: 100 });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows the genuine empty state only for a real zero-result response", async () => {

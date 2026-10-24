@@ -170,3 +170,44 @@ describe("timeout covers the response body and is not retried", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("manufacturer pagination timeout recovery", () => {
+  it("retries the same page once after a real 20-second abort and shares recovery between callers", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(hangingFetch())
+      .mockResolvedValueOnce(ok([{ id: "last-manufacturer", name: "Last Manufacturer" }], { total: 101, page: 2, limit: 100 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const request = listManufacturers({ page: 2, limit: 100 });
+    const sameRequest = listManufacturers({ page: 2, limit: 100 });
+    const settled = request.catch((error: unknown) => error);
+    expect(sameRequest).toBe(request);
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 10);
+    expect(await settled).toMatchObject({ data: [{ id: "last-manufacturer" }], total: 101, page: 2, limit: 100 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
+      "/api/v1/manufacturers?page=2&limit=100", "/api/v1/manufacturers?page=2&limit=100",
+    ]);
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+  });
+
+  it("surfaces TIMEOUT after the second deadline and releases the failed in-flight entry", async () => {
+    vi.useFakeTimers();
+    const fetchMock = hangingFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const settled = listManufacturers({ page: 3, limit: 100 }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(2 * REQUEST_TIMEOUT_MS + 10);
+    expect(await settled).toMatchObject({ code: "TIMEOUT" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockResolvedValueOnce(ok([], { total: 0, page: 3, limit: 100 }));
+    await expect(listManufacturers({ page: 3, limit: 100 })).resolves.toMatchObject({ data: [], total: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry validation errors or turn them into an empty successful directory", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false, error: { code: "VALIDATION_ERROR", message: "bad limit" } }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(listManufacturers({ page: 1, limit: 101 })).rejects.toMatchObject({ statusCode: 400 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
