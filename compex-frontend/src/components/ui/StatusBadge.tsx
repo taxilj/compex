@@ -2,6 +2,11 @@
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   draft:        { label: "Draft",        className: "bg-gray-100 text-gray-600" },
+  confirmed:    { label: "Confirmed",    className: "bg-blue-50 text-blue-700" },
+  sent:         { label: "Sent",         className: "bg-blue-50 text-blue-700" },
+  acknowledged: { label: "Acknowledged", className: "bg-amber-50 text-amber-700" },
+  issued:       { label: "Issued",       className: "bg-blue-50 text-blue-700" },
+  partially_paid: { label: "Partially Paid", className: "bg-amber-50 text-amber-700" },
   submitted:    { label: "Submitted",    className: "bg-blue-50 text-blue-700" },
   under_review: { label: "Under Review", className: "bg-amber-50 text-amber-700" },
   sourcing:     { label: "Sourcing",     className: "bg-[#23597F]/10 text-[#23597F]" },

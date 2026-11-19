@@ -60,7 +60,7 @@ describe("product detail page", () => {
     vi.mocked(getProduct).mockRejectedValue(new ApiError(404, "NOT_FOUND", "Product not found"));
     vi.mocked(resolveProduct).mockResolvedValue({
       product: makeProduct({ mpn: "NEWPART1" }),
-      sources: [{ provider: "MOUSER", status: "FOUND" }],
+      sources: [{ status: "FOUND" }],
     });
 
     await renderPage("NEWPART1");
@@ -74,9 +74,9 @@ describe("product detail page", () => {
     vi.mocked(resolveProduct).mockResolvedValue({
       product: null,
       sources: [
-        { provider: "MOUSER", status: "TIMEOUT" },
-        { provider: "DIGIKEY", status: "ERROR" },
-        { provider: "ELEMENT14", status: "NO_MATCH" },
+        { status: "TIMEOUT" },
+        { status: "ERROR" },
+        { status: "NO_MATCH" },
       ],
     });
 
@@ -91,9 +91,9 @@ describe("product detail page", () => {
     vi.mocked(resolveProduct).mockResolvedValue({
       product: null,
       sources: [
-        { provider: "MOUSER", status: "NO_MATCH" },
-        { provider: "DIGIKEY", status: "NO_MATCH" },
-        { provider: "ELEMENT14", status: "NO_MATCH" },
+        { status: "NO_MATCH" },
+        { status: "NO_MATCH" },
+        { status: "NO_MATCH" },
       ],
     });
 

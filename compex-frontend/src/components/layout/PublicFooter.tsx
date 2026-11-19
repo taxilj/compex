@@ -6,6 +6,9 @@ import {
   COMPANY_PHONE_TEL_HREF,
   COMPANY_EMAIL,
   COMPANY_EMAIL_MAILTO_HREF,
+  COMPANY_LEGAL_NAME,
+  COMPANY_GSTIN,
+  COMPANY_ADDRESS,
 } from "@/lib/constants/contact";
 
 const columns = [
@@ -72,6 +75,11 @@ export default function PublicFooter() {
             <p className="font-body-sm max-w-xs">
               Industrial electronic component sourcing. Search a part, submit your requirement, and Compex sources it for you.
             </p>
+            <address className="font-body-sm not-italic max-w-xs space-y-2">
+              <p>{COMPANY_LEGAL_NAME}</p>
+              <p>{COMPANY_ADDRESS}</p>
+              <p>GSTIN: {COMPANY_GSTIN}</p>
+            </address>
             <div className="space-y-2">
               <a href={COMPANY_PHONE_TEL_HREF} className="flex items-center gap-2 font-body-sm hover:text-white transition-colors w-fit">
                 <Phone size={14} className="shrink-0" />

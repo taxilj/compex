@@ -48,7 +48,7 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const result = await searchMpnAcrossProviders(mpn);
-      return reply.send(ok(result));
+      return reply.send(ok({ ...result, sources: result.sources.map(({ status }) => ({ status })) }));
     } catch (error) {
       const code = (error as { code?: string }).code;
       if (code === "VALIDATION_ERROR") throw error;
@@ -104,6 +104,6 @@ export async function productsRoutes(app: FastifyInstance): Promise<void> {
     const result = await resolveUnknownMpn(mpn, manufacturerId);
     // sources is empty when the product was already catalogued: nothing changed.
     if (result.product && result.sources.length > 0) await bumpCatalogVersion();
-    return reply.send(ok(result));
+    return reply.send(ok({ ...result, sources: result.sources.map(({ status }) => ({ status })) }));
   });
 }

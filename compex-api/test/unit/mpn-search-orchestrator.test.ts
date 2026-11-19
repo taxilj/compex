@@ -35,6 +35,15 @@ beforeEach(() => {
 });
 
 describe("three-provider MPN orchestration", () => {
+  it("removes unsafe URLs from fresh results and old cached products", async () => {
+    const product = mapRawItemToPublicProduct({ ...item, datasheetUrl: "javascript:private()", images: ["data:image/svg+xml,private", "https://example.test/image.png"] });
+    expect(product.datasheetUrl).toBeUndefined();
+    expect(product.imageUrl).toBe("https://example.test/image.png");
+    mocks.cacheGet.mockResolvedValue({ value: { product: { ...product, imageUrl: "javascript:private()", datasheetUrl: "data:text/html,private" }, sources: [] } });
+    const cached = await searchMpnAcrossProviders(item.mpn);
+    expect(cached.product?.imageUrl).toBeUndefined();
+    expect(cached.product?.datasheetUrl).toBeUndefined();
+  });
   it("returns Mouser's match while the other providers complete independently", async () => {
     mocks.mouserFetch.mockResolvedValue({ items: [item] });
     mocks.digikeyFetch.mockImplementation(noMatch);

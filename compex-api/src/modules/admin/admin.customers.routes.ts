@@ -16,12 +16,7 @@ import { assertValidSettingValues } from "../../lib/settings-validation.js";
 import { splitBlanks, withCleared } from "../../lib/blank-fields.js";
 import { safeErr } from "../../lib/safe-log.js";
 
-const ContactEntry = z.object({
-  name: z.string().trim().min(1).max(200),
-  email: z.string().trim().email().optional(),
-  phone: z.string().trim().max(50).optional(),
-  role: z.string().trim().max(100).optional(),
-});
+import { ContactEntry } from "./contact.schemas.js";
 
 const CustomerBody = z.object({
   companyName: z.string().trim().min(2).max(200),

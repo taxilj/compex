@@ -31,6 +31,32 @@ beforeEach(() => {
 });
 
 describe("BOM upload tab", () => {
+  it("never silently drops a partially entered component line", async () => {
+    render(<RequestQuotePage />);
+    fillCompanyDetails();
+    fireEvent.change(screen.getByLabelText("Part number for line 1"), { target: { value: "QA-COMPLETE-001" } });
+    fireEvent.change(screen.getByLabelText("Quantity for line 1"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Another Component" }));
+    fireEvent.change(screen.getByLabelText("Part number for line 2"), { target: { value: "QA-INCOMPLETE-002" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Submit Quote Enquiry" }).closest("form")!);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Complete or remove unfinished lines");
+    expect(submitPublicLead).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Part number for line 2")).toHaveValue("QA-INCOMPLETE-002");
+  });
+  it("saves a manual enquiry without GSTIN or an account and reuses the request key after failure", async () => {
+    vi.mocked(submitPublicLead).mockRejectedValueOnce(new Error("synthetic connection failure")).mockResolvedValueOnce({ id: "lead-manual", referenceNumber: "ENQ-QA-001", source: "REQUEST_QUOTE" });
+    render(<RequestQuotePage />);
+    fillCompanyDetails();
+    fireEvent.change(screen.getByLabelText("Part number for line 1"), { target: { value: "QA-MANUAL-001" } });
+    fireEvent.change(screen.getByLabelText("Quantity for line 1"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit Quote Enquiry" }));
+    await screen.findByRole("alert");
+    const requestKey = vi.mocked(submitPublicLead).mock.calls[0][1];
+    fireEvent.click(screen.getByRole("button", { name: "Submit Quote Enquiry" }));
+    await screen.findByText("Enquiry Received");
+    expect(vi.mocked(submitPublicLead).mock.calls[1][1]).toBe(requestKey);
+    expect(submitPublicLead).toHaveBeenLastCalledWith(expect.objectContaining({ source: "REQUEST_QUOTE", companyName: "Acme Pvt Ltd", deliveryLocation: "Mumbai", items: [expect.objectContaining({ mpn: "QA-MANUAL-001", quantity: 7 })] }), requestKey);
+  });
   it("checks real backend capability instead of showing a hardcoded unavailable message", async () => {
     vi.mocked(getBomCapability).mockResolvedValue({ available: true });
     render(<RequestQuotePage />);

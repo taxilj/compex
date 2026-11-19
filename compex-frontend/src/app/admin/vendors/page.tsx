@@ -5,10 +5,11 @@ import { listVendors, createVendor, updateVendor, deactivateVendor, activateVend
 import { apiErrorMessage } from "@/lib/api/error-message";
 import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { Field } from "@/components/admin/Field";
+import { ContactGrid } from "@/components/admin/ContactGrid";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
 import { SuccessNotice } from "@/components/admin/SuccessNotice";
 
-const emptyForm: VendorInput = { name: "", contactEmail: "" };
+const emptyForm: VendorInput = { name: "", contactEmail: "", contacts: [] };
 
 function formFor(v: Vendor): VendorInput {
   return {
@@ -19,6 +20,7 @@ function formFor(v: Vendor): VendorInput {
     paymentTerms: v.paymentTerms ?? "", shippingAccount: v.shippingAccount ?? "", bankDetails: v.bankDetails ?? "",
     creditLimit: v.creditLimit ? Number(v.creditLimit) : null, industrySegment: v.industrySegment ?? "",
     businessType: v.businessType ?? "", speciality: v.speciality ?? "", gstOrRegistrationNumber: v.gstOrRegistrationNumber ?? "",
+    contacts: v.contacts ?? [],
   };
 }
 
@@ -180,6 +182,7 @@ export default function AdminVendorsPage() {
               <Field label="Other offices" value={form.otherOffices ?? ""} onChange={(v) => setForm({ ...form, otherOffices: v })} textarea />
               <Field label="Bank details" value={form.bankDetails ?? ""} onChange={(v) => setForm({ ...form, bankDetails: v })} textarea />
               <Field label="Notes" value={form.notes ?? ""} onChange={(v) => setForm({ ...form, notes: v })} textarea />
+              <ContactGrid value={form.contacts ?? []} onChange={(rows) => setForm({ ...form, contacts: rows })} />
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={close} className="px-4 py-2 rounded border border-[#E4E7EC] font-label-md text-sm">Cancel</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 rounded bg-[#0B1F3A] text-white font-label-md text-sm disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>

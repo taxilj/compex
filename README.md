@@ -40,13 +40,18 @@ Build before the final frontend typecheck so Next.js route types exist. Run data
 ## Delivery boundaries
 
 - Public catalogue browsing, enquiry/RFQ handling, quotation and BOM code have automated coverage; production transactions require separate authorized acceptance evidence.
-- Orders, purchase orders, invoices and shipments show explicit unavailable states in this delivery baseline. The earlier workflow draft is preserved for recovery and is not approved for release.
+- ERPNext owns HSN/GST, official IRN/QR invoices, numbering, templates, bank details, opening balances, inventory and accounting. Only Compex Solution bills. Its new ERPNext setup is still in progress; this website does not claim an active connection.
+- The website focuses on product discovery and enquiries without mandatory login, GSTIN or payment. The existing API captures catalogue, enquiries, RFQs and notifications until the ERPNext handoff is configured. Private financial pages show a contact notice; no parallel financial API is shipped.
+- ERPNext must completely block PO creation before advance payment. Purchase verifies advances; the accountant records and approves payments. These are requirements for ERPNext configuration, not checks implemented by this frontend.
 - Local tests, builds and `/health` do not establish successful production email delivery, BOM processing, authenticated workflows or supplier-account readiness.
 - Production references: [GitHub](https://github.com/taxilj/compex), [storefront](https://compex-frontend.vercel.app/), [API health](https://compex-api.onrender.com/health).
-- Read [the canonical delivery report](docs/CANONICAL-DELIVERY-2026-10-29.md) before release. No push or deployment is authorized by this setup.
+- Current scope and release evidence: [frontend and ERPNext handoff](docs/FRONTEND-ERPNEXT-2026-11-19.md). The earlier commercial prototype was archived after the owner confirmed ERPNext ownership; its historical tests do not prove an ERPNext connection.
+- Earlier provenance: [canonical reconciliation](docs/CANONICAL-DELIVERY-2026-10-29.md) and [archive integration](docs/INTEGRATION-QA-2026-11-17.md). Releases require explicit authorization; the current owner request includes QA, push and deployment.
 
 ## Recovery
 
-Preserve `D:\compex-quarantine-2026-10-23`. The 2026-10-29 reconciliation archive contains the original main-folder files, uncommitted patch, original refs/status and SHA-256 manifest. The original `codex/owner-reference-alignment` branch remains available. The duplicate-worktree recovery archive contains verified useful-file copies and removal records. Recovery files, environment files, local tooling and raw QA evidence are not release payloads.
+The architecture transition is preserved in `.local-recovery/2026-11-19-frontend-erpnext/`: a verified 464-file source snapshot plus `retired-local-finance/`. Restore only reviewed individual files; do not reactivate the local finance prototype without a new requirement.
+
+Recovery is consolidated under `.local-recovery/` in the dated `2026-11-17`, `2026-11-17-integration` and `2026-11-17-commercial` folders. The commercial folder adds the pre-implementation source backup and final QA evidence. These contain verified snapshots, uncommitted patches, Git metadata, the history bundle, reference documents, quarantine contents and the pre-integration main backup. The seven extra D: worktrees, quarantine and four C: Codex worktrees have been removed; Git lists only this main checkout. Branch refs remain available. See [the cleanup record](docs/CLEANUP-2026-11-17.md), [integration review](docs/INTEGRATION-QA-2026-11-17.md) and private recovery READMEs before restoring anything. Recovery contains private environment files and uploads; never stage, upload or deploy it. The root `.gitignore` excludes it.
 
 Keep `.git`, `.claude`, `.engineering`, `.agents`, `.qa-infra`, owner documents and existing audit evidence. Do not run broad cleanup commands or remove generated directories without first checking for retained drafts or evidence inside them.

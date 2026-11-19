@@ -123,6 +123,9 @@ export function startBomWorker() {
 
         await prisma.$transaction(async (tx) => {
           if (rfqId) {
+            // Lock the RFQ in the same transaction as the lines and completion.
+            const owner = await tx.rfq.updateMany({ where: { id: rfqId, status: "DRAFT" }, data: { updatedAt: new Date() } });
+            if (owner.count !== 1) throw new BomValidationError("BOM can only be processed for DRAFT RFQs");
             const firstLineNumber = await nextRfqItemLineNumber(tx, rfqId);
             await tx.rfqItem.createMany({
               data: validRows.map((row, i) => ({

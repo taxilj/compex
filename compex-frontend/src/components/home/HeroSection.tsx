@@ -33,18 +33,16 @@ export function HeroSection() {
     <section className="w-full border-b border-[#E4E7EC] bg-[#F7F9FC]">
       <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-14 lg:py-20 grid grid-cols-1 lg:grid-cols-[1fr_1.05fr] xl:grid-cols-[1fr_1.2fr] gap-10 lg:gap-16 items-center">
         <div>
-          <p className="font-mono-label text-[#1769E0] uppercase tracking-wider text-xs mb-4">Industrial electronic component sourcing</p>
+          <p className="font-mono-label text-[#1769E0] uppercase tracking-wider text-xs mb-4">Compex Solution · Electronic component sourcing</p>
 
-          <h1 className="font-display-lg text-[#0B1F3A] leading-[1.05] mb-3 tracking-tight">COMPEX SOLUTION</h1>
-
-          <h2 className="font-headline-lg text-[#0B1F3A] mb-5">
-            Search any electronic component.
+          <h1 className="font-display-lg text-[#0B1F3A] leading-[1.05] mb-5 tracking-tight">
+            Find your components.
             <br />
-            COMPEX sources it for you.
-          </h2>
+            Send one enquiry.
+          </h1>
 
           <p className="font-body-lg text-[#44474d] mb-8 max-w-xl">
-            Search exact manufacturer part numbers to identify electronic components, then submit your requirement and let COMPEX handle sourcing and verification.
+            Search by part number or upload your BOM. Share your quantities and delivery city, and Compex will help source the components for your business.
           </p>
 
           <form onSubmit={submitSearch} className="w-full max-w-xl flex items-stretch gap-0 border-2 border-[#0B1F3A]/15 rounded overflow-hidden bg-white focus-within:border-[#1769E0]">
@@ -65,7 +63,7 @@ export function HeroSection() {
             </button>
           </form>
 
-          <p className="font-body-sm text-[#44474d] mt-3">Search by exact manufacturer part number.</p>
+          <p className="font-body-sm text-[#44474d] mt-3">Serving buyers in India and export markets. No account needed to send an enquiry.</p>
 
           {categories && categories.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-8">

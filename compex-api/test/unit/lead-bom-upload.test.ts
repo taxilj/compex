@@ -39,11 +39,9 @@ function fakeRequest(file: { filename: string; mimetype: string; buffer: Buffer 
   return {
     ip: "203.0.113.1",
     headers: { "user-agent": "vitest" },
-    file: vi.fn().mockResolvedValue(
-      file
-        ? { filename: file.filename, mimetype: file.mimetype, toBuffer: async () => file.buffer }
-        : null,
-    ),
+    parts: vi.fn(async function* () {
+      if (file) yield { type: "file", filename: file.filename, mimetype: file.mimetype, file: { truncated: false }, toBuffer: async () => file.buffer };
+    }),
   } as unknown as Parameters<typeof leadBomUploadHandler>[0];
 }
 
@@ -124,7 +122,7 @@ describe("lead BOM upload", () => {
     await expect(leadBomUploadHandler(
       fakeRequest({ filename: "bom.xlsx", mimetype: "text/csv", buffer: big }),
       "lead-1",
-    )).rejects.toMatchObject({ statusCode: 400 });
+    )).rejects.toMatchObject({ statusCode: 413, code: "FILE_TOO_LARGE" });
     expect(mocks.storagePut).not.toHaveBeenCalled();
   });
 

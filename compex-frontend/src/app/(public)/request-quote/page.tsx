@@ -157,18 +157,19 @@ export default function RequestQuotePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validItems = items
-      .filter((item) => item.mpn.trim() && item.quantity)
+    if (isSubmitting) return;
+    const enteredItems = items.filter((item) => Object.values(item).some((value) => value.trim()));
+    if (activeTab === "manual" && (!enteredItems.length || enteredItems.some((item) => !item.mpn.trim() || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1 || Number(item.quantity) > 2147483647))) {
+      setSubmitError("Every entered line needs a part number and a whole-number quantity of at least 1. Complete or remove unfinished lines.");
+      return;
+    }
+    const validItems = enteredItems
       .map((item) => ({
         mpn: item.mpn.trim(),
         manufacturer: item.manufacturer.trim() || undefined,
         description: item.description.trim() || undefined,
         quantity: Number(item.quantity),
       }));
-    if (activeTab === "manual" && (!validItems.length || validItems.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1))) {
-      setSubmitError("Add at least one component with a valid quantity.");
-      return;
-    }
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -354,7 +355,7 @@ export default function RequestQuotePage() {
                                 onChange={(e) => updateItem(i, "mpn", e.target.value)}
                                 className="w-full border border-[#E4E7EC] rounded px-2 py-1.5 font-mono-label text-sm focus:outline-none focus:ring-1 focus:ring-[#1769E0]"
                                 placeholder="e.g. STM32F103C8T6"
-                                required
+                                required={items.length === 1 || Object.values(item).some(value => value.trim())}
                               />
                             </td>
                             <td className="py-2 px-3">
@@ -384,7 +385,7 @@ export default function RequestQuotePage() {
                                 min="1"
                                 className="w-24 border border-[#E4E7EC] rounded px-2 py-1.5 font-mono-label text-sm focus:outline-none focus:ring-1 focus:ring-[#1769E0]"
                                 placeholder="Qty"
-                                required
+                                required={items.length === 1 || Object.values(item).some(value => value.trim())}
                               />
                             </td>
                             <td className="py-2 px-3">
@@ -499,8 +500,9 @@ export default function RequestQuotePage() {
                   { label: "Delivery City *", name: "city", type: "text", placeholder: "Mumbai, Pune, Bangalore...", required: true },
                 ].map((field) => (
                   <div key={field.name}>
-                    <label className="block font-label-md text-[#44474d] mb-1.5">{field.label}</label>
+                    <label htmlFor={`quote-${field.name}`} className="block font-label-md text-[#44474d] mb-1.5">{field.label}</label>
                     <input
+                      id={`quote-${field.name}`}
                       aria-label={field.label.replace(" *", "")}
                       type={field.type}
                       placeholder={field.placeholder}
@@ -512,8 +514,9 @@ export default function RequestQuotePage() {
                   </div>
                 ))}
                 <div>
-                  <label className="block font-label-md text-[#44474d] mb-1.5">Required Date</label>
+                  <label htmlFor="quote-required-date" className="block font-label-md text-[#44474d] mb-1.5">Required Date</label>
                   <input
+                    id="quote-required-date"
                     aria-label="Required date"
                     type="date"
                     value={form.requiredDate}
@@ -523,8 +526,9 @@ export default function RequestQuotePage() {
                 </div>
               </div>
               <div className="mt-4">
-                <label className="block font-label-md text-[#44474d] mb-1.5">Additional Requirements</label>
+                <label htmlFor="quote-requirements" className="block font-label-md text-[#44474d] mb-1.5">Additional Requirements</label>
                 <textarea
+                  id="quote-requirements"
                   aria-label="Additional requirements"
                   rows={4}
                   placeholder="Any special requirements, certifications, or notes..."
@@ -554,7 +558,7 @@ export default function RequestQuotePage() {
               </div>
               <div className="bg-[#e8eeff] rounded p-3 mb-6">
                 <p className="font-body-sm text-[#44474d]">
-                  Expected response time: <strong className="text-[#0B1F3A]">2–3 business days</strong>
+                  Pricing and availability are confirmed by our team after reviewing your requirement.
                 </p>
               </div>
               <button
@@ -566,7 +570,7 @@ export default function RequestQuotePage() {
               </button>
               {submitError && <p className="mt-3 font-body-sm text-[#B42318]" role="alert">{submitError}</p>}
               <p className="font-body-sm text-[#44474d]/70 text-center mt-3">
-                No commitment. Free quotation service.
+                No account or payment needed to send an enquiry.
               </p>
             </div>
           </div>

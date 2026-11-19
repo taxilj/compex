@@ -112,11 +112,12 @@ describe("Customer quotation view, accept, reject", () => {
     expect(reject.json().data.rejectionReason).toBe("Price too high");
   });
 
-  it("rejects invalid status transition: cannot accept an already-ACCEPTED quotation", async () => {
+  it("retries acceptance without duplicating its audit", async () => {
     const { customerToken, quotationId } = await setupSentQuotation("cust-quo6@compex-test.local");
     await app.inject({ method: "POST", url: `/api/v1/quotes/${quotationId}/accept`, headers: { authorization: `Bearer ${customerToken}` } });
     const second = await app.inject({ method: "POST", url: `/api/v1/quotes/${quotationId}/accept`, headers: { authorization: `Bearer ${customerToken}` } });
-    expect(second.statusCode).toBe(422);
+    expect(second.statusCode).toBe(200);
+    expect(await prisma.auditLog.count({ where: { entityId: quotationId, action: "quotation.accepted" } })).toBe(1);
   });
 
   it("customer cannot modify quotation internal fields (no PATCH route exposed to customers)", async () => {

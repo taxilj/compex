@@ -6,6 +6,7 @@ import { apiErrorMessage } from "@/lib/api/error-message";
 import { createPayload, updatePayload } from "@/lib/api/form-payload";
 import { createCustomer, getCustomer, listCustomers, listUsers, updateCustomer, type AdminCustomer, type AdminCustomerInput, type AdminUser } from "@/lib/api/admin";
 import { Field } from "@/components/admin/Field";
+import { ContactGrid } from "@/components/admin/ContactGrid";
 import { SettingsSelect } from "@/components/admin/SettingsSelect";
 import { SuccessNotice } from "@/components/admin/SuccessNotice";
 
@@ -14,6 +15,7 @@ const blankForm: AdminCustomerInput = {
   shortName: "", billToAddress: "", shipToAddress: "", state: "", country: "", relationshipType: "", customerType: "",
   website: "", fax: "", primaryContact: "", contactEmail: "", authorisedPerson: "", paymentTerms: "", region: "",
   industrySegment: "", internalAccountNumber: "", shippingAccount: "", bankDetails: "", remarks: "",
+  contacts: [],
 };
 
 const PAGE_SIZE = 50;
@@ -30,6 +32,7 @@ function formFor(customer: AdminCustomer): AdminCustomerInput {
     region: c.region ?? "", industrySegment: c.industrySegment ?? "", internalAccountNumber: c.internalAccountNumber ?? "",
     shippingAccount: c.shippingAccount ?? "", bankDetails: c.bankDetails ?? "", remarks: c.remarks ?? "",
     salesPersonId: c.salesPerson?.id ?? null, salesCoordinatorId: c.salesCoordinator?.id ?? null, sourcingOwnerId: c.sourcingOwner?.id ?? null,
+    contacts: c.contacts ?? [],
   };
 }
 
@@ -177,6 +180,7 @@ function CustomerDialog({ customer, form, saving, staff, onChange, onClose, onSu
           </div>
           <Field label="Bank details" value={form.bankDetails ?? ""} onChange={(v) => set("bankDetails", v)} textarea />
           <Field label="Remarks" value={form.remarks ?? ""} onChange={(v) => set("remarks", v)} textarea />
+          <ContactGrid value={form.contacts ?? []} onChange={(rows) => set("contacts", rows)} />
         </div>
 
         <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded border border-[#E4E7EC] px-4 py-2 font-label-md text-[#111c2d]">Cancel</button><button disabled={saving} className="rounded bg-[#1769E0] px-4 py-2 font-label-md text-white disabled:opacity-60">{saving ? "Saving…" : customer ? "Save changes" : "Create and send invitation"}</button></div>

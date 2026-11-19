@@ -23,7 +23,8 @@ export function updatePayload<T extends object>(form: T, original: T): Partial<T
   for (const [key, value] of Object.entries(form)) {
     const next = isBlank(value) ? null : value;
     const prev = isBlank(before[key]) ? null : before[key];
-    if (next !== prev) out[key] = next;
+    const sameArray = Array.isArray(next) && Array.isArray(prev) && JSON.stringify(next) === JSON.stringify(prev);
+    if (next !== prev && !sameArray) out[key] = next;
   }
   return out as Partial<T>;
 }

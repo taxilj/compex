@@ -17,6 +17,7 @@ export const Errors = {
     new AppError("NOT_FOUND", `${resource} not found`, 404),
   conflict: (msg: string) => new AppError("CONFLICT", msg, 409),
   validation: (msg: string) => new AppError("VALIDATION_ERROR", msg, 400),
+  fileTooLarge: () => new AppError("FILE_TOO_LARGE", "File exceeds 10 MB limit", 413),
   rateLimited: () =>
     new AppError("RATE_LIMITED", "Too many requests, please try again later", 429),
   unprocessable: (msg: string) => new AppError("UNPROCESSABLE", msg, 422),

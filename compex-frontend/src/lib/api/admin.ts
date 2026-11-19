@@ -46,8 +46,14 @@ export interface PaginatedResponse<T> {
 
 export interface ContactEntry {
   name: string;
+  shortName?: string;
   email?: string;
   phone?: string;
+  mobile?: string;
+  status?: string;
+  division?: string;
+  position?: string;
+  remarks?: string;
   role?: string;
 }
 

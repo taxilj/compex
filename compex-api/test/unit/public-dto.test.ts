@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { filterPublicSpecifications, isPublicSafeSpecKey, sanitizeSpecKeyLabel, toPublicManufacturer, toPublicProduct } from "../../src/modules/catalog/public-dto.js";
+import { filterPublicSpecifications, isPublicSafeSpecKey, safeHttpUrl, sanitizeSpecKeyLabel, toPublicManufacturer, toPublicProduct } from "../../src/modules/catalog/public-dto.js";
+
+describe("public URL boundary", () => {
+  it.each(["javascript:alert(1)", "data:text/html,test", "/relative", "https://user:password@example.test/private", "invalid", "https://example.test/" + "x".repeat(2048)])("drops unsafe URL %s", (url) => {
+    expect(safeHttpUrl(url)).toBeUndefined();
+  });
+  it("preserves valid HTTP URLs and filters every public product/manufacturer URL", () => {
+    expect(safeHttpUrl("https://example.test/data.pdf")).toBe("https://example.test/data.pdf");
+    expect(toPublicProduct({ ...baseProduct, datasheetUrl: "javascript:alert(1)", images: ["data:image/svg+xml,test", "https://example.test/image.png"] } as never)).toMatchObject({ datasheetUrl: null, images: ["https://example.test/image.png"] });
+    expect(toPublicManufacturer({ ...baseManufacturer, logoUrl: "javascript:test", website: "https://user:password@example.test" } as never)).toMatchObject({ logoUrl: null, website: null });
+  });
+});
 
 const baseProduct = {
   id: "prod-1",

@@ -5,7 +5,7 @@ import { requireRole } from "../../middleware/requireRole.js";
 import { ok, paginated } from "../../lib/response.js";
 import { Errors } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
-import { audit } from "../../lib/audit.js";
+import { auditInTx } from "../../lib/audit.js";
 import { cancelFollowUps } from "../../jobs/follow-up-scheduler.js";
 import { describeError } from "../../lib/safe-log.js";
 
@@ -64,7 +64,8 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
 
     const where = {
       customerId,
-      ...(q.status ? { status: q.status } : { NOT: { status: "DRAFT" as const } }),
+      NOT: { status: "DRAFT" as const },
+      ...(q.status ? { status: q.status } : {}),
     };
     const skip = (q.page - 1) * q.limit;
     const [data, total] = await prisma.$transaction([
@@ -80,10 +81,11 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
 
     const ownership = await prisma.quotation.findUnique({ where: { id }, select: { customerId: true, status: true } });
     if (!ownership) throw Errors.notFound("Quotation");
+    if (ownership.status === "DRAFT") throw Errors.notFound("Quotation");
     if (ownership.customerId !== customerId) throw Errors.forbidden();
 
     if (ownership.status === "SENT") {
-      await prisma.quotation.update({ where: { id }, data: { status: "VIEWED", viewedAt: new Date() } });
+      await prisma.quotation.updateMany({ where: { id, status: "SENT" }, data: { status: "VIEWED", viewedAt: new Date() } });
     }
 
     const q = await prisma.quotation.findUnique({ where: { id }, select: CUSTOMER_QUOTE_SELECT });
@@ -97,18 +99,19 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
     const q = await prisma.quotation.findUnique({ where: { id }, select: { id: true, status: true, customerId: true, rfqId: true } });
     if (!q) throw Errors.notFound("Quotation");
     if (q.customerId !== customerId) throw Errors.forbidden();
-    if (q.status !== "SENT" && q.status !== "VIEWED") {
+    if (q.status !== "SENT" && q.status !== "VIEWED" && q.status !== "ACCEPTED") {
       throw Errors.unprocessable("Only SENT or VIEWED quotations can be accepted");
     }
 
-    const updated = await prisma.quotation.update({
-      where: { id },
-      data: { status: "ACCEPTED", respondedAt: new Date() },
-      select: CUSTOMER_QUOTE_SELECT,
+    const updated = await prisma.$transaction(async tx => {
+      const today = new Date(new Date().toISOString().slice(0, 10));
+      const changed = await tx.quotation.updateMany({ where: { id, customerId, status: { in: ["SENT", "VIEWED"] }, validUntil: { gte: today } }, data: { status: "ACCEPTED", respondedAt: new Date() } });
+      if (!changed.count && (await tx.quotation.findUniqueOrThrow({ where: { id } })).status !== "ACCEPTED") throw Errors.unprocessable("Quotation is expired or no longer available for acceptance");
+      if (changed.count) await auditInTx(tx, { userId: req.user!.id, action: "quotation.accepted", entityType: "quotation", entityId: id });
+      return tx.quotation.findUniqueOrThrow({ where: { id }, select: CUSTOMER_QUOTE_SELECT });
     });
 
     cancelFollowUps(q.rfqId).catch((err) => console.error(`[FOLLOWUP] Cancel after accept failed: ${describeError(err)}`));
-    audit({ userId: req.user!.id, action: "quotation.accepted", entityType: "quotation", entityId: id });
     return reply.send(ok(updated));
   });
 
@@ -124,18 +127,14 @@ export async function quotesRoutes(app: FastifyInstance): Promise<void> {
       throw Errors.unprocessable("Only SENT or VIEWED quotations can be rejected");
     }
 
-    const updated = await prisma.quotation.update({
-      where: { id },
-      data: {
-        status: "REJECTED",
-        respondedAt: new Date(),
-        rejectionReason: body.reason,
-      },
-      select: CUSTOMER_QUOTE_SELECT,
+    const updated = await prisma.$transaction(async tx => {
+      const result = await tx.quotation.updateMany({ where: { id, customerId, status: { in: ["SENT", "VIEWED"] } }, data: { status: "REJECTED", respondedAt: new Date(), rejectionReason: body.reason } });
+      if (!result.count) throw Errors.conflict("Quotation has already been answered");
+      await auditInTx(tx, { userId: req.user!.id, action: "quotation.rejected", entityType: "quotation", entityId: id });
+      return tx.quotation.findUniqueOrThrow({ where: { id }, select: CUSTOMER_QUOTE_SELECT });
     });
 
     cancelFollowUps(q.rfqId).catch((err) => console.error(`[FOLLOWUP] Cancel after reject failed: ${describeError(err)}`));
-    audit({ userId: req.user!.id, action: "quotation.rejected", entityType: "quotation", entityId: id });
     return reply.send(ok(updated));
   });
 }

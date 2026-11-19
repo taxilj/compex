@@ -9,6 +9,12 @@ describe("createPayload", () => {
 });
 
 describe("updatePayload", () => {
+  it("compares contact arrays by their JSON payload and keeps explicit removals", () => {
+    const original = { contacts: [{ name: "Buyer", remarks: "Keep" }] };
+    expect(updatePayload({ contacts: [{ name: "Buyer", remarks: "Keep" }] }, original)).toEqual({});
+    expect(updatePayload({ contacts: [{ name: "Buyer", remarks: "Changed" }] }, original)).toEqual({ contacts: [{ name: "Buyer", remarks: "Changed" }] });
+    expect(updatePayload({ contacts: [] }, original)).toEqual({ contacts: [] });
+  });
   const original = { name: "Acme", website: "https://a.test", country: "INDIA", mov: 500, notes: "" };
 
   it("sends nothing when nothing changed (so a retired Settings value that is not touched is never resubmitted)", () => {

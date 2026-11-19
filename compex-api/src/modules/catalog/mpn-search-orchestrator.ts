@@ -6,7 +6,7 @@ import { createElement14Fetcher } from "../catalog-import/fetchers/element14-fet
 import type { RawCatalogItem } from "../catalog-import/types.js";
 import { env } from "../../config/env.js";
 import { Errors } from "../../lib/errors.js";
-import { isPublicSafeSpecKey, sanitizeSpecKeyLabel } from "./public-dto.js";
+import { isPublicSafeSpecKey, sanitizeSpecKeyLabel, safeHttpUrl } from "./public-dto.js";
 import { describeError } from "../../lib/safe-log.js";
 
 // Multi-supplier exact-MPN search orchestrator (COMPEX multi-supplier live
@@ -200,6 +200,8 @@ function sanitizeCachedProduct(product: PublicProduct | null): PublicProduct | n
   if (!product) return null;
   return {
     ...product,
+    imageUrl: safeHttpUrl(product.imageUrl),
+    datasheetUrl: safeHttpUrl(product.datasheetUrl),
     specifications: product.specifications
       .filter((spec) => isPublicSafeSpecKey(spec.name))
       .map((spec) => ({ ...spec, name: sanitizeSpecKeyLabel(spec.name) })),
@@ -218,8 +220,8 @@ export function mapRawItemToPublicProduct(item: RawCatalogItem): PublicProduct {
     productName: item.name?.trim() || item.description?.trim() || item.mpn,
     description: item.description,
     category: item.category,
-    imageUrl: item.images?.[0],
-    datasheetUrl: item.datasheetUrl,
+    imageUrl: item.images?.map(safeHttpUrl).find(Boolean),
+    datasheetUrl: safeHttpUrl(item.datasheetUrl),
     lifecycleStatus: item.lifecycleStatus,
     ...(compliance.length ? { compliance: [...new Set(compliance)] } : {}),
     specifications,

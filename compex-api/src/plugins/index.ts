@@ -7,14 +7,14 @@ import sensible from "@fastify/sensible";
 import multipart from "@fastify/multipart";
 import { ZodError } from "zod";
 import { env } from "../config/env.js";
-import { AppError } from "../lib/errors.js";
+import { AppError, Errors } from "../lib/errors.js";
 import { safeErr } from "../lib/safe-log.js";
 
 export async function registerPlugins(app: FastifyInstance): Promise<void> {
   await app.register(sensible);
 
   await app.register(helmet, {
-    contentSecurityPolicy: false, // configured at reverse proxy level
+    contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], baseUri: ["'none'"], frameAncestors: ["'none'"], formAction: ["'none'"] } },
   });
 
   await app.register(cors, {
@@ -58,6 +58,16 @@ export async function registerPlugins(app: FastifyInstance): Promise<void> {
       });
     }
     const fastifyError = error as { validation?: unknown; statusCode?: number; message?: string };
+    // JSON/body parser errors can happen before the BOM handler runs. Preserve
+    // safe client error semantics without exposing the parser's raw message.
+    const isBomUpload = request.method === "POST" && /^\/api\/v1\/(?:leads|rfqs)\/[^/]+\/bom\/?$/.test(request.routeOptions.url ?? "");
+    if (isBomUpload && fastifyError.statusCode === 413) {
+      const failure = Errors.fileTooLarge();
+      return reply.status(413).send({ success: false, error: { code: failure.code, message: failure.message } });
+    }
+    if (isBomUpload && [400, 406, 415].includes(fastifyError.statusCode ?? 0)) {
+      return reply.status(400).send({ success: false, error: { code: "VALIDATION_ERROR", message: "Invalid BOM upload request" } });
+    }
     // Fastify validation errors (e.g. from schema)
     if (fastifyError.validation) {
       return reply.status(400).send({

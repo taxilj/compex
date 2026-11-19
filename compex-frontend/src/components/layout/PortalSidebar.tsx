@@ -81,7 +81,6 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
           </div>
           <div className="min-w-0">
             <p className="font-label-md text-[#111c2d] truncate">{companyName ?? "Your Company"}</p>
-            <p className="font-body-sm text-[#44474d] text-xs truncate">Enterprise Tier</p>
           </div>
         </div>
       </div>

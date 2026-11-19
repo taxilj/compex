@@ -9,12 +9,12 @@ const routes = ["/admin/orders", "/admin/purchase-orders", "/admin/invoices", "/
 function request(path: string, signedIn: boolean): NextRequest {
   return { url: `http://localhost${path}`, nextUrl: { pathname: path }, cookies: { get: () => signedIn ? { value: "test-cookie-presence" } : undefined } } as unknown as NextRequest;
 }
-describe("unavailable workflow routing", () => {
+describe("ERPNext-owned document routing", () => {
   it.each(routes)("%s keeps its sign-in gate", path => {
     expect(proxy(request(path, false))).toBe("/login");
     expect(responses.next).not.toHaveBeenCalled();
   });
-  it.each(routes)("%s can render its unavailable state after the existing cookie gate", path => {
+  it.each(routes)("%s can show its document handoff notice after the cookie gate", path => {
     expect(proxy(request(path, true))).toBe("next");
     expect(responses.redirect).not.toHaveBeenCalled();
   });

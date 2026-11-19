@@ -335,6 +335,8 @@ model Document {
   storageKey       String                   @map("storage_key")
   mimeType         String                   @map("mime_type")
   fileSizeBytes    Int                      @map("file_size_bytes")
+  uploadKey        String?                  @unique @map("upload_key")
+  contentSha256    String?                  @map("content_sha256")
   processingStatus DocumentProcessingStatus @default(UPLOADED) @map("processing_status")
   processingError  String?                  @map("processing_error")
   uploadedById     String?                  @map("uploaded_by_id") @db.Uuid

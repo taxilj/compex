@@ -12,6 +12,9 @@ beforeEach(() => {
 });
 
 describe("redactAuditValue", () => {
+  it("removes commercial values and differently formatted credential keys without deleting foreign keys", () => {
+    expect(redactAuditValue({ id: "row", landedCostId: "cost-row", nested: [{ "Unit Cost": 12, unitPrice: 20, marginPercent: 40, internalOffers: { private: true }, "API_KEY": "private", accessToken: "private", ffAccount: "private" }] })).toEqual({ id: "row", landedCostId: "cost-row", nested: [{}] });
+  });
   it("removes bank, credit and credential keys, case-insensitively", () => {
     const input = {
       companyName: "Acme",

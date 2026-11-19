@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import { Mail, Phone, MapPin, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { submitPublicLead } from "@/lib/api/leads";
-import { COMPANY_EMAIL, COMPANY_EMAIL_MAILTO_HREF, COMPANY_PHONE, COMPANY_PHONE_TEL_HREF } from "@/lib/constants/contact";
+import { COMPANY_EMAIL, COMPANY_EMAIL_MAILTO_HREF, COMPANY_PHONE, COMPANY_PHONE_TEL_HREF, COMPANY_ADDRESS, COMPANY_GSTIN } from "@/lib/constants/contact";
 
 const INPUT_CLS = "w-full border border-[#E4E7EC] rounded-lg px-4 py-3 font-body-md text-[#111c2d] placeholder:text-[#75777e] focus:outline-none focus:border-[#1769E0] focus:ring-1 focus:ring-[#1769E0] transition-colors";
 
@@ -200,7 +200,8 @@ export default function ContactForm() {
                   <MapPin size={20} className="text-[#1769E0] mt-0.5 shrink-0" />
                   <div>
                     <p className="font-label-sm text-[#44474d] uppercase mb-0.5">Location</p>
-                    <p className="font-body-md text-[#111c2d]">India</p>
+                    <address className="font-body-md not-italic text-[#111c2d]">{COMPANY_ADDRESS}</address>
+                    <p className="font-body-sm text-[#44474d] mt-2">GSTIN: {COMPANY_GSTIN}</p>
                   </div>
                 </div>
               </div>

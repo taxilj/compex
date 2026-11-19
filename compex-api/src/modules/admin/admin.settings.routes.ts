@@ -11,9 +11,9 @@ import { env } from "../../config/env.js";
 const SettingBody = z.object({
   category: z.string().min(1).max(100),
   value: z.string().min(1).max(200),
-  sortOrder: z.number().int().default(0),
-  isEditable: z.boolean().default(true),
-  isActive: z.boolean().default(true),
+  sortOrder: z.number().int().optional(),
+  isEditable: z.boolean().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {

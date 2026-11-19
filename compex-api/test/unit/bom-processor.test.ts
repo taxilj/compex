@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
   nextRfqLine: vi.fn(),
   nextLeadLine: vi.fn(),
+  rfqUpdateMany: vi.fn(),
 }));
 
 vi.mock("bullmq", () => ({
@@ -37,7 +38,7 @@ import { startBomWorker } from "../../src/jobs/bom-processor.js";
 const CSV = "mpn,manufacturer,quantity\nSTM32F103C8T6,ST,100\n";
 
 function txStub() {
-  return { leadItem: { createMany: mocks.leadItemCreateMany }, rfqItem: { createMany: mocks.rfqItemCreateMany }, document: { updateMany: mocks.updateMany } };
+  return { rfq: { updateMany: mocks.rfqUpdateMany }, leadItem: { createMany: mocks.leadItemCreateMany }, rfqItem: { createMany: mocks.rfqItemCreateMany }, document: { updateMany: mocks.updateMany } };
 }
 
 describe("bom-processor worker", () => {
@@ -48,6 +49,7 @@ describe("bom-processor worker", () => {
     process = (startBomWorker() as unknown as { processor: typeof process }).processor;
     mocks.documentUpdate.mockResolvedValue({ updatedAt: new Date("2026-01-01") });
     mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.rfqUpdateMany.mockResolvedValue({ count: 1 });
     mocks.readFile.mockResolvedValue(Buffer.from(CSV));
     mocks.nextRfqLine.mockResolvedValue(1);
     mocks.nextLeadLine.mockResolvedValue(1);
@@ -75,6 +77,14 @@ describe("bom-processor worker", () => {
       data: [expect.objectContaining({ rfqId: "rfq-1", lineNumber: 1, mpn: "STM32F103C8T6" })],
     });
     expect(mocks.leadItemCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("does not append rows after an RFQ leaves DRAFT", async () => {
+    mocks.findUniqueOrThrow.mockResolvedValue({ id: "closed-doc", storageKey: "bom/closed.csv" });
+    mocks.rfqUpdateMany.mockResolvedValue({ count: 0 });
+    await expect(process({ data: { documentId: "closed-doc", rfqId: "closed-rfq" } })).rejects.toThrow("DRAFT");
+    expect(mocks.rfqItemCreateMany).not.toHaveBeenCalled();
+    expect(mocks.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ data: { processingStatus: "COMPLETED" } }));
   });
 
   it("marks the document FAILED and never claims success when neither rfqId nor leadId is present, without leaking the internal error to the public status field", async () => {

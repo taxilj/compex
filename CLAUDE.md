@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A B2B electronics sourcing platform. Public visitors browse a catalogue (categories, manufacturers, products, exact-MPN lookup) and send enquiries (Contact, Request Quote, BOM upload). Customers (`CUSTOMER`) use a portal for RFQs. Internal `STAFF`/`ADMIN` users run the admin/CRM side: customers, vendors, manufacturers, products, settings, enquiries and vendor RFQs.
 
-Not a greenfield project: production data and owner-approved behaviour exist. Never invent owner requirements, CRM fields, dropdown values, manufacturers or product data; mark missing information as BLOCKED. Order/PO/invoice/shipment/financial workflows are intentionally not built (`compex-frontend/src/proxy.ts` redirects those routes) — do not start them without owner-approved fields and rules.
+Not a greenfield project: production data and owner-approved behaviour exist. Never invent owner requirements, CRM fields, dropdown values, manufacturers or product data. On 19 November the owner confirmed ERPNext owns billing, GST/IRN/QR, HSN/rates, invoices, inventory and accounting. Only Compex Solution bills. The new ERPNext setup is in progress; no connection has been supplied. Focus the website on product listing and enquiries. Keep the existing catalogue/enquiry API until a verified ERPNext handoff replaces it. The unshipped local finance prototype is preserved in ignored recovery, not active source. See `docs/FRONTEND-ERPNEXT-2026-11-19.md`.
 
 ## Layout
 
@@ -55,7 +55,7 @@ npx vitest run src/lib/site.test.ts                        # single file
 
 **This is not the Next.js from training data.** `compex-frontend/AGENTS.md` (imported by `compex-frontend/CLAUDE.md`) requires reading `node_modules/next/dist/docs/` before writing Next.js code.
 
-**Database.** `compex-api/prisma/schema.prisma` (28 models). `npm start` on Render runs `prisma migrate deploy`, so **any migration merged to master runs against the production database on the next deploy** — migrations must be additive/backward-compatible and reviewed before merge. Seeds: `db:seed`, `db:seed:qa`; settings dropdowns are seeded from `prisma/settings-lov-seed-data.json` and stored in the `Setting` table (settings reads exclude inactive values unless `includeInactive=true`).
+**Database.** `compex-api/prisma/schema.prisma` (28 models; 21 migrations). `npm start` on Render runs `prisma migrate deploy`, so **any migration merged to master runs against the production database on the next deploy** — migrations must be additive/backward-compatible and reviewed before merge. The unshipped local finance migration is archived. Seeds: `db:seed`, `db:seed:qa`; settings dropdowns are seeded from `prisma/settings-lov-seed-data.json` and stored in the `Setting` table (settings reads exclude inactive values unless `includeInactive=true`).
 
 ## Integration tests (destructive)
 
@@ -69,9 +69,9 @@ npx vitest run src/lib/site.test.ts                        # single file
 
 ## Protected files and worktrees
 
-Many sibling worktrees and branches exist (`git worktree list`: `D:/compex-*`, `~/.codex/worktrees/*`, plus the original `D:/stitch_compex_sourcing_procurement_platform (1)` checkout, which holds uncommitted user work). Treat all of them as someone else's work:
+The owner-authorized 17 November consolidation removed duplicate D: and four C: worktrees after verified recovery. Git lists only the canonical main checkout. Branches, stashes, prior user work and ignored `.local-recovery/` archives remain protected:
 
-- Work only in your own worktree/branch (current stabilisation work: `D:/compex-stabilise`, branch `codex/stabilise`, cut from `origin/master`).
+- Use the owner-designated canonical main folder: `D:/stitch_compex_sourcing_procurement_platform (1)`. Preserve unrelated uncommitted work. Use an isolated checkout only when a later task needs it; do not recreate removed duplicates routinely.
 - Never edit, stash, reset, clean or delete another worktree's files or branches. Do not use bare `git stash` (the stash stack is shared across worktrees).
 - Never use `git reset --hard`, `git clean`, force push, or branch/worktree deletion.
 - Never stage unrelated files: `.claude/`, `.playwright-mcp/`, `Claude outputs/`, `COMPEX-*.md` reports, `vitest.config.ts.timestamp-*.mjs`, `.next*` dirs and `_to_delete/` are local artefacts.

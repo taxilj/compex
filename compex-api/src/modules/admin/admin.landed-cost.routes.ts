@@ -11,15 +11,15 @@ import { auditInTx } from "../../lib/audit.js";
 const CostBody = z.object({
   vendorQuoteId: z.string().uuid().optional(),
   quantity: z.number().int().positive(),
-  currency: z.string().length(3).default("INR"),
-  exchangeRate: z.number().positive().default(1),
-  shipping: z.number().min(0).default(0),
-  insurance: z.number().min(0).default(0),
-  customsDuty: z.number().min(0).default(0),
-  igst: z.number().min(0).default(0),
-  handling: z.number().min(0).default(0),
-  otherCosts: z.number().min(0).default(0),
-  marginPercent: z.number().min(0).max(1000).default(0),
+  currency: z.string().length(3).optional(),
+  exchangeRate: z.number().positive().optional(),
+  shipping: z.number().min(0).optional(),
+  insurance: z.number().min(0).optional(),
+  customsDuty: z.number().min(0).optional(),
+  igst: z.number().min(0).optional(),
+  handling: z.number().min(0).optional(),
+  otherCosts: z.number().min(0).optional(),
+  marginPercent: z.number().min(0).max(1000).optional(),
   notes: z.string().max(2000).optional(),
 });
 
@@ -70,7 +70,8 @@ export async function adminLandedCostRoutes(app: FastifyInstance): Promise<void>
 
   app.post("/:id/landed-cost", async (req, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-    const body = CostBody.parse(req.body);
+    // Defaults belong only to creation; PATCH must preserve omitted stored values.
+    const body = { currency: "INR", exchangeRate: 1, shipping: 0, insurance: 0, customsDuty: 0, igst: 0, handling: 0, otherCosts: 0, marginPercent: 0, ...CostBody.parse(req.body) };
 
     const vrfq = await prisma.vendorRfq.findUnique({ where: { id }, select: { id: true } });
     if (!vrfq) throw Errors.notFound("VendorRfq");

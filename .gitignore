@@ -17,6 +17,9 @@ uploads/
 stitch_compex_sourcing_procurement_platform/
 .gstack/
 
+# Private local recovery archives (may contain environment files and uploads)
+/.local-recovery/
+
 # Local QA Postgres bootstrap (portable binaries, data dir) — never commit
 .qa-infra/
 

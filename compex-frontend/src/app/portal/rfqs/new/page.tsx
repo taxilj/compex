@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, ChevronLeft, Plus, Trash2, Upload, CheckCircle, Loader2 } from "lucide-react";
 import { createRfq, addRfqItem, uploadBom, submitRfq, type RfqPriority } from "@/lib/api/rfqs";
 import { ApiError } from "@/lib/api/client";
+import { listRfqDocuments } from "@/lib/api/documents";
 
 type StepNum = 1 | 2 | 3 | 4 | 5;
 
@@ -37,6 +38,12 @@ export default function NewRFQPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedRfqId, setSubmittedRfqId] = useState<string | null>(null);
+  const [savedRfqId, setSavedRfqId] = useState<string | null>(null);
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
 
   const addComp = () =>
     setComps((prev) => [...prev, { id: `c${Date.now()}`, mpn: "", manufacturer: "", quantity: "", targetPrice: "" }]);
@@ -48,6 +55,7 @@ export default function NewRFQPage() {
   const back = () => { setSubmitError(null); setStep((s) => (Math.max(s - 1, 1) as StepNum)); };
 
   const handleSubmit = async () => {
+    if (submitting || savedRfqId) return;
     const validComps = comps.filter((c) => c.mpn.trim());
     if (!bomFile && validComps.length === 0) {
       setSubmitError("Add at least one component or select a BOM file.");
@@ -75,11 +83,35 @@ export default function NewRFQPage() {
         ].filter(Boolean).join("\n") || undefined,
       });
 
+      if (!active.current) return;
+      setSavedRfqId(rfq.id);
+
       if (bomFile) {
-        await uploadBom(rfq.id, bomFile);
+        const upload = await uploadBom(rfq.id, bomFile);
+        let completed = false;
+        const deadline = Date.now() + 30_000;
+        while (Date.now() < deadline) {
+          if (!active.current) return;
+          const document = (await listRfqDocuments(rfq.id)).find((doc) => doc.id === upload.jobId);
+          if (!active.current) return;
+          if (!document || document.processingStatus === "FAILED") {
+            setSubmitError("BOM processing could not be confirmed. Open the saved RFQ to review the file.");
+            return;
+          }
+          if (document.processingStatus === "COMPLETED") {
+            completed = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        if (!completed) {
+          setSubmitError("Your BOM is still processing. Open the saved RFQ to continue; no need to create another one.");
+          return;
+        }
       }
 
       for (const c of validComps) {
+        if (!active.current) return;
         await addRfqItem(rfq.id, {
           mpn: c.mpn.trim(),
           manufacturer: c.manufacturer.trim() || undefined,
@@ -88,15 +120,18 @@ export default function NewRFQPage() {
         });
       }
 
+      if (!active.current) return;
       await submitRfq(rfq.id);
+      if (!active.current) return;
       setSubmittedRfqId(rfq.id);
       setStep(5);
     } catch (err) {
+      if (!active.current) return;
       setSubmitError(
         err instanceof ApiError ? err.message : "Submission failed. Please try again."
       );
     } finally {
-      setSubmitting(false);
+      if (active.current) setSubmitting(false);
     }
   };
 
@@ -136,24 +171,24 @@ export default function NewRFQPage() {
             <h2 className="font-headline-sm text-[#111c2d]">Company Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Company Name</label>
-                <input type="text" value={req.company} onChange={(e) => setReq((r) => ({ ...r, company: e.target.value }))} className={INPUT_CLS} />
+                <label htmlFor="rfq-company" className="block font-label-sm text-[#44474d] mb-1.5">Company Name</label>
+                <input id="rfq-company" type="text" value={req.company} onChange={(e) => setReq((r) => ({ ...r, company: e.target.value }))} className={INPUT_CLS} />
               </div>
               <div>
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Contact Person</label>
-                <input type="text" value={req.contact} onChange={(e) => setReq((r) => ({ ...r, contact: e.target.value }))} className={INPUT_CLS} />
+                <label htmlFor="rfq-contact" className="block font-label-sm text-[#44474d] mb-1.5">Contact Person</label>
+                <input id="rfq-contact" type="text" value={req.contact} onChange={(e) => setReq((r) => ({ ...r, contact: e.target.value }))} className={INPUT_CLS} />
               </div>
               <div>
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Email Address</label>
-                <input type="email" value={req.email} onChange={(e) => setReq((r) => ({ ...r, email: e.target.value }))} className={INPUT_CLS} />
+                <label htmlFor="rfq-email" className="block font-label-sm text-[#44474d] mb-1.5">Email Address</label>
+                <input id="rfq-email" type="email" value={req.email} onChange={(e) => setReq((r) => ({ ...r, email: e.target.value }))} className={INPUT_CLS} />
               </div>
               <div>
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Phone Number</label>
-                <input type="tel" value={req.phone} onChange={(e) => setReq((r) => ({ ...r, phone: e.target.value }))} className={INPUT_CLS} />
+                <label htmlFor="rfq-phone" className="block font-label-sm text-[#44474d] mb-1.5">Phone Number</label>
+                <input id="rfq-phone" type="tel" value={req.phone} onChange={(e) => setReq((r) => ({ ...r, phone: e.target.value }))} className={INPUT_CLS} />
               </div>
               <div>
-                <label className="block font-label-sm text-[#44474d] mb-1.5">GSTIN</label>
-                <input type="text" value={req.gstin} onChange={(e) => setReq((r) => ({ ...r, gstin: e.target.value }))} className={INPUT_CLS} />
+                <label htmlFor="rfq-gstin" className="block font-label-sm text-[#44474d] mb-1.5">GSTIN</label>
+                <input id="rfq-gstin" type="text" value={req.gstin} onChange={(e) => setReq((r) => ({ ...r, gstin: e.target.value }))} className={INPUT_CLS} />
               </div>
             </div>
           </div>
@@ -166,7 +201,7 @@ export default function NewRFQPage() {
               <div className="flex gap-2">
                 <label className="flex items-center gap-2 px-3 py-1.5 border border-[#E4E7EC] rounded font-label-sm text-[#44474d] cursor-pointer hover:border-[#1769E0] hover:text-[#1769E0] transition-colors text-sm">
                   <Upload size={14} /> Upload BOM
-                  <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => setBomFile(e.target.files?.[0] ?? null)} />
+                  <input type="file" aria-label="BOM file" accept=".csv,.xlsx" className="hidden" onChange={(e) => setBomFile(e.target.files?.[0] ?? null)} />
                 </label>
                 <button onClick={addComp} className="flex items-center gap-2 px-3 py-1.5 bg-[#0B1F3A] text-white rounded font-label-sm hover:bg-[#1a3357] transition-colors text-sm">
                   <Plus size={14} /> Add Component
@@ -188,13 +223,13 @@ export default function NewRFQPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E4E7EC]">
-                  {comps.map((c) => (
+                  {comps.map((c, index) => (
                     <tr key={c.id}>
-                      <td className="py-2 px-3"><input type="text" value={c.mpn} onChange={(e) => updateComp(c.id, "mpn", e.target.value)} placeholder="e.g. STM32F103" className="w-full px-2 py-1.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:border-[#1769E0]" /></td>
-                      <td className="py-2 px-3"><input type="text" value={c.manufacturer} onChange={(e) => updateComp(c.id, "manufacturer", e.target.value)} placeholder="Manufacturer" className="w-full px-2 py-1.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:border-[#1769E0]" /></td>
-                      <td className="py-2 px-3"><input type="number" value={c.quantity} onChange={(e) => updateComp(c.id, "quantity", e.target.value)} className="w-full px-2 py-1.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:border-[#1769E0]" /></td>
-                      <td className="py-2 px-3"><input type="number" value={c.targetPrice} onChange={(e) => updateComp(c.id, "targetPrice", e.target.value)} className="w-full px-2 py-1.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:border-[#1769E0]" /></td>
-                      <td className="py-2 px-3"><button onClick={() => removeComp(c.id)} disabled={comps.length === 1} className="p-1.5 text-[#44474d] hover:text-[#F04438] disabled:opacity-30 transition-colors rounded"><Trash2 size={16} /></button></td>
+                      <td className="py-2 px-3"><input type="text" aria-label={`Part number for line ${index + 1}`} value={c.mpn} onChange={(e) => updateComp(c.id, "mpn", e.target.value)} placeholder="e.g. STM32F103" className="w-full px-2 py-1.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:border-[#1769E0]" /></td>
+                      <td className="py-2 px-3"><input type="text" aria-label={`Manufacturer for line ${index + 1}`} value={c.manufacturer} onChange={(e) => updateComp(c.id, "manufacturer", e.target.value)} placeholder="Manufacturer" className="w-full px-2 py-1.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:border-[#1769E0]" /></td>
+                      <td className="py-2 px-3"><input type="number" aria-label={`Quantity for line ${index + 1}`} min={1} step={1} value={c.quantity} onChange={(e) => updateComp(c.id, "quantity", e.target.value)} className="w-full px-2 py-1.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:border-[#1769E0]" /></td>
+                      <td className="py-2 px-3"><input type="number" aria-label={`Target price for line ${index + 1}`} value={c.targetPrice} onChange={(e) => updateComp(c.id, "targetPrice", e.target.value)} className="w-full px-2 py-1.5 border border-[#E4E7EC] rounded font-body-sm text-[#111c2d] focus:outline-none focus:border-[#1769E0]" /></td>
+                      <td className="py-2 px-3"><button aria-label={`Remove component ${index + 1}`} onClick={() => removeComp(c.id)} disabled={comps.length === 1} className="p-1.5 text-[#44474d] hover:text-[#F04438] disabled:opacity-30 transition-colors rounded"><Trash2 size={16} /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -208,24 +243,24 @@ export default function NewRFQPage() {
             <h2 className="font-headline-sm text-[#111c2d]">Delivery Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Delivery Location</label>
-                <input type="text" value={delivery.location} onChange={(e) => setDelivery((d) => ({ ...d, location: e.target.value }))} placeholder="City, State" className={INPUT_CLS} />
+                <label htmlFor="rfq-location" className="block font-label-sm text-[#44474d] mb-1.5">Delivery Location</label>
+                <input id="rfq-location" type="text" value={delivery.location} onChange={(e) => setDelivery((d) => ({ ...d, location: e.target.value }))} placeholder="City, State" className={INPUT_CLS} />
               </div>
               <div>
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Required Date</label>
-                <input type="date" value={delivery.requiredDate} onChange={(e) => setDelivery((d) => ({ ...d, requiredDate: e.target.value }))} className={INPUT_CLS} />
+                <label htmlFor="rfq-date" className="block font-label-sm text-[#44474d] mb-1.5">Required Date</label>
+                <input id="rfq-date" type="date" value={delivery.requiredDate} onChange={(e) => setDelivery((d) => ({ ...d, requiredDate: e.target.value }))} className={INPUT_CLS} />
               </div>
               <div>
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Priority</label>
-                <select value={delivery.priority} onChange={(e) => setDelivery((d) => ({ ...d, priority: e.target.value }))} className={INPUT_CLS}>
+                <label htmlFor="rfq-priority" className="block font-label-sm text-[#44474d] mb-1.5">Priority</label>
+                <select id="rfq-priority" value={delivery.priority} onChange={(e) => setDelivery((d) => ({ ...d, priority: e.target.value }))} className={INPUT_CLS}>
                   <option value="low">Low</option>
                   <option value="standard">Standard</option>
                   <option value="urgent">Urgent</option>
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="block font-label-sm text-[#44474d] mb-1.5">Additional Requirements</label>
-                <textarea value={delivery.notes} onChange={(e) => setDelivery((d) => ({ ...d, notes: e.target.value }))} rows={4} placeholder="Certifications, special requirements, or notes..." className="w-full px-3 py-2.5 border border-[#E4E7EC] rounded font-body-md text-[#111c2d] focus:outline-none focus:border-[#1769E0] resize-none" />
+                <label htmlFor="rfq-notes" className="block font-label-sm text-[#44474d] mb-1.5">Additional Requirements</label>
+                <textarea id="rfq-notes" value={delivery.notes} onChange={(e) => setDelivery((d) => ({ ...d, notes: e.target.value }))} rows={4} placeholder="Certifications, special requirements, or notes..." className="w-full px-3 py-2.5 border border-[#E4E7EC] rounded font-body-md text-[#111c2d] focus:outline-none focus:border-[#1769E0] resize-none" />
               </div>
             </div>
           </div>
@@ -292,7 +327,10 @@ export default function NewRFQPage() {
               </div>
             </div>
             {submitError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-4 py-2">{submitError}</p>
+              <div role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-4 py-2">
+                <p>{submitError}</p>
+                {savedRfqId && <Link href={`/portal/rfqs/${savedRfqId}`} className="mt-2 inline-block text-[#1769E0] underline">Open saved RFQ</Link>}
+              </div>
             )}
           </div>
         )}
@@ -320,7 +358,7 @@ export default function NewRFQPage() {
         <div className="flex items-center justify-between">
           <div className="flex gap-3">
             {step > 1 && (
-              <button onClick={back} className="flex items-center gap-2 px-4 py-2 border border-[#E4E7EC] text-[#44474d] rounded font-label-md hover:bg-[#f0f3ff] transition-colors">
+              <button onClick={back} disabled={submitting || !!savedRfqId} className="flex items-center gap-2 px-4 py-2 border border-[#E4E7EC] text-[#44474d] rounded font-label-md hover:bg-[#f0f3ff] transition-colors disabled:opacity-60">
                 <ChevronLeft size={16} /> Back
               </button>
             )}
@@ -332,7 +370,7 @@ export default function NewRFQPage() {
                 Continue <ChevronRight size={16} />
               </button>
             ) : (
-              <button onClick={handleSubmit} disabled={submitting} className="flex items-center gap-2 bg-[#0B1F3A] text-white px-6 py-2 rounded font-label-md hover:bg-[#1a3357] transition-colors disabled:opacity-60">
+              <button onClick={handleSubmit} disabled={submitting || !!savedRfqId} className="flex items-center gap-2 bg-[#0B1F3A] text-white px-6 py-2 rounded font-label-md hover:bg-[#1a3357] transition-colors disabled:opacity-60">
                 {submitting ? <><Loader2 size={16} className="animate-spin" /> Submitting…</> : <>Submit RFQ <ChevronRight size={16} /></>}
               </button>
             )}

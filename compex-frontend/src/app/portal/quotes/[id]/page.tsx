@@ -93,7 +93,7 @@ export default function QuoteDetailPage() {
       {isAccepted && (
         <div className="bg-[#12B76A]/10 border border-[#12B76A]/30 rounded-lg p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-[#12B76A]" />
-          <p className="font-label-md text-[#12B76A]">Quote accepted! Our team will create your Sales Order shortly.</p>
+          <p className="font-label-md text-[#12B76A]">Quote accepted. Compex will contact you to confirm the next steps.</p>
         </div>
       )}
 

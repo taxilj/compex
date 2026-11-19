@@ -90,6 +90,9 @@ async function call(route: CapturedRoute, role: Role | null) {
 }
 
 describe("admin route inventory", () => {
+  it("does not expose a second local financial backend alongside ERPNext", () => {
+    expect(captured.filter(route => /^\/api\/v1\/(admin\/)?(orders|purchase-orders|invoices|shipments)(\/|$)/.test(route.url))).toEqual([]);
+  });
   it("finds the admin API (guards against the capture silently matching nothing)", () => {
     expect(adminRoutes().length).toBeGreaterThan(60);
     expect(adminRoutes().map((r) => `${r.method} ${r.url}`)).toEqual(

@@ -20,6 +20,8 @@ interface AuditParams {
 const SENSITIVE_AUDIT_KEYS = new Set([
   "bankdetails", "bankname", "bankaccount", "bankaddress", "swiftifscmicr", "routingcode",
   "creditlimit", "shippingaccount", "internalaccountnumber", "passwordhash", "tokenhash",
+  "ffaccount", "unitcost", "productcost", "landedcost", "customerprice", "unitprice",
+  "marginpercent", "othercosts", "internaloffers",
 ]);
 const MAX_REDACT_DEPTH = 10;
 
@@ -37,7 +39,8 @@ export function redactAuditValue(value: unknown, depth = 0): unknown {
   if (!isPlainObject(value)) return value;
   const redacted: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (SENSITIVE_AUDIT_KEYS.has(key.toLowerCase())) continue;
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (SENSITIVE_AUDIT_KEYS.has(normalized) || /password|token|secret|apikey/.test(normalized)) continue;
     redacted[key] = redactAuditValue(entry, depth + 1);
   }
   return redacted;

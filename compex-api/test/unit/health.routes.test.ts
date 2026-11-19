@@ -76,6 +76,15 @@ describe("GET /health (real app, dependencies down)", () => {
     expect(res.statusCode).toBe(200);
   });
 
+  it("sends restrictive API security headers on successful and error responses", async () => {
+    for (const url of ["/health", "/api/v1/admin/users"]) {
+      const res = await app.inject({ method: "GET", url });
+      expect(res.headers["content-security-policy"]).toContain("default-src 'none'");
+      expect(res.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+      expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    }
+  });
+
   it("returns JSON exactly { status: 'ok' }", async () => {
     const res = await app.inject({ method: "GET", url: "/health" });
     expect(res.headers["content-type"]).toMatch(/application\/json/);

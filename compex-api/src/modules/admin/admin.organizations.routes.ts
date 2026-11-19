@@ -17,7 +17,7 @@ const OrganizationBody = z.object({
   website: z.string().max(300).optional(),
   contactPerson: z.string().max(200).optional(),
   ffAccount: z.string().max(200).optional(),
-  currency: z.string().length(3).default("INR"),
+  currency: z.string().length(3).optional(),
   companyRegistrationNo: z.string().max(100).optional(),
   invoicePrefix: z.string().max(20).optional(),
   proformaInvoicePrefix: z.string().max(20).optional(),

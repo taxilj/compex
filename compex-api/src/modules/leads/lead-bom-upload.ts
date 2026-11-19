@@ -1,11 +1,10 @@
 import type { FastifyRequest } from "fastify";
-import path from "node:path";
 import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { Errors } from "../../lib/errors.js";
 import { audit } from "../../lib/audit.js";
 import { getStorage, enqueueBomJob } from "../documents/documents.service.js";
-import { ALLOWED_EXTS, ALLOWED_MIMES, MAX_BYTES } from "../documents/bom-upload.js";
+import { readBomFile } from "../documents/bom-file.js";
 import { describeError } from "../../lib/safe-log.js";
 
 // Safe metadata only -- never storageKey, never raw file contents.
@@ -49,9 +48,7 @@ export async function leadBomUploadHandler(req: FastifyRequest, leadId: string) 
 
   // Always drain the multipart stream before branching, so an idempotent
   // duplicate-upload response never leaves the request body unconsumed.
-  const data = await req.file();
-  if (!data) throw Errors.validation("No file uploaded");
-  const buffer = await data.toBuffer();
+  const { filename, buffer, mime, ext } = await readBomFile(req);
 
   // Idempotent: a lead accepts exactly one *in-flight or successful* BOM
   // document. A retry (network blip, duplicate click) must not create a
@@ -75,26 +72,6 @@ export async function leadBomUploadHandler(req: FastifyRequest, leadId: string) 
     // this a no-op when a job already exists, so it can never double-parse.
     if (preCheck.processingStatus === "UPLOADED") await enqueueBomJob(preCheck.id, { documentId: preCheck.id, leadId });
     return toResult(preCheck, true);
-  }
-
-  const ext = path.extname(data.filename).toLowerCase();
-  if (!ALLOWED_EXTS.has(ext)) {
-    throw Errors.validation("Only .xlsx and .csv files are allowed");
-  }
-
-  const mime = data.mimetype.split(";")[0].trim();
-  if (!ALLOWED_MIMES.has(mime) && mime !== "application/octet-stream") {
-    throw Errors.validation("Invalid file type");
-  }
-
-  if (buffer.length > MAX_BYTES) {
-    throw Errors.validation("File exceeds 10 MB limit");
-  }
-
-  // Basic file signature check for XLSX (PK zip magic bytes) -- same check
-  // used by the authenticated portal upload.
-  if (ext === ".xlsx" && (buffer[0] !== 0x50 || buffer[1] !== 0x4b)) {
-    throw Errors.validation("File does not appear to be a valid XLSX file");
   }
 
   const key = `bom/leads/${leadId}/${crypto.randomUUID()}${ext}`;
@@ -126,7 +103,7 @@ export async function leadBomUploadHandler(req: FastifyRequest, leadId: string) 
         data: {
           leadId,
           documentType: "BOM",
-          fileName: data.filename,
+          fileName: filename,
           storageKey: key,
           mimeType: mime,
           fileSizeBytes: buffer.length,

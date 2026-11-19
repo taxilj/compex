@@ -71,6 +71,7 @@ describe("GET /products/lookup", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().data.product).toBeNull();
     expect(response.json().data.sources).toHaveLength(3);
+    expect(response.body).not.toMatch(/MOUSER|DIGIKEY|ELEMENT14/);
   });
 
   it("returns 200 with product null and partial-failure sources when providers error, rather than a hard failure", async () => {
@@ -120,6 +121,7 @@ describe("GET /products/lookup", () => {
     expect(unknown.statusCode).toBe(200);
     expect(unknown.json().data.product).toBeNull();
     expect(unknown.json().data.sources[0].status).toBe("ERROR");
+    expect(unknown.body).not.toContain("DIGIKEY");
     expect(health.statusCode).toBe(200);
     expect(health.json()).toEqual({ status: "ok" });
     expect(valid.statusCode).toBe(200);

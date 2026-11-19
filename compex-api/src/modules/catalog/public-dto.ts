@@ -21,7 +21,17 @@ export function isPublicSafeSpecKey(name: string): boolean {
 // above -- but the customer-facing label must never name a specific
 // distributor. This strips the brand token from the label only; the value
 // is untouched.
-const PROVIDER_BRAND_TOKEN_PATTERN = /\b(digi-?key|mouser|element\s?14|newark|nexar|arrow|avnet)\b/gi;
+const PROVIDER_BRAND_TOKEN_PATTERN = /\b(digi-?key|mouser|element\s?14|farnell|newark|nexar|octopart|arrow|avnet)\b/gi;
+
+export function safeHttpUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length > 2048) return undefined;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function sanitizeSpecKeyLabel(name: string): string {
   const stripped = name.replace(PROVIDER_BRAND_TOKEN_PATTERN, "").replace(/\s{2,}/g, " ").trim();
@@ -60,8 +70,8 @@ export function toPublicProduct(product: Product & { manufacturer?: Manufacturer
     packageType: product.packageType,
     mountingType: product.mountingType,
     lifecycleStatus: product.lifecycleStatus,
-    datasheetUrl: product.datasheetUrl,
-    images: product.images,
+    datasheetUrl: safeHttpUrl(product.datasheetUrl) ?? null,
+    images: (product.images ?? []).map(safeHttpUrl).filter((url): url is string => Boolean(url)),
     manufacturer: product.manufacturer ? toPublicManufacturer(product.manufacturer) : null,
     category: product.category ? toPublicCategory(product.category) : null,
   };
@@ -70,7 +80,7 @@ export function toPublicProduct(product: Product & { manufacturer?: Manufacturer
 // Deliberately excludes source, sourceUrl -- internal sourcing metadata.
 export function toPublicManufacturer(manufacturer: Manufacturer) {
   const { id, name, slug, logoUrl, website, description, country } = manufacturer;
-  return { id, name, slug, logoUrl, website, description, country };
+  return { id, name, slug, logoUrl: safeHttpUrl(logoUrl) ?? null, website: safeHttpUrl(website) ?? null, description, country };
 }
 
 function toPublicCategory(category: Category) {

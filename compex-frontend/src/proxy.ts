@@ -8,15 +8,7 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get("access_token");
   if (!token) return NextResponse.redirect(new URL("/login", request.url));
 
-  // Orders, invoices and shipments now render explicit unavailable states.
-  // Keep the remaining prototypes out
-  // of authenticated workflows until matching API-backed modules exist.
-  // NOTE: "/admin/customers" is a real, API-backed, tested feature (see
-  // admin.customers.routes.ts and the AdminSidebar "Management" nav group) —
-  // it must not be redirected alongside the genuinely unbuilt mock pages below.
-  // "/admin/products" was previously listed here too, but it is also real and
-  // API-backed (lib/api/admin.ts: listAdminProducts/createProduct/updateProduct) —
-  // that was a bug hiding working functionality, not an unbuilt page.
+  // Keep the remaining prototypes outside authenticated workflows.
   const { pathname } = request.nextUrl;
   const unsupportedAdminRoutes = [
     "/admin/reports",
