@@ -25,6 +25,60 @@ function reviewBom() {
   fireEvent.click(screen.getByRole("button", { name: "Submit RFQ" }));
 }
 
+function reviewManual(mpn: string, quantity: string, price = "") {
+  render(<NewRFQPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.change(screen.getByLabelText("Part number for line 1"), { target: { value: mpn } });
+  fireEvent.change(screen.getByLabelText("Quantity for line 1"), { target: { value: quantity } });
+  fireEvent.change(screen.getByLabelText("Target price for line 1"), { target: { value: price } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Submit RFQ" }));
+}
+
+describe("portal manual submission", () => {
+  it("preserves scientific-notation quantities and target prices exactly", async () => {
+    reviewManual("QA-NUMERIC-001", "1e3", "1e2");
+    await screen.findByText("RFQ Submitted Successfully");
+    expect(addRfqItem).toHaveBeenCalledWith("saved-rfq", expect.objectContaining({ quantity: 1000, targetPriceUsd: 100 }));
+  });
+
+  it.each(["0", "1.5", "2147483648"])("rejects quantity %s before creating a draft", async (quantity) => {
+    reviewManual("QA-INVALID-001", quantity);
+    await screen.findByRole("alert");
+    expect(createRfq).not.toHaveBeenCalled();
+  });
+
+  it("rejects a negative target price before creating a draft", async () => {
+    reviewManual("QA-PRICE-001", "2", "-1");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Target prices");
+    expect(createRfq).not.toHaveBeenCalled();
+  });
+
+  it.each([{ price: "0", expected: 0 }, { price: "", expected: undefined }])("keeps zero and omitted prices distinct ($price)", async ({ price, expected }) => {
+    reviewManual("QA-PRICE-001", "2", price);
+    await screen.findByText("RFQ Submitted Successfully");
+    expect(addRfqItem).toHaveBeenCalledWith("saved-rfq", expect.objectContaining({ quantity: 2, targetPriceUsd: expected }));
+  });
+
+  it("retains an unfinished second line and blocks submission instead of dropping it", async () => {
+    render(<NewRFQPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.change(screen.getByLabelText("Part number for line 1"), { target: { value: "QA-COMPLETE-001" } });
+    fireEvent.change(screen.getByLabelText("Quantity for line 1"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Component" }));
+    fireEvent.change(screen.getByLabelText("Quantity for line 2"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit RFQ" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Complete or remove unfinished lines");
+    expect(createRfq).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByLabelText("Quantity for line 2")).toHaveValue(3);
+  });
+});
+
 describe("portal BOM submission", () => {
   it("waits for the uploaded document to finish before submitting the single saved RFQ", async () => {
     let finish!: (docs: RfqDocument[]) => void;

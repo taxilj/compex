@@ -56,13 +56,17 @@ export default function NewRFQPage() {
 
   const handleSubmit = async () => {
     if (submitting || savedRfqId) return;
-    const validComps = comps.filter((c) => c.mpn.trim());
+    const validComps = comps.filter((c) => [c.mpn, c.manufacturer, c.quantity, c.targetPrice].some((value) => value.trim()));
     if (!bomFile && validComps.length === 0) {
       setSubmitError("Add at least one component or select a BOM file.");
       return;
     }
-    if (validComps.some((c) => !Number.isInteger(Number(c.quantity)) || Number(c.quantity) < 1)) {
-      setSubmitError("Every component needs a whole-number quantity of at least 1.");
+    if (validComps.some((c) => !c.mpn.trim() || !Number.isInteger(Number(c.quantity)) || Number(c.quantity) < 1 || Number(c.quantity) > 2147483647)) {
+      setSubmitError("Every entered line needs a part number and a valid whole-number quantity. Complete or remove unfinished lines.");
+      return;
+    }
+    if (validComps.some((c) => c.targetPrice.trim() && (!Number.isFinite(Number(c.targetPrice)) || Number(c.targetPrice) < 0))) {
+      setSubmitError("Target prices must be valid amounts of zero or more, or left blank.");
       return;
     }
 
@@ -115,8 +119,8 @@ export default function NewRFQPage() {
         await addRfqItem(rfq.id, {
           mpn: c.mpn.trim(),
           manufacturer: c.manufacturer.trim() || undefined,
-          quantity: parseInt(c.quantity, 10) || 1,
-          targetPriceUsd: c.targetPrice ? parseFloat(c.targetPrice) : undefined,
+          quantity: Number(c.quantity),
+          targetPriceUsd: c.targetPrice.trim() ? Number(c.targetPrice) : undefined,
         });
       }
 
