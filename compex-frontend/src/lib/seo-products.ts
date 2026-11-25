@@ -55,7 +55,7 @@ export async function fetchProductSitemapUrls(): Promise<string[]> {
       const response = await fetch(`${base}/products?page=${page}&limit=${PAGE_SIZE}`, {
         headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(SEO_FETCH_TIMEOUT_MS),
-        next: { revalidate: 3600 },
+        next: { revalidate: 300 },
       });
       if (!response.ok) return [];
       const body = (await response.json()) as {

@@ -1,6 +1,9 @@
 import { fetchProductSitemapUrls } from "@/lib/seo-products";
 
-export const revalidate = 3600;
+// Keep the product sitemap reasonably fresh after an approved catalogue import.
+// A one-hour cache can leave crawlers with an empty sitemap after the first
+// catalogue load, so use a short ISR window while retaining CDN caching.
+export const revalidate = 300;
 
 function escapeXml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&apos;");
@@ -14,7 +17,7 @@ export async function GET(): Promise<Response> {
   return new Response(xml, {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
     },
   });
 }
