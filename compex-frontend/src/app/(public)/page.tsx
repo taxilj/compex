@@ -6,11 +6,13 @@ import { HeroSection } from "@/components/home/HeroSection";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { CategorySection } from "@/components/home/CategorySection";
 import { ManufacturerMarquee } from "@/components/home/ManufacturerMarquee";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { HOME_FAQS, homeStructuredData } from "@/lib/structured-data";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Compex Solution — Global Electronic Component Sourcing",
+  title: "Electronic Component Sourcing in India",
   description:
-    "B2B electronic component sourcing and procurement platform. Search an exact part number, submit a BOM and let Compex source from global manufacturers and distributors.",
+    "B2B electronic component sourcing for Indian manufacturers. Search an exact part number, submit a BOM, or request a quote from Compex Solution.",
   path: "/",
 });
 
@@ -36,6 +38,7 @@ const tools = [
 export default function HomePage() {
   return (
     <div className="flex flex-col w-full">
+      <JsonLd data={homeStructuredData} />
       <HeroSection />
 
       <FeaturedProducts />
@@ -103,6 +106,21 @@ export default function HomePage() {
               <Link key={ind} href="/industries" className="tag hover:border-[#1769E0] hover:text-[#1769E0]">
                 {ind}
               </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 px-4 md:px-8 border-b border-[#E4E7EC]" aria-labelledby="sourcing-faqs">
+        <div className="max-w-[960px] mx-auto">
+          <p className="font-label-md text-[#1769E0] uppercase tracking-widest mb-3">Sourcing FAQs</p>
+          <h2 id="sourcing-faqs" className="font-headline-lg text-[#0B1F3A] mb-8">Electronic component sourcing, explained</h2>
+          <div className="grid gap-4">
+            {HOME_FAQS.map((faq) => (
+              <article key={faq.question} className="rounded-lg border border-[#E4E7EC] bg-white p-5">
+                <h3 className="font-headline-sm text-[#0B1F3A] mb-2">{faq.question}</h3>
+                <p className="font-body-md text-[#44474d]">{faq.answer}</p>
+              </article>
             ))}
           </div>
         </div>

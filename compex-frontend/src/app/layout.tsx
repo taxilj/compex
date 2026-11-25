@@ -9,9 +9,9 @@ const inter = Inter({
   display: "swap",
 });
 
-const DEFAULT_TITLE = "Compex Solution — Global Electronic Component Sourcing";
+const DEFAULT_TITLE = "Electronic Component Sourcing in India | Compex Solution";
 const DEFAULT_DESCRIPTION =
-  "B2B electronic component sourcing and procurement platform. Streamline your supply chain with direct access to global manufacturers.";
+  "B2B electronic component sourcing for Indian manufacturers. Search exact part numbers, submit BOMs, and request sourcing support from Compex Solution.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -23,6 +23,7 @@ export const metadata: Metadata = {
     description: DEFAULT_DESCRIPTION,
     siteName: SITE_NAME,
     type: "website",
+    locale: "en_IN",
     images: ["/compex-logo.jpeg"],
   },
   twitter: { card: "summary", title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, images: ["/compex-logo.jpeg"] },
