@@ -1,12 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
-import ProductDetailPage from "./page";
+import ProductDetailClient from "./ProductDetailClient";
 import { getProduct, resolveProduct, type BackendProduct } from "@/lib/api/products";
 import { ApiError } from "@/lib/api/client";
-
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("manufacturerId=mfr-1"),
-}));
 
 vi.mock("@/lib/api/products", () => ({
   getProduct: vi.fn(),
@@ -34,7 +30,7 @@ function makeProduct(overrides: Partial<BackendProduct> = {}): BackendProduct {
 async function renderPage(mpn = "TLC555CP") {
   let result!: ReturnType<typeof render>;
   await act(async () => {
-    result = render(<ProductDetailPage params={Promise.resolve({ mpn })} />);
+    result = render(<ProductDetailClient mpn={mpn} manufacturerId="mfr-1" initialProduct={null} />);
   });
   return result;
 }
@@ -45,6 +41,16 @@ beforeEach(() => {
 });
 
 describe("product detail page", () => {
+  it("renders the server-provided catalogue product without a duplicate browser lookup", async () => {
+    await act(async () => {
+      render(<ProductDetailClient mpn="TLC555CP" manufacturerId="mfr-1" initialProduct={makeProduct()} />);
+    });
+
+    expect(await screen.findByRole("heading", { level: 1, name: "TLC555CP" })).toBeInTheDocument();
+    expect(getProduct).not.toHaveBeenCalled();
+    expect(resolveProduct).not.toHaveBeenCalled();
+  });
+
   it("renders a known local product immediately, without triggering the on-demand provider lookup", async () => {
     vi.mocked(getProduct).mockResolvedValue(makeProduct());
 

@@ -3,6 +3,7 @@ import { SITE_URL } from "@/lib/site";
 
 const PAGE_SIZE = 100;
 const MAX_PRODUCT_SITEMAP_ENTRIES = 10_000;
+const SEO_FETCH_TIMEOUT_MS = 5_000;
 
 function apiBaseUrl(): string | null {
   const value = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, "");
@@ -24,6 +25,7 @@ export async function fetchProductForSeo(mpn: string): Promise<BackendProduct | 
   try {
     const response = await fetch(`${base}/products/${encodeURIComponent(mpn)}`, {
       headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(SEO_FETCH_TIMEOUT_MS),
       next: { revalidate: 600 },
     });
     if (!response.ok) return null;
@@ -52,6 +54,7 @@ export async function fetchProductSitemapUrls(): Promise<string[]> {
     do {
       const response = await fetch(`${base}/products?page=${page}&limit=${PAGE_SIZE}`, {
         headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(SEO_FETCH_TIMEOUT_MS),
         next: { revalidate: 3600 },
       });
       if (!response.ok) return [];
