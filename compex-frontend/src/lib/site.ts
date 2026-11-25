@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 
 export const SITE_NAME = "Compex Solution";
+export const PRODUCT_SITEMAP_PATH = "/sitemap-products.xml";
 
 // Canonical host for absolute metadata URLs. Set NEXT_PUBLIC_SITE_URL to the production
 // domain (e.g. the custom domain) so canonical and Open Graph URLs point at it; the fallback
 // is the current live deployment.
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://compex-frontend.vercel.app").replace(/\/$/, "");
 
-// Indexable public routes (the sitemap). Dynamic product and manufacturer pages are not listed:
-// they need the catalogue API at build time and are discovered through the catalogue index pages.
+// Indexable public routes in the primary sitemap. Product detail URLs are
+// emitted separately by sitemap-products.xml so a catalogue refresh can update
+// them without changing this stable route list.
 export const PUBLIC_PATHS = [
   "/", "/products", "/categories", "/manufacturers", "/request-quote", "/contact", "/tools", "/tools/bom",
   "/tools/rfq", "/tools/calculators", "/resources", "/suppliers", "/industries", "/sourcing", "/services",

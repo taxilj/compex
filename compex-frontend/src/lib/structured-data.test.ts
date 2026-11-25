@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COMPANY_EMAIL, COMPANY_GSTIN, COMPANY_PHONE, COMPANY_POSTAL_ADDRESS } from "@/lib/constants/contact";
 import { SITE_URL } from "@/lib/site";
-import { HOME_FAQS, homeStructuredData, organizationStructuredData } from "./structured-data";
+import { HOME_FAQS, homeStructuredData, organizationStructuredData, productStructuredData } from "./structured-data";
 
 describe("home structured data", () => {
   it("uses the published company identity and factual contact details", () => {
@@ -38,5 +38,31 @@ describe("home structured data", () => {
     for (const field of ["aggregateRating", "review", "offers", "availability", "price"]) {
       expect(fields.has(field)).toBe(false);
     }
+  });
+});
+
+describe("product structured data", () => {
+  it("exposes the exact MPN and factual catalogue properties without commercial claims", () => {
+    const data = productStructuredData({
+      id: "p1",
+      mpn: "STM32F103C8T6",
+      name: "32-bit microcontroller",
+      description: "ARM Cortex-M3 microcontroller",
+      specifications: { Package: "LQFP-48", "Supply Voltage": "2V-3.6V" },
+      packageType: "LQFP-48",
+      mountingType: "Surface Mount",
+      lifecycleStatus: "ACTIVE",
+      datasheetUrl: "https://example.com/datasheet.pdf",
+      images: ["https://example.com/part.png"],
+      manufacturer: { id: "m1", name: "STMicroelectronics", slug: "st", logoUrl: null, website: null, description: null, country: "CH" },
+      category: { id: "c1", name: "Microcontrollers", description: null, parentId: null },
+    }, "/products/STM32F103C8T6");
+
+    const product = data["@graph"].find((item) => item["@type"] === "Product");
+    expect(product).toMatchObject({ mpn: "STM32F103C8T6", url: `${SITE_URL}/products/STM32F103C8T6` });
+    expect(product).toHaveProperty("brand.name", "STMicroelectronics");
+    expect(product).toHaveProperty("additionalProperty");
+    expect(product).not.toHaveProperty("offers");
+    expect(product).not.toHaveProperty("aggregateRating");
   });
 });

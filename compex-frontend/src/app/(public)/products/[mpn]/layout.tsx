@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/site";
+import { fetchProductForSeo } from "@/lib/seo-products";
 
-// The title comes from the URL's MPN, so it needs no API call and can never fail.
+// The URL always supplies the exact MPN. A read-only catalogue lookup enriches
+// the description when available, but never blocks metadata generation.
 export async function generateMetadata({ params }: { params: Promise<{ mpn: string }> }): Promise<Metadata> {
   const { mpn: rawMpn } = await params;
   let mpn = rawMpn;
@@ -10,9 +12,15 @@ export async function generateMetadata({ params }: { params: Promise<{ mpn: stri
   } catch {
     // malformed escape: keep the raw segment
   }
+  const product = await fetchProductForSeo(mpn);
+  const manufacturer = product?.manufacturer?.name;
+  const factualDescription = product
+    ? `${mpn}${manufacturer ? ` by ${manufacturer}` : ""}${product.name ? ` — ${product.name}` : ""}. View public specifications and request sourcing support from Compex Solution.`
+    : `Specifications, manufacturer and sourcing enquiry for ${mpn}. Request a quote for this part from Compex Solution.`;
+
   return pageMetadata({
     title: `${mpn} — Electronic Component`,
-    description: `Specifications, manufacturer and sourcing enquiry for ${mpn}. Request a quote for this part from Compex Solution.`,
+    description: factualDescription,
     path: `/products/${encodeURIComponent(mpn)}`,
   });
 }

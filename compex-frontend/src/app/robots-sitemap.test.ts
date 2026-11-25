@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import robots from "./robots";
 import sitemap from "./sitemap";
-import { PRIVATE_PATHS, PUBLIC_PATHS, SITE_URL } from "@/lib/site";
+import { PRIVATE_PATHS, PRODUCT_SITEMAP_PATH, PUBLIC_PATHS, SITE_URL } from "@/lib/site";
 
 const APP_DIR = __dirname;
 const pageFile = (route: string) =>
@@ -20,7 +20,7 @@ describe("robots.txt", () => {
     for (const route of ["/admin", "/portal", "/login", "/register", "/verify-email", "/setup-account", "/tools/search-multiple"]) {
       expect(rule.disallow).toContain(route);
     }
-    expect(output.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
+    expect(output.sitemap).toEqual([`${SITE_URL}/sitemap.xml`, `${SITE_URL}${PRODUCT_SITEMAP_PATH}`]);
   });
 });
 

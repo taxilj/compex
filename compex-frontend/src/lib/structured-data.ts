@@ -6,6 +6,7 @@ import {
   COMPANY_POSTAL_ADDRESS,
 } from "@/lib/constants/contact";
 import { SITE_URL } from "@/lib/site";
+import type { BackendProduct } from "@/lib/api/products";
 
 export const HOME_FAQS = [
   {
@@ -74,5 +75,51 @@ export const homeStructuredData = {
     },
   ],
 } as const;
+
+/**
+ * Build factual schema for a catalogue product page. Commercial fields such as
+ * price, availability, ratings and offers are intentionally omitted because
+ * Compex does not publish verified values for them yet.
+ */
+export function productStructuredData(product: BackendProduct, path: string) {
+  const productUrl = `${SITE_URL}${path}`;
+  const description = product.description ?? product.name ?? `Electronic component ${product.mpn}.`;
+  const properties = Object.entries(product.specifications ?? {})
+    .filter(([name, value]) => String(name).trim() && String(value).trim())
+    .map(([name, value]) => ({
+      "@type": "PropertyValue",
+      name,
+      value: String(value),
+    }));
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Product",
+        "@id": `${productUrl}#product`,
+        name: product.name ? `${product.mpn} — ${product.name}` : product.mpn,
+        mpn: product.mpn,
+        description,
+        url: productUrl,
+        ...(product.images.length > 0 ? { image: product.images } : {}),
+        ...(product.manufacturer ? {
+          brand: { "@type": "Brand", name: product.manufacturer.name },
+          manufacturer: { "@type": "Organization", name: product.manufacturer.name },
+        } : {}),
+        ...(product.category?.name ? { category: product.category.name } : {}),
+        ...(properties.length > 0 ? { additionalProperty: properties } : {}),
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+          { "@type": "ListItem", position: 2, name: "Products", item: `${SITE_URL}/products` },
+          { "@type": "ListItem", position: 3, name: product.mpn, item: productUrl },
+        ],
+      },
+    ],
+  } as const;
+}
 
 export { organization as organizationStructuredData };

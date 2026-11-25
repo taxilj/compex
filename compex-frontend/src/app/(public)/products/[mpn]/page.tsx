@@ -7,6 +7,8 @@ import { FileText, ShoppingCart, Package } from "lucide-react";
 import { getProduct, resolveProduct, type BackendProduct, type OnDemandProviderEntry } from "@/lib/api/products";
 import { ApiError } from "@/lib/api/client";
 import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { productStructuredData } from "@/lib/structured-data";
 
 // Defense-in-depth only -- the backend (public-dto.ts's
 // filterPublicSpecifications) is the authoritative filter and never sends
@@ -161,9 +163,11 @@ function ProductDetailContent({ mpn, manufacturerId }: { mpn: string; manufactur
 
   const specifications = specEntries(product.specifications);
   const imageUrl = product.images[0];
+  const productPath = `/products/${encodeURIComponent(product.mpn)}`;
 
   return (
     <div className="max-w-[1280px] mx-auto px-6 py-12 space-y-10">
+      <JsonLd data={productStructuredData(product, productPath)} />
       <BreadcrumbShell current={product.mpn} />
 
       <div className="flex flex-col lg:flex-row gap-8">
