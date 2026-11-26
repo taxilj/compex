@@ -55,6 +55,26 @@ describe("mapDigiKeyProduct (DigiKey -> RawCatalogItem)", () => {
     expect(item.lifecycleStatus).toBe("Obsolete");
   });
 
+  it("normalizes DigiKey circular connector products into the Connectors category", () => {
+    const item = mapDigiKeyProduct({
+      ...fixture,
+      Category: "Tools",
+      ProductDescription: "Circular Connector Plug",
+      DetailedDescription: "3 Position Circular Connector Plug, Female Sockets Solder Cup",
+    });
+    expect(item.category).toBe("Connectors");
+  });
+
+  it("does not relabel generic connector tooling as a connector product", () => {
+    const item = mapDigiKeyProduct({
+      ...fixture,
+      Category: "Tools",
+      ProductDescription: "Connector extraction tool",
+      DetailedDescription: "Hand tool for removing connector contacts",
+    });
+    expect(item.category).toBe("Tools");
+  });
+
   it("produces an empty mpn (filtered out by the fetcher) when ManufacturerPartNumber is missing", () => {
     expect(mapDigiKeyProduct({ ...fixture, ManufacturerPartNumber: undefined }).mpn).toBe("");
   });

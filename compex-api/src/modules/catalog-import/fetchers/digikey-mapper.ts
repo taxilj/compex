@@ -36,7 +36,18 @@ export function mapDigiKeyProduct(product: DigiKeyProduct): RawCatalogItem {
   if (product.RoHSStatus) specifications.rohsStatus = product.RoHSStatus;
 
   const manufacturer = typeof product.Manufacturer === "string" ? product.Manufacturer : product.Manufacturer?.Name;
-  const category = typeof product.Category === "string" ? product.Category : product.Category?.Name;
+  const sourceCategory = typeof product.Category === "string" ? product.Category : product.Category?.Name;
+  const productText = [product.ProductDescription, product.DetailedDescription].filter(Boolean).join(" ");
+  // DigiKey's category field is occasionally broad/inaccurate for circular
+  // connector SKUs (the API can return "Tools" for these parts). The product
+  // description is the authoritative product-type cue, so keep the public
+  // taxonomy aligned with DigiKey's catalogue: connector plugs/receptacles
+  // belong under Connectors, not Tools. Do not reclassify generic connector
+  // tooling; require a connector product form (plug/receptacle).
+  const category = sourceCategory?.trim().toLowerCase() === "tools" &&
+    /\bconnector\b[\s-]+(?:plug|receptacle)\b/i.test(productText)
+    ? "Connectors"
+    : sourceCategory;
   const packageKey = Object.keys(specifications).find((key) => /package|case/i.test(key));
 
   return {

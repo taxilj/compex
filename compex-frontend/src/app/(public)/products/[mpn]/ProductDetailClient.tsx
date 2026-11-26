@@ -210,24 +210,7 @@ function ProductDetailContent({ mpn, manufacturerId, initialProduct }: { mpn: st
             </div>
           </div>
 
-          {/* Technical specifications */}
-          <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#E4E7EC]">
-              <h2 className="font-headline-sm text-[#111c2d]">Technical Specifications</h2>
-            </div>
-            {specifications.length > 0 ? (
-              <table className="w-full text-left"><tbody>
-                {specifications.map((specification) => (
-                  <tr key={`${specification.name}-${specification.value}`} className="border-b border-[#E4E7EC] last:border-0 hover:bg-[#f0f3ff]/40 transition-colors">
-                    <th className="py-3 px-5 font-label-md text-[#44474d] w-1/3 bg-[#f9f9ff] border-r border-[#E4E7EC]/50">{specification.name}</th>
-                    <td className="py-3 px-5 font-body-sm text-[#111c2d]">{specification.value}</td>
-                  </tr>
-                ))}
-              </tbody></table>
-            ) : <p className="px-6 py-6 font-body-sm text-[#44474d]">No specifications available for this product.</p>}
-          </div>
-
-          {/* Datasheet / documents */}
+          {/* Product context sits directly below the part number in the page flow. */}
           <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm px-6 py-4 flex items-center justify-between">
             <h2 className="font-headline-sm text-[#111c2d]">Documents</h2>
             {product.datasheetUrl ? (
@@ -245,6 +228,23 @@ function ProductDetailContent({ mpn, manufacturerId, initialProduct }: { mpn: st
           <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm p-6">
             <h2 className="font-headline-sm text-[#111c2d] mb-3">Description</h2>
             <p className="font-body-sm text-[#44474d] max-w-2xl break-words">{product.description ?? "No description available."}</p>
+          </div>
+
+          {/* Technical specifications */}
+          <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#E4E7EC]">
+              <h2 className="font-headline-sm text-[#111c2d]">Technical Specifications</h2>
+            </div>
+            {specifications.length > 0 ? (
+              <table className="w-full text-left"><tbody>
+                {specifications.map((specification) => (
+                  <tr key={`${specification.name}-${specification.value}`} className="border-b border-[#E4E7EC] last:border-0 hover:bg-[#f0f3ff]/40 transition-colors">
+                    <th className="py-3 px-5 font-label-md text-[#44474d] w-1/3 bg-[#f9f9ff] border-r border-[#E4E7EC]/50">{specification.name}</th>
+                    <td className="py-3 px-5 font-body-sm text-[#111c2d]">{specification.value}</td>
+                  </tr>
+                ))}
+              </tbody></table>
+            ) : <p className="px-6 py-6 font-body-sm text-[#44474d]">No specifications available for this product.</p>}
           </div>
         </div>
 

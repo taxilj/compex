@@ -151,4 +151,16 @@ describe("product detail page", () => {
     await screen.findByRole("heading", { level: 1, name: "TLC555CP" });
     expect(screen.getByText("Datasheet unavailable")).toBeInTheDocument();
   });
+
+  it("places documents and description above technical specifications", async () => {
+    vi.mocked(getProduct).mockResolvedValue(makeProduct());
+
+    await renderPage();
+
+    const documents = await screen.findByRole("heading", { name: "Documents" });
+    const description = screen.getByRole("heading", { name: "Description" });
+    const specifications = screen.getByRole("heading", { name: "Technical Specifications" });
+    expect(documents.compareDocumentPosition(specifications) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(description.compareDocumentPosition(specifications) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
