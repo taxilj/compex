@@ -576,7 +576,10 @@ export function createQuotationFromSourcing(rfqId: string, data: { marginPercent
 }
 
 export function sendAdminQuotation(id: string) {
-  return apiFetch<AdminQuotation>(`/admin/quotations/${id}/send`, { method: "POST" });
+  // Fastify's JSON parser rejects an empty POST body when the request passes
+  // through the frontend proxy. Send an explicit empty JSON object so the
+  // quotation-send action is reliable in production as well as in QA.
+  return apiFetch<AdminQuotation>(`/admin/quotations/${id}/send`, { method: "POST", body: "{}" });
 }
 
   export interface AdminLead {
