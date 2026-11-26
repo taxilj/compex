@@ -29,9 +29,9 @@ services:
       - key: SMTP_PASS
         sync: false
       - key: EMAIL_FROM
-        sync: false
+        value: info@compexsolution.com
       - key: ENQUIRY_ACK_ENABLED
-        value: "false"
+        value: "true"
       - key: TRUST_PROXY_HOPS
         value: "0"
       - key: ENQUIRY_NOTIFICATION_TO

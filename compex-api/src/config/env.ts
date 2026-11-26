@@ -30,10 +30,11 @@ const schema = z.object({
   // deployment is migrated to Resend. Rejecting it at boot makes a normal
   // deploy take the live service down before Resend is configured.
   EMAIL_PROVIDER: z.enum(["log", "smtp", "resend", "test"]).default("log"),
-  EMAIL_FROM: z.string().default("noreply@compexsolution.com"),
+  // Google Workspace sender confirmed by the owner for website mail.
+  EMAIL_FROM: z.string().default("info@compexsolution.com"),
   ENQUIRY_NOTIFICATION_TO: z.string().email().default("sales@compexsolution.com"),
-  // Off by default: a public form that emails arbitrary addresses is an abuse vector.
-  ENQUIRY_ACK_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  // The owner confirmed that every valid enquiry must receive an acknowledgement.
+  ENQUIRY_ACK_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),
