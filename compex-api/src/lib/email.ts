@@ -311,6 +311,7 @@ export function websiteEnquiryEmail(input: {
 <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#333">
   <h2>New ${input.source === "CONTACT" ? "Website Enquiry" : input.source === "BOM" ? "BOM Enquiry" : "RFQ"} — ${escapeHtml(input.referenceNumber)}</h2>
   <table style="width:100%;border-collapse:collapse">
+    <tr><td><strong>Origin</strong></td><td>Compex website (compex-frontend.vercel.app)</td></tr>
     <tr><td><strong>Reference</strong></td><td>${escapeHtml(input.referenceNumber)}</td></tr>
     <tr><td><strong>Source</strong></td><td>${escapeHtml(input.source.replaceAll("_", " "))}</td></tr>
     <tr><td><strong>Submitted</strong></td><td>${escapeHtml(input.submittedAt)}</td></tr>
