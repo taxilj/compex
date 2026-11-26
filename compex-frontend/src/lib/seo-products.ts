@@ -26,7 +26,11 @@ export async function fetchProductForSeo(mpn: string): Promise<BackendProduct | 
     const response = await fetch(`${base}/products/${encodeURIComponent(mpn)}`, {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(SEO_FETCH_TIMEOUT_MS),
-      next: { revalidate: 600 },
+      // Product categories and descriptions can be corrected by a catalogue
+      // import or migration. Do not let a stale Next/Vercel data-cache entry
+      // keep an old category (for example, Tools instead of Connectors) on a
+      // public product page after the backend has been updated.
+      cache: "no-store",
     });
     if (!response.ok) return null;
     const body = (await response.json()) as { success?: boolean; data?: BackendProduct };
